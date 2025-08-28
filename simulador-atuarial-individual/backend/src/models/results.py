@@ -1,0 +1,60 @@
+from pydantic import BaseModel
+from typing import List, Dict, Optional, Tuple
+from datetime import datetime
+
+
+class SimulatorResults(BaseModel):
+    """Resultados calculados da simulação"""
+    # Reservas Matemáticas
+    rmba: float                # Reserva de Benefícios a Conceder
+    rmbc: float                # Reserva de Benefícios Concedidos
+    normal_cost: float         # Custo Normal anual
+    
+    # Análise de Suficiência
+    deficit_surplus: float     # Déficit(-) ou Superávit(+) em R$
+    deficit_surplus_percentage: float  # Percentual do déficit/superávit
+    required_contribution_rate: float  # Taxa necessária para déficit zero (%)
+    
+    # Projeções anuais (vetores para gráficos)
+    projection_years: List[int]
+    projected_salaries: List[float]
+    projected_benefits: List[float]
+    projected_contributions: List[float]
+    survival_probabilities: List[float]
+    accumulated_reserves: List[float]
+    
+    # Métricas-chave
+    total_contributions: float  # Contribuições totais projetadas
+    total_benefits: float      # Benefícios totais projetados
+    replacement_ratio: float   # Taxa de reposição (%)
+    funding_ratio: Optional[float] = None  # Cobertura patrimonial
+    
+    # Análise detalhada de sensibilidade
+    sensitivity_discount_rate: Dict[float, float]  # Taxa → Impacto RMBA
+    sensitivity_mortality: Dict[str, float]        # Tabela → Impacto RMBA  
+    sensitivity_retirement_age: Dict[int, float]   # Idade → Impacto RMBA
+    sensitivity_salary_growth: Dict[float, float]  # Taxa → Impacto RMBA
+    sensitivity_inflation: Dict[float, float]      # Taxa → Impacto RMBA
+    
+    # Decomposição atuarial detalhada
+    actuarial_present_value_benefits: float        # VPA dos benefícios futuros
+    actuarial_present_value_salary: float          # VPA dos salários futuros
+    service_cost_breakdown: Dict[str, float]       # Decomposição do custo normal
+    liability_duration: float                      # Duration dos passivos
+    convexity: float                              # Convexidade para análise de risco
+    
+    # Análise de cenários
+    best_case_scenario: Dict[str, float]          # Cenário otimista (5%)
+    worst_case_scenario: Dict[str, float]         # Cenário pessimista (95%)
+    confidence_intervals: Dict[str, Tuple[float, float]]  # Intervalos de confiança
+    
+    # Metadados técnicos
+    calculation_timestamp: datetime
+    computation_time_ms: float
+    actuarial_method_details: Dict[str, str]      # Detalhes dos métodos utilizados
+    assumptions_validation: Dict[str, bool]       # Validação das premissas
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
