@@ -1,7 +1,7 @@
 import React from 'react';
 import { TrendingUp, DollarSign, AlertTriangle, CheckCircle } from 'lucide-react';
 import type { SimulatorResults } from '../../types';
-import { formatCurrency } from '../../utils';
+import { formatCurrency, formatPercentage } from '../../utils/formatting';
 import { Card, CardHeader, CardTitle, CardContent } from '../../design-system/components';
 
 interface ResultsCardProps {
@@ -10,10 +10,6 @@ interface ResultsCardProps {
 }
 
 const ResultsCard: React.FC<ResultsCardProps> = ({ results, loading }) => {
-
-  const formatPercentage = (value: number) => {
-    return `${(value * 100).toFixed(2)}%`;
-  };
 
   const getSuperavitStatus = (superavit: number) => {
     if (superavit > 3.0) return { color: 'success', icon: CheckCircle, text: 'Excelente' };

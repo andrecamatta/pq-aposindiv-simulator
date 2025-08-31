@@ -1,20 +1,31 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlmodel import Session
 import asyncio
 import json
-from typing import Dict, Any
+from typing import Dict, Any, List
 import uuid
 
 from ..models import SimulatorState, SimulatorResults
+from ..models.database import User, UserProfile, MortalityTable, ActuarialAssumption
 from ..core.actuarial_engine import ActuarialEngine
 from ..core.mortality_tables import get_mortality_table_info
+from ..database import get_session, init_database
+from ..repositories.user_repository import UserRepository, UserProfileRepository
+from ..repositories.mortality_repository import MortalityTableRepository
+from ..repositories.assumption_repository import ActuarialAssumptionRepository
 
 app = FastAPI(
     title="Simulador Atuarial Individual",
     description="API para simulação atuarial interativa individual",
     version="1.0.0"
 )
+
+# Inicializar banco de dados na inicialização da aplicação
+@app.on_event("startup")
+async def startup_event():
+    init_database()
 
 # CORS middleware
 app.add_middleware(
@@ -62,9 +73,16 @@ async def health_check():
 
 
 @app.get("/mortality-tables")
-async def get_mortality_tables():
+async def get_mortality_tables(session: Session = Depends(get_session)):
     """Retorna informações sobre todas as tábuas de mortalidade disponíveis"""
-    return get_mortality_table_info()
+    repo = MortalityTableRepository(session)
+    tables = repo.get_table_info()
+    
+    # Se não houver tábuas no banco, retornar as do sistema legado
+    if not tables:
+        return get_mortality_table_info()
+    
+    return {"tables": tables}
 
 
 @app.post("/calculate", response_model=SimulatorResults)
@@ -177,12 +195,236 @@ async def get_default_state():
         "benefit_indexation": "none",
         "contribution_indexation": "salary",
         "use_ettj": False,
+        "admin_fee_rate": 0.01,
+        "loading_fee_rate": 0.0,
         "payment_timing": "postecipado",
         "salary_months_per_year": 13,
         "benefit_months_per_year": 13,
         "projection_years": 40,
         "calculation_method": "PUC"
     }
+
+
+# Endpoints para gerenciamento de usuários e perfis
+@app.post("/users", response_model=dict)
+async def create_user(
+    user_data: dict, 
+    session: Session = Depends(get_session)
+):
+    """Criar novo usuário"""
+    repo = UserRepository(session)
+    
+    # Verificar se email já existe
+    if repo.email_exists(user_data["email"]):
+        raise HTTPException(status_code=400, detail="Email já está em uso")
+    
+    user = User(
+        name=user_data["name"],
+        email=user_data["email"]
+    )
+    
+    created_user = repo.create(user)
+    return {
+        "id": created_user.id,
+        "name": created_user.name,
+        "email": created_user.email,
+        "created_at": created_user.created_at
+    }
+
+
+@app.get("/users/{user_id}/profiles")
+async def get_user_profiles(
+    user_id: int,
+    session: Session = Depends(get_session)
+):
+    """Listar perfis de um usuário"""
+    repo = UserProfileRepository(session)
+    profiles = repo.get_by_user(user_id)
+    
+    return {
+        "profiles": [
+            {
+                "id": profile.id,
+                "profile_name": profile.profile_name,
+                "description": profile.description,
+                "is_favorite": profile.is_favorite,
+                "created_at": profile.created_at,
+                "updated_at": profile.updated_at
+            }
+            for profile in profiles
+        ]
+    }
+
+
+@app.post("/users/{user_id}/profiles")
+async def create_user_profile(
+    user_id: int,
+    profile_data: dict,
+    session: Session = Depends(get_session)
+):
+    """Criar novo perfil para usuário"""
+    repo = UserProfileRepository(session)
+    
+    # Validar dados do simulador
+    try:
+        simulator_state = SimulatorState(**profile_data["simulator_state"])
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Estado do simulador inválido: {str(e)}")
+    
+    profile = repo.create_with_simulator_state(
+        user_id=user_id,
+        profile_name=profile_data["profile_name"],
+        state=simulator_state,
+        description=profile_data.get("description")
+    )
+    
+    return {
+        "id": profile.id,
+        "profile_name": profile.profile_name,
+        "description": profile.description,
+        "created_at": profile.created_at
+    }
+
+
+@app.get("/users/{user_id}/profiles/{profile_id}")
+async def get_user_profile(
+    user_id: int,
+    profile_id: int,
+    session: Session = Depends(get_session)
+):
+    """Obter perfil específico do usuário"""
+    repo = UserProfileRepository(session)
+    profile = repo.get_by_id(profile_id)
+    
+    if not profile or profile.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Perfil não encontrado")
+    
+    return {
+        "id": profile.id,
+        "profile_name": profile.profile_name,
+        "description": profile.description,
+        "is_favorite": profile.is_favorite,
+        "simulator_state": profile.get_simulator_state().model_dump(),
+        "created_at": profile.created_at,
+        "updated_at": profile.updated_at
+    }
+
+
+@app.put("/users/{user_id}/profiles/{profile_id}")
+async def update_user_profile(
+    user_id: int,
+    profile_id: int,
+    profile_data: dict,
+    session: Session = Depends(get_session)
+):
+    """Atualizar perfil do usuário"""
+    repo = UserProfileRepository(session)
+    profile = repo.get_by_id(profile_id)
+    
+    if not profile or profile.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Perfil não encontrado")
+    
+    # Atualizar campos básicos
+    if "profile_name" in profile_data:
+        profile.profile_name = profile_data["profile_name"]
+    if "description" in profile_data:
+        profile.description = profile_data["description"]
+    
+    # Atualizar estado do simulador se fornecido
+    if "simulator_state" in profile_data:
+        try:
+            simulator_state = SimulatorState(**profile_data["simulator_state"])
+            profile.set_simulator_state(simulator_state)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Estado do simulador inválido: {str(e)}")
+    
+    updated_profile = repo.update(profile)
+    
+    return {
+        "id": updated_profile.id,
+        "profile_name": updated_profile.profile_name,
+        "description": updated_profile.description,
+        "updated_at": updated_profile.updated_at
+    }
+
+
+@app.delete("/users/{user_id}/profiles/{profile_id}")
+async def delete_user_profile(
+    user_id: int,
+    profile_id: int,
+    session: Session = Depends(get_session)
+):
+    """Deletar perfil do usuário"""
+    repo = UserProfileRepository(session)
+    profile = repo.get_by_id(profile_id)
+    
+    if not profile or profile.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Perfil não encontrado")
+    
+    success = repo.delete(profile)
+    if success:
+        return {"message": "Perfil deletado com sucesso"}
+    else:
+        raise HTTPException(status_code=500, detail="Erro ao deletar perfil")
+
+
+@app.post("/users/{user_id}/profiles/{profile_id}/toggle-favorite")
+async def toggle_profile_favorite(
+    user_id: int,
+    profile_id: int,
+    session: Session = Depends(get_session)
+):
+    """Alternar status de favorito do perfil"""
+    repo = UserProfileRepository(session)
+    profile = repo.get_by_id(profile_id)
+    
+    if not profile or profile.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Perfil não encontrado")
+    
+    updated_profile = repo.toggle_favorite(profile_id)
+    
+    return {
+        "id": updated_profile.id,
+        "is_favorite": updated_profile.is_favorite
+    }
+
+
+# Endpoints para premissas atuariais
+@app.get("/actuarial-assumptions")
+async def get_actuarial_assumptions(
+    category: str = None,
+    session: Session = Depends(get_session)
+):
+    """Listar premissas atuariais"""
+    repo = ActuarialAssumptionRepository(session)
+    
+    if category:
+        assumptions = repo.get_by_category(category)
+    else:
+        assumptions = repo.get_all()
+    
+    return {
+        "assumptions": [
+            {
+                "id": assumption.id,
+                "name": assumption.name,
+                "description": assumption.description,
+                "category": assumption.category,
+                "parameters": assumption.get_parameters(),
+                "is_default": assumption.is_default,
+                "is_system": assumption.is_system
+            }
+            for assumption in assumptions
+        ]
+    }
+
+
+@app.get("/actuarial-assumptions/categories")
+async def get_assumption_categories(session: Session = Depends(get_session)):
+    """Listar categorias de premissas atuariais"""
+    repo = ActuarialAssumptionRepository(session)
+    categories = repo.get_categories()
+    return {"categories": categories}
 
 
 if __name__ == "__main__":

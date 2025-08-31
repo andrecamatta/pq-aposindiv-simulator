@@ -117,6 +117,7 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
               return (
                 <button
                   key={tab.id}
+                  data-testid={`tab-${tab.id}`}
                   onClick={() => onTabChange(tab.id)}
                   className={`
                     relative flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm

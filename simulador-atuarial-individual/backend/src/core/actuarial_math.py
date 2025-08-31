@@ -1,6 +1,35 @@
 """
 Módulo de utilitários matemáticos atuariais
 Funções matemáticas especializadas para cálculos atuariais.
+
+PREMISSAS MATEMÁTICAS CORRIGIDAS (versão revisada):
+
+1. CONVENÇÕES DE TIMING:
+   - Antecipado: pagamento no início do período (t = 0, 1, 2, ...)
+   - Postecipado: pagamento no final do período (t = 1, 2, 3, ...)
+   - Ajuste temporal: 0.0 para antecipado, 1.0 para postecipado
+
+2. CONVERSÃO DE TAXAS:
+   - Anual → Mensal: (1 + i_anual)^(1/12) - 1
+   - Mensal → Anual: (1 + i_mensal)^12 - 1
+
+3. MORTALIDADE:
+   - Conversão anual → mensal: q_mensal = 1 - (1 - q_anual)^(1/12)
+   - Probabilidade de sobrevivência: p_x = 1 - q_x
+   - Validação: 0 ≤ q_x ≤ 1 para todas as idades
+
+4. VALOR PRESENTE ATUARIAL (VPA):
+   - Fórmula: VPA = Σ(CF_t × tPx × v^t)
+   - onde: CF_t = fluxo no tempo t, tPx = prob. sobrevivência, v^t = fator desconto
+
+5. PERÍODOS DE CÁLCULO:
+   - Fase ativa: meses 0 até (months_to_retirement - 1)
+   - Fase aposentado: meses months_to_retirement em diante
+   - Condições de loop corrigidas para evitar off-by-one errors
+
+6. BENEFÍCIO SUSTENTÁVEL:
+   - Fórmula: B_sustentável = (Saldo_Inicial + VPA_Contribuições) / Fator_Anuidade
+   - Garante equilíbrio atuarial: VPA_Benefícios = Recursos_Totais
 """
 
 import numpy as np
@@ -46,6 +75,7 @@ def calculate_discount_factor(rate: float, periods: int, timing: str = "postecip
     Returns:
         Fator de desconto
     """
+    # Usar convenção padrão: antecipado = 0.0, postecipado = 1.0
     timing_adjustment = 0.0 if timing == "antecipado" else 1.0
     adjusted_periods = periods + timing_adjustment
     return (1 + rate) ** adjusted_periods
@@ -69,6 +99,7 @@ def calculate_annuity_factor(
     Returns:
         Fator de anuidade
     """
+    # Usar convenção padrão: antecipado = 0.0, postecipado = 1.0  
     timing_adjustment = 0.0 if timing == "antecipado" else 1.0
     annuity_factor = 0.0
     
@@ -102,6 +133,7 @@ def calculate_life_annuity_factor(
     Returns:
         Fator de anuidade vitalícia
     """
+    # Usar convenção padrão: antecipado = 0.0, postecipado = 1.0
     timing_adjustment = 0.0 if timing == "antecipado" else 1.0
     annuity_factor = 0.0
     
@@ -306,6 +338,7 @@ def calculate_net_present_value(
     Returns:
         Valor presente líquido
     """
+    # Usar convenção padrão: antecipado = 0.0, postecipado = 1.0
     timing_adjustment = 0.0 if timing == "antecipado" else 1.0
     npv = 0.0
     

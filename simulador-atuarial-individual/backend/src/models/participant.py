@@ -59,6 +59,10 @@ class SimulatorState(BaseModel):
     use_ettj: bool = False
     ettj_curve: Optional[Dict[int, float]] = None  # {ano: taxa} para ETTJ ANBIMA/PREVIC
     
+    # Custos administrativos
+    admin_fee_rate: float = 0.01        # Taxa anual sobre saldo (1% default)
+    loading_fee_rate: float = 0.0       # Taxa de carregamento sobre contribuições (0% default)
+    
     # Configurações técnicas
     payment_timing: PaymentTiming = PaymentTiming.POSTECIPADO  # Timing dos pagamentos
     salary_months_per_year: int = 13    # Número de salários por ano (padrão 13º)

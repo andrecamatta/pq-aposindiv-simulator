@@ -67,13 +67,15 @@ const SimulatorApp: React.FC = () => {
   }
 
   return (
-    <TabbedDashboard
-      state={state}
-      results={results}
-      mortalityTables={mortalityTables}
-      onStateChange={updateState}
-      loading={loading}
-    />
+    <div data-testid="simulator-ready">
+      <TabbedDashboard
+        state={state}
+        results={results}
+        mortalityTables={mortalityTables}
+        onStateChange={updateState}
+        loading={loading}
+      />
+    </div>
   );
 };
 

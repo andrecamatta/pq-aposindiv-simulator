@@ -26,6 +26,10 @@ export interface SimulatorState {
   contribution_indexation: string;
   use_ettj: boolean;
   
+  // Custos administrativos
+  admin_fee_rate: number;      // Taxa anual sobre saldo
+  loading_fee_rate: number;    // Taxa de carregamento sobre contribuições
+  
   // Configurações técnicas
   payment_timing: PaymentTiming;
   salary_months_per_year: number;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { BarChart3, TrendingUp, TrendingDown, CheckCircle, AlertTriangle, Target, DollarSign, PieChart, Clock } from 'lucide-react';
 import type { SimulatorResults } from '../types';
-import { formatCurrency } from '../../utils';
+import { formatCurrency, formatPercentage } from '../utils/formatting';
 import { 
   Card, 
   CardHeader, 
@@ -19,15 +19,6 @@ interface ResultsDashboardProps {
   results: SimulatorResults | null;
   loading: boolean;
 }
-
-
-const formatPercentage = (value: number): string => {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'percent',
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 2,
-  }).format(value / 100);
-};
 
 const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading }) => {
   if (loading) {

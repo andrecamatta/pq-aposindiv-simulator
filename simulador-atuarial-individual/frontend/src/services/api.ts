@@ -14,7 +14,7 @@ export const api = axios.create({
 export const apiService = {
   async getMortalityTables(): Promise<MortalityTable[]> {
     const response = await api.get('/mortality-tables');
-    return response.data;
+    return response.data.tables || response.data;
   },
 
   async getDefaultState(): Promise<SimulatorState> {
@@ -53,7 +53,7 @@ export class WebSocketClient {
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const wsUrl = `ws://localhost:8000/ws/${this.clientId}`;
+        const wsUrl = `ws://localhost:8001/ws/${this.clientId}`;
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {

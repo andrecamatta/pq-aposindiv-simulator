@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
 import { HelpCircle } from 'lucide-react';
 import { Tooltip } from './Tooltip';
+import styles from './RangeSlider.module.css';
 
 const sliderVariants = cva(
   [
@@ -42,7 +43,7 @@ export interface RangeSliderProps
   showMinMax?: boolean;
 }
 
-const RangeSlider = React.forwardRef<HTMLInputElement, RangeSliderProps>(
+const RangeSlider = React.memo(React.forwardRef<HTMLInputElement, RangeSliderProps>(
   (
     {
       className,
@@ -66,13 +67,19 @@ const RangeSlider = React.forwardRef<HTMLInputElement, RangeSliderProps>(
     },
     ref
   ) => {
-    const sliderId = id || `slider-${React.useId()}`;
+    // Memoizar ID para evitar recriação desnecessária
+    const sliderId = useMemo(() => id || `slider-${Math.random().toString(36).substr(2, 9)}`, [id]);
     const hasError = Boolean(error);
-    const percentage = ((value - min) / (max - min)) * 100;
+    const percentage = useMemo(() => ((value - min) / (max - min)) * 100, [value, min, max]);
 
-    const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
       onChange(parseFloat(event.target.value));
-    };
+    }, [onChange]);
+
+    // Memoizar estilo do background para evitar recalculação desnecessária
+    const backgroundStyle = useMemo(() => ({
+      background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${percentage}%, #e5e7eb ${percentage}%, #e5e7eb 100%)`
+    }), [percentage]);
 
     return (
       <div className="space-y-3">
@@ -113,12 +120,11 @@ const RangeSlider = React.forwardRef<HTMLInputElement, RangeSliderProps>(
             disabled={disabled}
             className={cn(
               sliderVariants({ size }),
+              styles.rangeSlider,
               hasError && 'border-error-500 ring-error-500',
               className
             )}
-            style={{
-              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${percentage}%, #e5e7eb ${percentage}%, #e5e7eb 100%)`
-            }}
+            style={backgroundStyle}
             aria-describedby={
               error ? `${sliderId}-error` : helperText ? `${sliderId}-helper` : ariaDescribedBy
             }
@@ -154,64 +160,10 @@ const RangeSlider = React.forwardRef<HTMLInputElement, RangeSliderProps>(
             {helperText}
           </p>
         )}
-        
-        {/* Custom Styles for Thumb */}
-        <style jsx>{`
-          input[type="range"]::-webkit-slider-thumb {
-            appearance: none;
-            height: 20px;
-            width: 20px;
-            border-radius: 50%;
-            background: #ffffff;
-            border: 2px solid #3b82f6;
-            cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            transition: all 0.15s ease;
-          }
-          
-          input[type="range"]::-webkit-slider-thumb:hover {
-            transform: scale(1.1);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            border-color: #2563eb;
-          }
-          
-          input[type="range"]::-webkit-slider-thumb:active {
-            transform: scale(1.05);
-            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
-          }
-          
-          input[type="range"]::-moz-range-thumb {
-            height: 20px;
-            width: 20px;
-            border-radius: 50%;
-            background: #ffffff;
-            border: 2px solid #3b82f6;
-            cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            transition: all 0.15s ease;
-            border: none;
-          }
-          
-          input[type="range"]::-moz-range-track {
-            height: 8px;
-            border-radius: 4px;
-            background: #e5e7eb;
-            border: none;
-          }
-          
-          input[type="range"]:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-          }
-          
-          input[type="range"]:disabled::-webkit-slider-thumb {
-            cursor: not-allowed;
-          }
-        `}</style>
       </div>
     );
   }
-);
+));
 
 RangeSlider.displayName = 'RangeSlider';
 

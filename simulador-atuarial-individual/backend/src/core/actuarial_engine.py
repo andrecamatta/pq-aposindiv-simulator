@@ -7,6 +7,15 @@ import time
 from ..models import SimulatorState, SimulatorResults, BenefitTargetMode
 from .mortality_tables import get_mortality_table, MORTALITY_TABLES
 from .financial_math import present_value, annuity_value
+from ..utils import (
+    annual_to_monthly_rate,
+    get_timing_adjustment,
+    calculate_discount_factor,
+    calculate_actuarial_present_value,
+    calculate_vpa_benefits_contributions,
+    calculate_sustainable_benefit
+)
+from ..utils.vpa import calculate_vpa_contributions_with_admin_fees
 
 
 @dataclass
@@ -25,6 +34,10 @@ class ActuarialContext:
     monthly_contribution: float
     monthly_benefit: float
     
+    # Custos administrativos (taxas mensais)
+    admin_fee_monthly: float     # Taxa administrativa mensal sobre saldo
+    loading_fee_rate: float      # Taxa de carregamento sobre contribuições
+    
     # Configurações técnicas
     payment_timing: str  # "antecipado" ou "postecipado"
     salary_months_per_year: int
@@ -37,9 +50,9 @@ class ActuarialContext:
     @classmethod
     def from_state(cls, state: SimulatorState) -> 'ActuarialContext':
         """Cria contexto a partir do estado do simulador"""
-        # Conversão de taxas anuais para mensais: (1 + taxa_anual)^(1/12) - 1
-        discount_monthly = (1 + state.discount_rate) ** (1/12) - 1
-        salary_growth_monthly = (1 + state.salary_growth_real) ** (1/12) - 1
+        # Conversão de taxas anuais para mensais usando utilitário
+        discount_monthly = annual_to_monthly_rate(state.discount_rate)
+        salary_growth_monthly = annual_to_monthly_rate(state.salary_growth_real)
         
         # Períodos em meses - garantir horizonte adequado para aposentadoria
         months_to_retirement = (state.retirement_age - state.age) * 12
@@ -83,6 +96,10 @@ class ActuarialContext:
             # Se for taxa de reposição, será calculado na aposentadoria
             monthly_benefit = 0
         
+        # Custos administrativos
+        admin_fee_monthly = annual_to_monthly_rate(state.admin_fee_rate)
+        loading_fee_rate = state.loading_fee_rate
+        
         return cls(
             discount_rate_monthly=discount_monthly,
             salary_growth_real_monthly=salary_growth_monthly,
@@ -91,6 +108,8 @@ class ActuarialContext:
             monthly_salary=monthly_salary,
             monthly_contribution=monthly_contribution,
             monthly_benefit=monthly_benefit,
+            admin_fee_monthly=admin_fee_monthly,
+            loading_fee_rate=loading_fee_rate,
             payment_timing=payment_timing,
             salary_months_per_year=salary_months_per_year,
             benefit_months_per_year=benefit_months_per_year,
@@ -224,11 +243,11 @@ class ActuarialEngine:
         # Projeção salarial mensal considerando múltiplos pagamentos anuais
         monthly_salaries = []
         for month in projection_months:
-            if month < months_to_retirement:  # CORRIGIDO: < em vez de <=
+            if month < months_to_retirement:  # Fase ativa: meses 0 até months_to_retirement-1
                 # Crescimento mensal composto do salário base
                 base_monthly_salary = context.monthly_salary * ((1 + context.salary_growth_real_monthly) ** month)
                 
-                # Lógica corrigida: todos os 12 meses têm pagamento base
+                # Lógica de pagamentos: todos os 12 meses têm pagamento base
                 # Meses específicos têm pagamentos extras (13º, 14º, etc.)
                 current_month_in_year = month % 12  # 0=jan, 1=fev, ..., 11=dez
                 
@@ -245,6 +264,7 @@ class ActuarialEngine:
                         if extra_payments >= 2:
                             monthly_salary += base_monthly_salary
             else:
+                # Fase aposentado: sem salários
                 monthly_salary = 0.0
             monthly_salaries.append(monthly_salary)
         
@@ -261,8 +281,8 @@ class ActuarialEngine:
         # Projeção de benefícios mensais considerando múltiplos pagamentos anuais
         monthly_benefits = []
         for month in projection_months:
-            if month >= months_to_retirement:  # CORRIGIDO: >= em vez de >
-                # Lógica corrigida: todos os 12 meses têm pagamento base
+            if month >= months_to_retirement:  # Fase aposentado: meses months_to_retirement em diante
+                # Lógica de pagamentos: todos os 12 meses têm pagamento base
                 # Meses específicos têm pagamentos extras (13º, 14º, etc.)
                 current_month_in_year = month % 12  # 0=jan, 1=fev, ..., 11=dez
                 
@@ -281,12 +301,17 @@ class ActuarialEngine:
                 
                 monthly_benefits.append(monthly_benefit)
             else:
+                # Fase ativa: sem benefícios
                 monthly_benefits.append(0.0)
         
-        # Contribuições mensais
-        monthly_contributions = []
+        # Contribuições mensais (brutas e líquidas)
+        monthly_contributions_gross = []
+        monthly_contributions = []  # Contribuições líquidas após carregamento
         for monthly_salary in monthly_salaries:
-            monthly_contributions.append(monthly_salary * (state.contribution_rate / 100))
+            contribution_gross = monthly_salary * (state.contribution_rate / 100)
+            contribution_net = contribution_gross * (1 - context.loading_fee_rate)
+            monthly_contributions_gross.append(contribution_gross)
+            monthly_contributions.append(contribution_net)
         
         # Probabilidades de sobrevivência mensais
         monthly_survival_probs = []
@@ -296,18 +321,27 @@ class ActuarialEngine:
             current_age_years = state.age + (month / 12)
             age_index = int(current_age_years)
             
-            if age_index < len(mortality_table):
+            if age_index < len(mortality_table) and age_index >= 0:
                 # Conversão de probabilidade anual para mensal: q_mensal = 1 - (1 - q_anual)^(1/12)
                 q_x_annual = mortality_table[age_index]
-                q_x_monthly = 1 - ((1 - q_x_annual) ** (1/12))
-                p_x_monthly = 1 - q_x_monthly
-                cumulative_survival *= p_x_monthly
+                
+                # Validar taxa de mortalidade
+                if 0 <= q_x_annual <= 1:
+                    q_x_monthly = 1 - ((1 - q_x_annual) ** (1/12))
+                    p_x_monthly = 1 - q_x_monthly
+                    cumulative_survival *= p_x_monthly
+                else:
+                    # Taxa inválida, assumir mortalidade zero para este período
+                    cumulative_survival *= 1.0
             else:
+                # Idade fora da tábua, assumir sobrevivência zero
                 cumulative_survival = 0.0
             
+            # Garantir que sobrevivência não seja negativa
+            cumulative_survival = max(0.0, cumulative_survival)
             monthly_survival_probs.append(cumulative_survival)
         
-        # Reservas acumuladas mensais - simulação realística sem duplicação de mortalidade
+        # Reservas acumuladas mensais considerando custos administrativos
         monthly_reserves = []
         accumulated = state.initial_balance  # Iniciar com saldo inicial
         
@@ -315,11 +349,14 @@ class ActuarialEngine:
             # Capitalizar saldo existente mensalmente
             accumulated *= (1 + context.discount_rate_monthly)
             
-            if month < months_to_retirement:  # CORRIGIDO: < em vez de <=
-                # Adicionar contribuição mensal integral (sem aplicar mortalidade)
+            # Aplicar taxa administrativa mensal sobre o saldo
+            accumulated *= (1 - context.admin_fee_monthly)
+            
+            if month < months_to_retirement:  # Fase ativa: acumular contribuições
+                # Adicionar contribuição líquida (já com carregamento descontado)
                 accumulated += monthly_contributions[month]
             else:
-                # Descontar benefício mensal integral (sem aplicar mortalidade)
+                # Fase aposentado: descontar benefícios
                 accumulated -= monthly_benefits[month]
             
             # Permitir reservas negativas para análise realística de déficits
@@ -377,36 +414,23 @@ class ActuarialEngine:
         }
     
     def _calculate_rmba(self, state: SimulatorState, context: ActuarialContext, projections: Dict) -> float:
-        """Calcula Reserva Matemática de Benefícios a Conceder usando base mensal"""
+        """Calcula Reserva Matemática de Benefícios a Conceder (RMBA)"""
         monthly_data = projections["monthly_data"]
-        months_to_retirement = context.months_to_retirement
         
-        # Ajuste de timing para desconto temporal
-        timing_adjustment = 0.0  # Ajuste em meses
-        if context.payment_timing == "antecipado":
-            timing_adjustment = -0.5  # Pagamento 0.5 mês antes (início do período)
-        else:  # postecipado
-            timing_adjustment = 0.5   # Pagamento 0.5 mês depois (final do período)
+        # Usar utilitário para calcular VPAs de benefícios e contribuições
+        # IMPORTANTE: Agora considera o impacto da taxa administrativa no VPA das contribuições
+        vpa_benefits, vpa_contributions = calculate_vpa_benefits_contributions(
+            monthly_data["benefits"],
+            monthly_data["contributions"],
+            monthly_data["survival_probs"],
+            context.discount_rate_monthly,
+            context.payment_timing,
+            context.months_to_retirement,
+            context.admin_fee_monthly  # Passa a taxa administrativa
+        )
         
-        # VPA dos benefícios futuros (pós-aposentadoria) - somatório mensal com timing
-        apv_future_benefits = 0.0
-        for month, (benefit, survival_prob) in enumerate(zip(monthly_data["benefits"], monthly_data["survival_probs"])):
-            if month >= months_to_retirement and benefit > 0:  # CORRIGIDO: >= em vez de >
-                # Fator de desconto mensal ajustado pelo timing
-                adjusted_month = month + timing_adjustment
-                discount_factor = (1 + context.discount_rate_monthly) ** adjusted_month
-                apv_future_benefits += (benefit * survival_prob) / discount_factor
-        
-        # VPA das contribuições futuras (pré-aposentadoria) - somatório mensal com timing
-        apv_future_contributions = 0.0
-        for month, (contribution, survival_prob) in enumerate(zip(monthly_data["contributions"], monthly_data["survival_probs"])):
-            if month < months_to_retirement and contribution > 0:  # CORRIGIDO: < em vez de <=
-                # Fator de desconto mensal ajustado pelo timing
-                adjusted_month = month + timing_adjustment
-                discount_factor = (1 + context.discount_rate_monthly) ** adjusted_month
-                apv_future_contributions += (contribution * survival_prob) / discount_factor
-        
-        return apv_future_benefits - apv_future_contributions
+        # RMBA = VPA(Benefícios) - VPA(Contribuições)
+        return vpa_benefits - vpa_contributions
     
     def _calculate_rmbc(self, state: SimulatorState, projections: Dict) -> float:
         """Calcula Reserva Matemática de Benefícios Concedidos"""
@@ -470,140 +494,35 @@ class ActuarialEngine:
             target_replacement_ratio = (benefit_monthly_base / final_salary_monthly * 100) if final_salary_monthly > 0 else 0
         
         # TAXA DE REPOSIÇÃO SUSTENTÁVEL
-        # Definição: Percentual do salário final que pode ser pago como benefício mensal 
-        # de forma que não gere déficit nem superávit atuarial.
-        # 
-        # Fórmula base: VPA(Benefícios Sustentáveis) = Saldo Inicial + VPA(Contribuições Futuras)
-        # 
-        # Onde:
-        # - VPA(Benefícios Sustentáveis) = Benefício_Mensal_Sustentável × Fator_Anuidade_Vitalícia
-        # - Saldo Inicial = Reserva atual do participante
-        # - VPA(Contribuições Futuras) = Valor presente das contribuições até aposentadoria
-        # 
-        # Resolvendo para Benefício_Mensal_Sustentável:
-        # Benefício_Mensal_Sustentável = (Saldo Inicial + VPA(Contribuições)) / Fator_Anuidade_Vitalícia
-        # 
-        # Taxa de Reposição = (Benefício_Mensal_Sustentável / Salário_Final_Mensal) × 100
+        # Calcular usando o utilitário simplificado
         sustainable_monthly_benefit = 0
         sustainable_replacement_ratio = 0
         
         if final_salary_monthly > 0:
-            # ETAPA 1: Calcular recursos totais disponíveis para equilíbrio atuarial
-            months_to_retirement = len([s for s in monthly_data["salaries"] if s > 0])
+            # Calcular VPA das contribuições futuras considerando taxa administrativa
+            _, vpa_contributions = calculate_vpa_benefits_contributions(
+                monthly_data["benefits"],
+                monthly_data["contributions"],
+                monthly_data["survival_probs"],
+                context.discount_rate_monthly,
+                context.payment_timing,
+                context.months_to_retirement,
+                context.admin_fee_monthly
+            )
             
-            # Ajuste de timing consistente com o contexto atuarial
-            # - Antecipado: pagamento no início do período (-0.5 mês de desconto)
-            # - Postecipado: pagamento no final do período (+0.5 mês de desconto)
-            timing_adjustment = -0.5 if context.payment_timing == "antecipado" else 0.5
+            # Calcular benefício sustentável usando função utilitária
+            sustainable_monthly_benefit = calculate_sustainable_benefit(
+                state.initial_balance,
+                vpa_contributions,
+                monthly_data["survival_probs"],
+                context.discount_rate_monthly,
+                context.payment_timing,
+                context.months_to_retirement,
+                context.benefit_months_per_year
+            )
             
-            # ETAPA 1a: Calcular VPA das contribuições futuras até aposentadoria
-            # Usa método idêntico ao da RMBA para consistência total
-            apv_future_contributions = 0.0
-            for month, (contribution, survival_prob) in enumerate(zip(monthly_data["contributions"], monthly_data["survival_probs"])):
-                if month < months_to_retirement and contribution > 0:  # CORRIGIDO: < em vez de <=
-                    adjusted_month = month + timing_adjustment
-                    discount_factor = (1 + context.discount_rate_monthly) ** adjusted_month
-                    apv_future_contributions += (contribution * survival_prob) / discount_factor
-            
-            # ETAPA 1b: Recursos totais para equilíbrio atuarial
-            # Fórmula: Saldo Inicial + VPA(Contribuições Futuras)
-            total_resources_for_balance = state.initial_balance + apv_future_contributions
-            
-            # ETAPA 2: Calcular fator de anuidade vitalícia atuarial
-            mortality_table = get_mortality_table(state.mortality_table, state.gender.value)
-            retirement_age = state.retirement_age
-            
-            # ETAPA 2a: Calcular fator de anuidade vitalícia mensal desde a aposentadoria
-            # Fator representa o valor presente de uma anuidade de R$ 1,00 mensal vitalícia
-            # iniciando na aposentadoria, considerando desconto e mortalidade
-            annuity_pv_factor = 0.0
-            cumulative_survival_to_retirement = 1.0
-            
-            # ETAPA 2b: Calcular sobrevivência acumulada até aposentadoria (não utilizada no cálculo final)
-            for month in range(months_to_retirement):
-                current_age_years = state.age + (month / 12)
-                age_index = int(current_age_years)
-                if age_index < len(mortality_table):
-                    q_x_annual = mortality_table[age_index]
-                    q_x_monthly = 1 - ((1 - q_x_annual) ** (1/12))
-                    p_x_monthly = 1 - q_x_monthly
-                    cumulative_survival_to_retirement *= p_x_monthly
-                else:
-                    cumulative_survival_to_retirement = 0.0
-                    break
-            
-            # ETAPA 2c: Calcular anuidade pós-aposentadoria usando dados das projeções
-            # Utiliza probabilidades já calculadas nas projeções para máxima consistência
-            if cumulative_survival_to_retirement > 0:
-                cumulative_survival_in_retirement = cumulative_survival_to_retirement
-                
-                # Somar valor presente de cada mês de benefício pós-aposentadoria
-                for month in range(months_to_retirement, len(monthly_data["survival_probs"])):
-                    if month >= months_to_retirement:  # CORRIGIDO: >= em vez de >
-                        # Probabilidade de sobrevivência acumulada desde hoje (mês 0)
-                        survival_prob_at_month = monthly_data["survival_probs"][month]
-                        
-                        # Ajuste de timing para benefícios (igual ao usado nas contribuições)
-                        benefit_timing_adj = -0.5 if context.payment_timing == "antecipado" else 0.5
-                        adjusted_month = month + benefit_timing_adj
-                        
-                        # Fator de desconto desde hoje (mês 0) até o mês do benefício
-                        discount_factor = (1 + context.discount_rate_monthly) ** adjusted_month
-                        
-                        # Adicionar valor presente desta parcela de R$ 1,00 de benefício mensal
-                        annuity_pv_factor += survival_prob_at_month / discount_factor
-            
-            # ETAPA 3: Calcular benefício sustentável mensal
-            # Fórmula: Benefício_Mensal = Recursos_Totais / Fator_Anuidade
-            # Isso garante que VPA(Benefícios) = Recursos Totais, resultando em déficit/superávit = 0
-            if annuity_pv_factor > 0:
-                sustainable_monthly_benefit = total_resources_for_balance / annuity_pv_factor
-            else:
-                sustainable_monthly_benefit = 0
-            
-            # ETAPA 4: Calcular taxa de reposição sustentável
-            # Taxa = (Benefício Sustentável Mensal / Salário Final Mensal Base) × 100
-            # Nota: Usa salário base mensal (sem 13º/14º) para comparação consistente
+            # Taxa de reposição sustentável
             sustainable_replacement_ratio = (sustainable_monthly_benefit / final_salary_monthly * 100) if final_salary_monthly > 0 else 0
-            
-            # ETAPA 5: Validação do equilíbrio atuarial (opcional)
-            # Verifica se o benefício sustentável calculado realmente resulta em déficit/superávit ≈ 0
-            if sustainable_monthly_benefit > 0:
-                # ETAPA 5a: Calcular VPA dos benefícios sustentáveis considerando pagamentos múltiplos
-                apv_sustainable_benefits = 0.0
-                for month in range(months_to_retirement, len(monthly_data["survival_probs"])):
-                    if month >= months_to_retirement:  # CORRIGIDO: >= em vez de >
-                        survival_prob_at_month = monthly_data["survival_probs"][month]
-                        benefit_timing_adj = -0.5 if context.payment_timing == "antecipado" else 0.5
-                        adjusted_month = month + benefit_timing_adj
-                        discount_factor = (1 + context.discount_rate_monthly) ** adjusted_month
-                        
-                        # Considerar múltiplos pagamentos anuais (13º, 14º) se aplicável
-                        current_month_in_year = month % 12
-                        monthly_sustainable_benefit_with_extras = sustainable_monthly_benefit
-                        
-                        # Adicionar pagamentos extras conforme configuração
-                        extra_payments = context.benefit_months_per_year - 12
-                        if extra_payments > 0:
-                            if current_month_in_year == 11 and extra_payments >= 1:  # 13º em dezembro
-                                monthly_sustainable_benefit_with_extras += sustainable_monthly_benefit
-                            if current_month_in_year == 0 and extra_payments >= 2:   # 14º em janeiro
-                                monthly_sustainable_benefit_with_extras += sustainable_monthly_benefit
-                        
-                        apv_sustainable_benefits += (monthly_sustainable_benefit_with_extras * survival_prob_at_month) / discount_factor
-                
-                # ETAPA 5b: Verificar equilíbrio atuarial
-                # Fórmula: |VPA(Benefícios Sustentáveis) - Recursos Totais| deve ser ≈ 0
-                balance_check = abs(apv_sustainable_benefits - total_resources_for_balance)
-                relative_error = balance_check / total_resources_for_balance if total_resources_for_balance > 0 else 0
-                
-                # ETAPA 5c: Log de validação (opcional para debug - pode ser removido em produção)
-                if relative_error > 0.01:  # Erro relativo > 1%
-                    print(f"[WARNING] Equilíbrio atuarial com erro {relative_error:.2%}: "
-                          f"VPA(Benefícios)={apv_sustainable_benefits:.2f}, "
-                          f"Recursos={total_resources_for_balance:.2f}")
-                else:
-                    print(f"[INFO] Equilíbrio atuarial validado: erro {relative_error:.4%}")
         
         return {
             "total_contributions": total_contributions,
@@ -676,32 +595,23 @@ class ActuarialEngine:
         return sensitivity
     
     def _calculate_actuarial_decomposition(self, state: SimulatorState, context: ActuarialContext, projections: Dict) -> Dict:
-        """Calcula decomposição atuarial detalhada usando base mensal"""
+        """Calcula decomposição atuarial detalhada"""
         monthly_data = projections["monthly_data"]
-        months_to_retirement = context.months_to_retirement
         
-        # Ajuste de timing para desconto temporal
-        timing_adjustment = -0.5 if context.payment_timing == "antecipado" else 0.5
-        
-        # Calcular VPA dos benefícios futuros (pós-aposentadoria) usando somatório mensal com timing
-        apv_future_benefits = 0.0
-        for month, (benefit, survival_prob) in enumerate(zip(monthly_data["benefits"], monthly_data["survival_probs"])):
-            if month >= months_to_retirement and benefit > 0:  # CORRIGIDO: >= em vez de >
-                adjusted_month = month + timing_adjustment
-                discount_factor = (1 + context.discount_rate_monthly) ** adjusted_month
-                apv_future_benefits += (benefit * survival_prob) / discount_factor
-        
-        # Calcular VPA das contribuições futuras (pré-aposentadoria) usando somatório mensal com timing
-        apv_future_contributions = 0.0
-        for month, (contribution, survival_prob) in enumerate(zip(monthly_data["contributions"], monthly_data["survival_probs"])):
-            if month < months_to_retirement and contribution > 0:  # CORRIGIDO: < em vez de <=
-                adjusted_month = month + timing_adjustment
-                discount_factor = (1 + context.discount_rate_monthly) ** adjusted_month
-                apv_future_contributions += (contribution * survival_prob) / discount_factor
+        # Usar utilitário para calcular VPAs considerando taxa administrativa
+        vpa_benefits, vpa_contributions = calculate_vpa_benefits_contributions(
+            monthly_data["benefits"],
+            monthly_data["contributions"],
+            monthly_data["survival_probs"],
+            context.discount_rate_monthly,
+            context.payment_timing,
+            context.months_to_retirement,
+            context.admin_fee_monthly
+        )
         
         return {
-            "apv_benefits": apv_future_benefits,
-            "apv_future_contributions": apv_future_contributions,  # Nome mais claro
+            "apv_benefits": vpa_benefits,
+            "apv_future_contributions": vpa_contributions,
             "service_cost": {"normal": 0, "interest": 0},
             "duration": 15.0,  # Simplificado - pode ser calculado precisamente se necessário
             "convexity": 2.5   # Simplificado - pode ser calculado precisamente se necessário
@@ -772,10 +682,13 @@ class ActuarialEngine:
                     cumulative_survival *= p_x_monthly
                     survival_prob = cumulative_survival
                 
-                # Desconto mensal ajustado pelo timing do contexto
-                benefit_timing_adjustment = -0.5 if context.payment_timing == "antecipado" else 0.5
-                adjusted_month = total_month + benefit_timing_adjustment
-                discount_factor = (1 + context.discount_rate_monthly) ** adjusted_month
+                # Desconto mensal usando utilitários
+                benefit_timing_adjustment = get_timing_adjustment(context.payment_timing)
+                discount_factor = calculate_discount_factor(
+                    context.discount_rate_monthly,
+                    total_month,
+                    benefit_timing_adjustment
+                )
                 present_value = (monthly_target_benefit * survival_prob) / discount_factor
                 target_benefit_apv += present_value
             else:
@@ -789,14 +702,16 @@ class ActuarialEngine:
         if rmba > state.initial_balance:
             required_total_contributions = rmba - state.initial_balance
             
-            # Calcular VPA dos salários futuros mensalmente com timing do contexto
-            apv_future_salaries = 0.0
-            salary_timing_adjustment = -0.5 if context.payment_timing == "antecipado" else 0.5
-            for month, (salary, survival_prob) in enumerate(zip(monthly_data["salaries"], monthly_data["survival_probs"])):
-                if month < months_to_retirement and salary > 0:  # CORRIGIDO: < em vez de <=
-                    adjusted_month = month + salary_timing_adjustment
-                    discount_factor = (1 + context.discount_rate_monthly) ** adjusted_month
-                    apv_future_salaries += (salary * survival_prob) / discount_factor
+            # Calcular VPA dos salários futuros usando utilitário
+            salary_timing_adjustment = get_timing_adjustment(context.payment_timing)
+            apv_future_salaries = calculate_actuarial_present_value(
+                monthly_data["salaries"],
+                monthly_data["survival_probs"],
+                context.discount_rate_monthly,
+                context.payment_timing,
+                start_month=0,
+                end_month=months_to_retirement
+            )
             
             required_contribution_rate = (required_total_contributions / apv_future_salaries * 100) if apv_future_salaries > 0 else 0
         else:
@@ -828,33 +743,48 @@ class ActuarialEngine:
         vpa_contributions_yearly = []
         rmba_evolution_yearly = []
         
-        # Ajuste de timing para desconto temporal
-        timing_adjustment = -0.5 if context.payment_timing == "antecipado" else 0.5
+        # Ajuste de timing usando utilitário
+        timing_adjustment = get_timing_adjustment(context.payment_timing)
         
         # Para cada ano da projeção, calcular VPAs restantes
         for year_idx in range(len(projections["years"])):
             year_month = year_idx * 12
             
-            # VPA dos benefícios futuros a partir deste ano com timing
+            # VPA dos benefícios futuros a partir deste ano
             vpa_benefits = 0.0
             for month in range(year_month, len(monthly_data["benefits"])):
-                if month >= months_to_retirement:  # CORRIGIDO: >= em vez de >
+                if month >= months_to_retirement:
                     benefit = monthly_data["benefits"][month]
                     survival_prob = monthly_data["survival_probs"][month]
-                    discount_months = month - year_month + timing_adjustment
+                    discount_months = month - year_month
                     if discount_months >= 0:
-                        discount_factor = (1 + context.discount_rate_monthly) ** discount_months
+                        discount_factor = calculate_discount_factor(
+                            context.discount_rate_monthly,
+                            discount_months,
+                            timing_adjustment
+                        )
                         vpa_benefits += (benefit * survival_prob) / discount_factor
             
-            # VPA das contribuições futuras a partir deste ano com timing
-            vpa_contributions = 0.0
-            for month in range(year_month, min(months_to_retirement + 1, len(monthly_data["contributions"]))):
-                contribution = monthly_data["contributions"][month]
-                survival_prob = monthly_data["survival_probs"][month]
-                discount_months = month - year_month + timing_adjustment
-                if discount_months >= 0:
-                    discount_factor = (1 + context.discount_rate_monthly) ** discount_months
-                    vpa_contributions += (contribution * survival_prob) / discount_factor
+            # VPA das contribuições futuras a partir deste ano
+            # CORREÇÃO: Usar mesma metodologia da função _calculate_rmba para consistência
+            # Aplicar taxa administrativa usando utilitário dedicado
+            if year_month < months_to_retirement:
+                # Extrair contribuições a partir deste ano
+                contributions_from_year = monthly_data["contributions"][year_month:months_to_retirement]
+                survival_probs_from_year = monthly_data["survival_probs"][year_month:]
+                
+                # Usar função com taxa administrativa (mesmo cálculo do RMBA)
+                vpa_contributions = calculate_vpa_contributions_with_admin_fees(
+                    contributions_from_year,
+                    survival_probs_from_year,
+                    context.discount_rate_monthly,
+                    context.admin_fee_monthly,
+                    context.payment_timing,
+                    len(contributions_from_year)  # meses restantes até aposentadoria
+                )
+            else:
+                # Após aposentadoria, não há mais contribuições
+                vpa_contributions = 0.0
             
             # RMBA neste ponto = VPA benefícios - VPA contribuições
             rmba_year = vpa_benefits - vpa_contributions

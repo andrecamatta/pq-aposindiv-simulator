@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Settings } from 'lucide-react';
 import type { SimulatorState, MortalityTable, PaymentTiming } from '../../types';
-import { Card, CardHeader, CardTitle, CardContent, Select } from '../../design-system/components';
+import { Card, CardHeader, CardTitle, CardContent, Select, RangeSlider } from '../../design-system/components';
 import { useFormHandler } from '../../hooks';
 import InfoTooltip from '../../design-system/components/InfoTooltip';
 
@@ -12,7 +12,7 @@ interface TechnicalTabProps {
   loading: boolean;
 }
 
-const TechnicalTab: React.FC<TechnicalTabProps> = ({ 
+const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({ 
   state, 
   mortalityTables,
   onStateChange, 
@@ -20,26 +20,38 @@ const TechnicalTab: React.FC<TechnicalTabProps> = ({
 }) => {
   const { handleInputChange } = useFormHandler({ onStateChange });
 
-  const mortalityOptions = mortalityTables.map(table => ({
-    value: table.code,
-    label: table.name
-  }));
+  // Memoizar opções para evitar recriação desnecessária
+  const mortalityOptions = useMemo(() => 
+    mortalityTables.map(table => ({
+      value: table.code,
+      label: table.name
+    })), [mortalityTables]
+  );
 
-  const methodOptions = [
+  const methodOptions = useMemo(() => [
     { value: 'PUC', label: 'PUC - Projected Unit Credit' },
     { value: 'EAN', label: 'EAN - Entry Age Normal' }
-  ];
+  ], []);
 
-  const timingOptions = [
+  const timingOptions = useMemo(() => [
     { value: 'postecipado', label: 'Postecipado (final do período)' },
     { value: 'antecipado', label: 'Antecipado (início do período)' }
-  ];
+  ], []);
 
-  const monthsOptions = [
+  const monthsOptions = useMemo(() => [
     { value: 12, label: '12 meses' },
     { value: 13, label: '13 meses (13º)' },
     { value: 14, label: '14 meses (13º + 14º)' }
-  ];
+  ], []);
+
+  // Memoizar handlers específicos para evitar re-renders
+  const handleAdminFeeChange = useCallback((value: number) => {
+    handleInputChange('admin_fee_rate', value / 100);
+  }, [handleInputChange]);
+
+  const handleLoadingFeeChange = useCallback((value: number) => {
+    handleInputChange('loading_fee_rate', value / 100);
+  }, [handleInputChange]);
 
   return (
     <Card className="border-gray-200">
@@ -79,6 +91,44 @@ const TechnicalTab: React.FC<TechnicalTabProps> = ({
                 value={state.calculation_method || 'PUC'}
                 onChange={(e) => handleInputChange('calculation_method', e.target.value)}
                 options={methodOptions}
+                disabled={loading}
+              />
+            </div>
+          </div>
+
+          {/* Custos Administrativos */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-700 mb-4">Custos Administrativos</h4>
+            <div className="grid md:grid-cols-2 gap-6">
+              <RangeSlider
+                label={
+                  <span className="flex items-center gap-2">
+                    Taxa Anual sobre Saldo
+                    <InfoTooltip content="Taxa administrativa anual cobrada sobre o saldo acumulado. Aplicada mensalmente." />
+                  </span>
+                }
+                value={(state.admin_fee_rate || 0.01) * 100}
+                min={0}
+                max={3}
+                step={0.1}
+                onChange={handleAdminFeeChange}
+                formatDisplay={(v) => `${v.toFixed(1)}%`}
+                disabled={loading}
+              />
+              
+              <RangeSlider
+                label={
+                  <span className="flex items-center gap-2">
+                    Taxa de Carregamento
+                    <InfoTooltip content="Percentual descontado das contribuições antes de serem aplicadas ao saldo." />
+                  </span>
+                }
+                value={(state.loading_fee_rate || 0) * 100}
+                min={0}
+                max={15}
+                step={0.5}
+                onChange={handleLoadingFeeChange}
+                formatDisplay={(v) => `${v.toFixed(1)}%`}
                 disabled={loading}
               />
             </div>
@@ -132,6 +182,8 @@ const TechnicalTab: React.FC<TechnicalTabProps> = ({
       </CardContent>
     </Card>
   );
-};
+});
+
+TechnicalTab.displayName = 'TechnicalTab';
 
 export default TechnicalTab;

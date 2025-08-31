@@ -1,22 +1,13 @@
 import React, { useState } from 'react';
 import { BarChart3, TrendingUp, TrendingDown, Eye, CheckCircle, AlertTriangle, Target, DollarSign, PieChart, Clock, Info } from 'lucide-react';
 import type { SimulatorResults } from '../../types';
-import { formatCurrency } from '../../utils';
+import { formatCurrency, formatPercentage } from '../../utils/formatting';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Modal, ModalFooter, Button } from '../../design-system/components';
 
 interface CompactResultsSectionProps {
   results: SimulatorResults | null;
   loading: boolean;
 }
-
-
-const formatPercentage = (value: number): string => {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'percent',
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 2,
-  }).format(value / 100);
-};
 
 const CompactResultsSection: React.FC<CompactResultsSectionProps> = ({ results, loading }) => {
   const [showDetailModal, setShowDetailModal] = useState(false);

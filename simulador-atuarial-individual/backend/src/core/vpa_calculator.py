@@ -18,6 +18,7 @@ class VPAContext:
     @property
     def timing_adjustment(self) -> float:
         """Ajuste temporal baseado no timing de pagamento"""
+        # Usar convenção padrão: antecipado = 0.0, postecipado = 1.0
         return 0.0 if self.payment_timing == "antecipado" else 1.0
 
 

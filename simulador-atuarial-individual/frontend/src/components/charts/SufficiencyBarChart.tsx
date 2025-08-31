@@ -2,18 +2,12 @@ import React from 'react';
 import { Bar } from 'react-chartjs-2';
 import type { SimulatorResults, SimulatorState } from '../../types/simulator.types';
 import { getZeroLineGridConfig } from '../../utils/chartSetup';
+import { formatPercentage } from '../../utils/formatting';
 
 interface SufficiencyBarChartProps {
   results: SimulatorResults;
   state: SimulatorState;
 }
-
-const formatPercentage = (value: number): string => {
-  if (isNaN(value) || value === null || value === undefined) {
-    return '0,0%';
-  }
-  return `${value.toFixed(1)}%`;
-};
 
 const SufficiencyBarChart: React.FC<SufficiencyBarChartProps> = ({ results, state }) => {
   // Verificações de segurança

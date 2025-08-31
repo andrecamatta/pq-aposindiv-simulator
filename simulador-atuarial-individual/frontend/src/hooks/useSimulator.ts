@@ -77,30 +77,74 @@ export const useSimulator = () => {
     };
   }, []);
 
-  // Função debounced para cálculo
-  const debouncedCalculate = useCallback((currentState: SimulatorState) => {
+  const lastCalculatedStateRef = useRef<string | null>(null);
+
+  // Função para determinar o delay do debounce baseado no tipo de mudança
+  const getDebounceDelay = useCallback((currentState: SimulatorState, previousState: SimulatorState | null) => {
+    if (!previousState) return 500;
+
+    // Configurações técnicas que podem ter delay maior (não afetam cálculos imediatos)
+    const technicalFields = [
+      'mortality_table', 'calculation_method', 'payment_timing', 
+      'salary_months_per_year', 'benefit_months_per_year'
+    ];
+
+    // Configurações que afetam cálculos e precisam de feedback mais rápido
+    const immediateFields = [
+      'age', 'salary', 'target_benefit', 'target_replacement_rate',
+      'contribution_rate', 'accrual_rate', 'retirement_age'
+    ];
+
+    // Verificar quais campos mudaram
+    const changedFields = Object.keys(currentState).filter(
+      key => currentState[key as keyof SimulatorState] !== previousState[key as keyof SimulatorState]
+    );
+
+    // Se apenas campos técnicos mudaram, usar delay maior
+    if (changedFields.length > 0 && changedFields.every(field => technicalFields.includes(field))) {
+      return 1000; // 1 segundo para configs técnicas
+    }
+
+    // Se campos de custo administrativo mudaram, delay médio
+    if (changedFields.some(field => ['admin_fee_rate', 'loading_fee_rate'].includes(field))) {
+      return 750; // 750ms para custos administrativos
+    }
+
+    // Para outros campos, delay padrão
+    return 500;
+  }, []);
+
+  // Função debounced para cálculo com delay inteligente
+  const debouncedCalculate = useCallback((currentState: SimulatorState, previousState: SimulatorState | null = null) => {
+    // Verificar se o estado realmente mudou para evitar cálculos desnecessários
+    const currentStateString = JSON.stringify(currentState);
+    if (lastCalculatedStateRef.current === currentStateString) {
+      return;
+    }
+
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
     }
+
+    const delay = getDebounceDelay(currentState, previousState);
 
     debounceTimeoutRef.current = setTimeout(() => {
       const preparedState = { ...currentState };
       
       if (preparedState.benefit_target_mode === 'REPLACEMENT_RATE') {
-        // Quando o modo é taxa de reposição, limpamos o valor fixo para evitar ambiguidade.
         preparedState.target_benefit = undefined;
       } else {
-        // Quando o modo é valor fixo, limpamos a taxa para evitar ambiguidade.
         preparedState.target_replacement_rate = undefined;
       }
 
+      lastCalculatedStateRef.current = JSON.stringify(preparedState);
       setLoading(true);
       apiService.calculate(preparedState)
         .then(setResults)
         .catch((err) => setError(err.message))
         .finally(() => setLoading(false));
-    }, 500); // Aumentado para 500ms para melhor UX em sliders/inputs
-  }, []);
+    }, delay);
+  }, [getDebounceDelay]);
 
   // Inicializa o estado com os valores padrão da API.
   useEffect(() => {
@@ -109,11 +153,14 @@ export const useSimulator = () => {
     }
   }, [defaultState, state]);
 
+  const previousStateRef = useRef<SimulatorState | null>(null);
+
   // Efeito principal que reage a QUALQUER mudança no estado e dispara o cálculo.
   useEffect(() => {
     // Só executa se o estado já estiver inicializado.
     if (state) {
-      debouncedCalculate(state);
+      debouncedCalculate(state, previousStateRef.current);
+      previousStateRef.current = state;
     }
   }, [state, debouncedCalculate]);
 

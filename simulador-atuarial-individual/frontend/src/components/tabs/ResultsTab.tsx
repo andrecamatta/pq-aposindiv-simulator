@@ -1,7 +1,7 @@
 import React from 'react';
 import { TrendingUp, DollarSign, AlertTriangle, CheckCircle, BarChart3, PieChart } from 'lucide-react';
 import type { SimulatorResults, SimulatorState } from '../../types';
-import { formatCurrency } from '../../utils';
+import { formatCurrency, formatPercentage } from '../../utils/formatting';
 import { 
   Card, 
   CardHeader, 
@@ -17,18 +17,6 @@ interface ResultsTabProps {
 }
 
 const ResultsTab: React.FC<ResultsTabProps> = ({ results, state, loading }) => {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 2
-    }).format(value);
-  };
-
-  const formatPercentage = (value: number) => {
-    // Value received from backend is already a percentage (e.g., 70 for 70%)
-    return `${(value).toFixed(1)}%`; 
-  };
 
   const getSuperavitStatus = (superavit: number) => {
     if (superavit > 0) return { color: 'emerald', icon: CheckCircle, text: 'Superávit', bg: 'from-emerald-100 to-green-100' };
