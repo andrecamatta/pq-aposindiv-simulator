@@ -161,22 +161,25 @@ async def handle_calculation(client_id: str, state_data: dict):
 async def get_default_state():
     """Retorna estado padrão para inicialização do simulador"""
     return {
-        "age": 45,
+        "age": 30,
         "gender": "M",
         "salary": 8000.0,
-        "initial_balance": 50000.0,
+        "initial_balance": 0.0,
         "benefit_target_mode": "VALUE",
         "target_benefit": 5000.0,
         "target_replacement_rate": None,
-        "accrual_rate": 2.0,
+        "accrual_rate": 5.0,
         "retirement_age": 65,
         "contribution_rate": 8.0,
         "mortality_table": "BR_EMS_2021",
-        "discount_rate": 0.06,
+        "discount_rate": 0.05,
         "salary_growth_real": 0.02,
         "benefit_indexation": "none",
         "contribution_indexation": "salary",
         "use_ettj": False,
+        "payment_timing": "postecipado",
+        "salary_months_per_year": 13,
+        "benefit_months_per_year": 13,
         "projection_years": 40,
         "calculation_method": "PUC"
     }

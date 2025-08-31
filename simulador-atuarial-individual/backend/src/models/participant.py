@@ -19,6 +19,11 @@ class BenefitTargetMode(str, Enum):
     REPLACEMENT_RATE = "REPLACEMENT_RATE"
 
 
+class PaymentTiming(str, Enum):
+    POSTECIPADO = "postecipado"  # Pagamento no final do período
+    ANTECIPADO = "antecipado"    # Pagamento no início do período
+
+
 class SimulatorState(BaseModel):
     """Estado reativo do simulador"""
     # Dados do participante (editáveis)
@@ -53,6 +58,11 @@ class SimulatorState(BaseModel):
     # Estrutura a termo de juros (ETTJ)
     use_ettj: bool = False
     ettj_curve: Optional[Dict[int, float]] = None  # {ano: taxa} para ETTJ ANBIMA/PREVIC
+    
+    # Configurações técnicas
+    payment_timing: PaymentTiming = PaymentTiming.POSTECIPADO  # Timing dos pagamentos
+    salary_months_per_year: int = 13    # Número de salários por ano (padrão 13º)
+    benefit_months_per_year: int = 13   # Número de benefícios por ano (padrão 13º)
     
     # Configurações de cálculo
     projection_years: int      # Horizonte de projeção

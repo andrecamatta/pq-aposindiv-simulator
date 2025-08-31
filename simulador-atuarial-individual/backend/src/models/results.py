@@ -23,10 +23,17 @@ class SimulatorResults(BaseModel):
     survival_probabilities: List[float]
     accumulated_reserves: List[float]
     
+    # Projeções atuariais para gráfico separado
+    projected_vpa_benefits: List[float]    # VPA dos benefícios por ano
+    projected_vpa_contributions: List[float]  # VPA das contribuições por ano
+    projected_rmba_evolution: List[float]     # Evolução da RMBA por ano
+    
     # Métricas-chave
     total_contributions: float  # Contribuições totais projetadas
     total_benefits: float      # Benefícios totais projetados
     replacement_ratio: float   # Taxa de reposição (%)
+    target_replacement_ratio: float   # Taxa de reposição alvo (%)
+    sustainable_replacement_ratio: float  # Taxa de reposição sustentável (%)
     funding_ratio: Optional[float] = None  # Cobertura patrimonial
     
     # Análise detalhada de sensibilidade
