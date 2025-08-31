@@ -132,7 +132,17 @@ simulador-atuarial-individual/
 
 ## 📄 Licença
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para detalhes.
+Este projeto está licenciado sob **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)**.
+
+**Resumo da licença:**
+- ✅ **Uso pessoal e educacional** livre
+- ✅ **Modificação e redistribuição** permitidas
+- ❌ **Uso comercial** não permitido
+- 📝 **Atribuição obrigatória** ao autor original
+
+Para uso comercial, entre em contato: andrecamatta@gmail.com
+
+Veja o arquivo [LICENSE](LICENSE) para detalhes completos.
 
 ## 👨‍💻 Autor
 
