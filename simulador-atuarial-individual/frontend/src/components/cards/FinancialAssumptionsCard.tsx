@@ -2,6 +2,7 @@ import React from 'react';
 import { DollarSign } from 'lucide-react';
 import type { SimulatorState } from '../../types';
 import { Card, CardHeader, CardTitle, CardContent, RangeSlider } from '../../design-system/components';
+import { useFormHandler } from '../../hooks';
 
 interface FinancialAssumptionsCardProps {
   state: SimulatorState;
@@ -14,9 +15,7 @@ const FinancialAssumptionsCard: React.FC<FinancialAssumptionsCardProps> = ({
   onStateChange, 
   loading 
 }) => {
-  const handleInputChange = (field: keyof SimulatorState, value: any) => {
-    onStateChange({ [field]: value });
-  };
+  const { handleInputChange } = useFormHandler({ onStateChange });
 
   return (
     <Card variant="default" padding="md">

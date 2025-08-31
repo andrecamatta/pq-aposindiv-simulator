@@ -1,6 +1,7 @@
 import React from 'react';
 import type { SimulatorState, MortalityTable } from '../../types';
 import Slider from '../ui/Slider';
+import { useFormHandler } from '../../hooks';
 
 interface ParametersSectionProps {
   state: SimulatorState;
@@ -15,9 +16,7 @@ const ParametersSection: React.FC<ParametersSectionProps> = ({
   onStateChange, 
   loading 
 }) => {
-  const handleInputChange = (field: keyof SimulatorState, value: any) => {
-    onStateChange({ [field]: value });
-  };
+  const { handleInputChange } = useFormHandler({ onStateChange });
 
   return (
     <div className="max-w-5xl space-y-6">

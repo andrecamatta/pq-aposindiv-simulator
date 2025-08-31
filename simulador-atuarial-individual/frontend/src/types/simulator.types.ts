@@ -1,4 +1,5 @@
 export type BenefitTargetMode = "VALUE" | "REPLACEMENT_RATE";
+export type PaymentTiming = "postecipado" | "antecipado";
 
 export interface SimulatorState {
   // Dados do participante
@@ -24,6 +25,12 @@ export interface SimulatorState {
   benefit_indexation: string;
   contribution_indexation: string;
   use_ettj: boolean;
+  
+  // Configurações técnicas
+  payment_timing: PaymentTiming;
+  salary_months_per_year: number;
+  benefit_months_per_year: number;
+  
   projection_years: number;
   calculation_method: "PUC" | "EAN";
   
@@ -51,10 +58,17 @@ export interface SimulatorResults {
   survival_probabilities: number[];
   accumulated_reserves: number[];
   
+  // Projeções atuariais para gráfico separado
+  projected_vpa_benefits: number[];
+  projected_vpa_contributions: number[];
+  projected_rmba_evolution: number[];
+  
   // Métricas
   total_contributions: number;
   total_benefits: number;
   replacement_ratio: number;
+  target_replacement_ratio: number;
+  sustainable_replacement_ratio: number;
   funding_ratio?: number;
   
   // Sensibilidade

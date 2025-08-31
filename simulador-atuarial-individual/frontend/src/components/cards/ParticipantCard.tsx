@@ -11,6 +11,8 @@ import {
   Tooltip,
   Button
 } from '../../design-system/components';
+import { useFormHandler } from '../../hooks';
+import { parseIntegerValue, parseNumericValue } from '../../utils';
 
 interface ParticipantCardProps {
   state: SimulatorState;
@@ -23,9 +25,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
   onStateChange, 
   loading 
 }) => {
-  const handleInputChange = (field: keyof SimulatorState, value: any) => {
-    onStateChange({ [field]: value });
-  };
+  const { handleInputChange } = useFormHandler({ onStateChange });
 
   return (
     <Card variant="default" padding="md">
@@ -75,7 +75,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                 min={0}
                 step={100}
                 value={state.target_benefit || ''}
-                onChange={(e) => handleInputChange('target_benefit', parseFloat(e.target.value))}
+                onChange={(e) => handleInputChange('target_benefit', parseNumericValue(e.target.value))}
                 disabled={loading}
                 placeholder="Ex: 5000"
                 leftIcon={<span className="text-gray-500 text-sm font-medium">R$</span>}
@@ -88,7 +88,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                 max={200}
                 step={5}
                 value={state.target_replacement_rate || ''}
-                onChange={(e) => handleInputChange('target_replacement_rate', parseFloat(e.target.value))}
+                onChange={(e) => handleInputChange('target_replacement_rate', parseNumericValue(e.target.value))}
                 disabled={loading}
                 placeholder="Ex: 80"
                 rightIcon={<span className="text-gray-500 text-sm font-medium">%</span>}
@@ -109,7 +109,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
               min={18}
               max={70}
               value={state.age}
-              onChange={(e) => handleInputChange('age', parseInt(e.target.value))}
+              onChange={(e) => handleInputChange('age', parseIntegerValue(e.target.value))}
               disabled={loading}
               placeholder="Ex: 35"
             />
@@ -147,7 +147,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             min={0}
             step={100}
             value={state.salary}
-            onChange={(e) => handleInputChange('salary', parseFloat(e.target.value))}
+            onChange={(e) => handleInputChange('salary', parseNumericValue(e.target.value))}
             disabled={loading}
             placeholder="Ex: 8000"
             leftIcon={<span className="text-gray-500 text-sm font-medium">R$</span>}
@@ -167,7 +167,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             min={0}
             step={1000}
             value={state.initial_balance}
-            onChange={(e) => handleInputChange('initial_balance', parseFloat(e.target.value))}
+            onChange={(e) => handleInputChange('initial_balance', parseNumericValue(e.target.value))}
             disabled={loading}
             placeholder="Ex: 50000"
             leftIcon={<span className="text-gray-500 text-sm font-medium">R$</span>}
@@ -187,7 +187,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             min={50}
             max={75}
             value={state.retirement_age}
-            onChange={(e) => handleInputChange('retirement_age', parseInt(e.target.value))}
+            onChange={(e) => handleInputChange('retirement_age', parseIntegerValue(e.target.value))}
             disabled={loading}
             placeholder="Ex: 65"
           />

@@ -1,6 +1,7 @@
 import React from 'react';
 import { BarChart3, TrendingUp, TrendingDown, CheckCircle, AlertTriangle, Target, DollarSign, PieChart, Clock } from 'lucide-react';
 import type { SimulatorResults } from '../types';
+import { formatCurrency } from '../../utils';
 import { 
   Card, 
   CardHeader, 
@@ -19,13 +20,6 @@ interface ResultsDashboardProps {
   loading: boolean;
 }
 
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-  }).format(value);
-};
 
 const formatPercentage = (value: number): string => {
   return new Intl.NumberFormat('pt-BR', {

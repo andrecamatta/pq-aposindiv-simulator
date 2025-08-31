@@ -2,6 +2,7 @@ import React from 'react';
 import { BarChart3, Info } from 'lucide-react';
 import type { SimulatorState, MortalityTable } from '../../types';
 import { Card, CardHeader, CardTitle, CardContent } from '../../design-system/components';
+import { useFormHandler } from '../../hooks';
 
 interface ActuarialBasisCardProps {
   state: SimulatorState;
@@ -16,9 +17,7 @@ const ActuarialBasisCard: React.FC<ActuarialBasisCardProps> = ({
   onStateChange, 
   loading 
 }) => {
-  const handleInputChange = (field: keyof SimulatorState, value: any) => {
-    onStateChange({ [field]: value });
-  };
+  const { handleInputChange } = useFormHandler({ onStateChange });
 
   return (
     <Card variant="default" padding="md">

@@ -1,6 +1,7 @@
 import React, { useRef, useState, useCallback } from 'react';
 import type { SimulatorState, MortalityTable } from '../types';
 import { InformationCircleIcon } from '@heroicons/react/24/outline';
+import { useFormHandler } from '../hooks';
 
 interface ParameterPanelProps {
   state: SimulatorState;
@@ -15,9 +16,7 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
   onStateChange,
   loading
 }) => {
-  const handleInputChange = (field: keyof SimulatorState, value: any) => {
-    onStateChange({ [field]: value });
-  };
+  const { handleInputChange } = useFormHandler({ onStateChange });
 
   const SliderField = ({ 
     label, 

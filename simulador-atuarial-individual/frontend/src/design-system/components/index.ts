@@ -59,3 +59,7 @@ export { Accordion, AccordionItem } from './Accordion';
 export { Modal, ModalFooter } from './Modal';
 export { default as Toast } from './Toast';
 export { ToastProvider, useToast } from './ToastProvider';
+export { default as TabNavigation, tabs } from './TabNavigation';
+export type { Tab } from './TabNavigation';
+export { default as CurrencyInput } from './CurrencyInput';
+export { default as InfoTooltip } from './InfoTooltip';

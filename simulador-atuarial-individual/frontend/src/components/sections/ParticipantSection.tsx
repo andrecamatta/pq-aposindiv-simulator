@@ -1,5 +1,6 @@
 import React from 'react';
 import type { SimulatorState } from '../../types';
+import { useFormHandler } from '../../hooks';
 
 interface ParticipantSectionProps {
   state: SimulatorState;
@@ -12,9 +13,7 @@ const ParticipantSection: React.FC<ParticipantSectionProps> = ({
   onStateChange, 
   loading 
 }) => {
-  const handleInputChange = (field: keyof SimulatorState, value: any) => {
-    onStateChange({ [field]: value });
-  };
+  const { handleInputChange } = useFormHandler({ onStateChange });
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-4 space-y-4">
