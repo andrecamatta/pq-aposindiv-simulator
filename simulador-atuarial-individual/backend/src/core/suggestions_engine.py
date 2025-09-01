@@ -34,7 +34,7 @@ class SuggestionsEngine:
             if balance_suggestion:
                 suggestions.append(balance_suggestion)
         
-        # 2. Sugestão de benefício sustentável (usando dados atuariais precisos com root finding)
+        # 2. Sugestão de benefício sustentável (usando dados atuariais precisos)
         # Prioridade alta - deve vir antes de outras sugestões de benefício
         sustainable_suggestion = self._suggest_sustainable_benefit(request.state, current_results)
         if sustainable_suggestion:
@@ -129,7 +129,7 @@ class SuggestionsEngine:
                     id=str(uuid.uuid4()),
                     type=SuggestionType.BALANCE_PLAN,
                     title="Balancear o Plano",
-                    description=f"Para zerar o déficit de R$ {abs(results.deficit_surplus):,.2f}",
+                    description=f"Para zerar o déficit de R$ {abs(results.deficit_surplus):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                     action=SuggestionAction.UPDATE_CONTRIBUTION_RATE,
                     action_value=optimal_rate,
                     action_label=f"Aplicar {optimal_rate:.2f}%".replace('.', ','),
@@ -170,11 +170,11 @@ class SuggestionsEngine:
                         description=f"Baseado em análise atuarial, você pode aumentar seu benefício",
                         action=SuggestionAction.UPDATE_TARGET_BENEFIT,
                         action_value=test_benefit,
-                        action_label=f"Aplicar R$ {test_benefit:,.2f}",
+                        action_label=f"Aplicar R$ {test_benefit:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         priority=2,
-                        impact_description=f"Benefício atual: R$ {current_benefit:,.2f} • Superávit: R$ {superavit:,.2f}",
+                        impact_description=f"Benefício atual: R$ {current_benefit:,.2f} • Superávit: R$ {superavit:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         confidence=0.9,  # Mais confiança por usar dados atuariais
-                        trade_off_info=f"Aumento de R$ {additional_monthly:,.2f}/mês mantém equilíbrio atuarial"
+                        trade_off_info=f"Aumento de R$ {additional_monthly:,.2f}/mês mantém equilíbrio atuarial".replace(',', 'X').replace('.', ',').replace('X', '.')
                     )
             else:
                 # Fallback para método anterior se dados atuariais não estão disponíveis
@@ -190,12 +190,12 @@ class SuggestionsEngine:
                         id=str(uuid.uuid4()),
                         type=SuggestionType.IMPROVE_BENEFIT,
                         title="Aumentar Benefício",
-                        description=f"Com superávit de R$ {superavit:,.2f}, você pode ter mais",
+                        description=f"Com superávit de R$ {superavit:,.2f}, você pode ter mais".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         action=SuggestionAction.UPDATE_TARGET_BENEFIT,
                         action_value=new_benefit,
-                        action_label=f"Aplicar R$ {new_benefit:,.2f}",
+                        action_label=f"Aplicar R$ {new_benefit:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         priority=2,
-                        impact_description=f"Benefício atual: R$ {current_benefit:,.2f}",
+                        impact_description=f"Benefício atual: R$ {current_benefit:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         confidence=0.75
                     )
         except:
@@ -248,42 +248,44 @@ class SuggestionsEngine:
                 if abs(sustainable_benefit - current_benefit) > 100:  # Diferença significativa
                     deficit_info = "com déficit" if results.deficit_surplus < 0 else "com superávit"
                     
-                    # Calcular taxa de reposição para display
-                    salary_monthly = state.salary / 12.0 if state.salary > 0 else 1.0
-                    replacement_ratio = (sustainable_benefit / salary_monthly) * 100
+                    # Calcular taxa de reposição correta para display (com salário projetado)
+                    years_to_retirement = state.retirement_age - state.age
+                    salary_at_retirement = state.salary * ((1 + state.salary_growth_real) ** years_to_retirement)
+                    replacement_ratio = (sustainable_benefit / salary_at_retirement) * 100
                     
                     return Suggestion(
                         id=str(uuid.uuid4()),
                         type=SuggestionType.SUSTAINABLE_BENEFIT,
-                        title="Benefício Sustentável (Root Finding)",
-                        description=f"Calculado para zerar o déficit/superávit usando engine atuarial completo",
+                        title="Benefício Sustentável",
+                        description=f"Calculado para zerar o déficit/superávit usando métodos atuariais avançados",
                         action=SuggestionAction.APPLY_SUSTAINABLE_BENEFIT,
                         action_value=sustainable_benefit,
-                        action_label=f"Aplicar R$ {sustainable_benefit:,.2f}",
+                        action_label=f"Aplicar R$ {sustainable_benefit:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         priority=1,
-                        impact_description=f"Benefício atual: R$ {current_benefit:,.2f} • Taxa reposição: {replacement_ratio:.1f}%",
-                        confidence=0.99,  # Altíssima confiança pois usa root finding
+                        impact_description=f"Benefício atual: R$ {current_benefit:,.2f} • Taxa reposição: {replacement_ratio:.2f}%".replace(',', 'X').replace('.', ',').replace('X', '.').replace(f'{replacement_ratio:.2f}%', f'{replacement_ratio:.2f}%'.replace('.', ',')),
+                        confidence=0.99,  # Altíssima confiança pois usa cálculos atuariais precisos
                         trade_off_info=f"Benefício calculado para equilíbrio atuarial perfeito (déficit/superávit = 0)"
                     )
             else:  # REPLACEMENT_RATE mode
-                # Para modo taxa de reposição, converter benefício para taxa
-                salary_monthly = state.salary / 12.0 if state.salary > 0 else 1.0
-                sustainable_ratio = (sustainable_benefit / salary_monthly) * 100
+                # Para modo taxa de reposição, converter benefício para taxa correta (com salário projetado)
+                years_to_retirement = state.retirement_age - state.age
+                salary_at_retirement = state.salary * ((1 + state.salary_growth_real) ** years_to_retirement)
+                sustainable_ratio = (sustainable_benefit / salary_at_retirement) * 100
                 current_ratio = state.target_replacement_rate or 70.0
                 
                 if abs(sustainable_ratio - current_ratio) > 5.0:  # Diferença de 5%+ 
                     return Suggestion(
                         id=str(uuid.uuid4()),
                         type=SuggestionType.SUSTAINABLE_BENEFIT,
-                        title="Taxa de Reposição Sustentável (Root Finding)",
-                        description=f"Taxa calculada para zerar déficit/superávit: {sustainable_ratio:.1f}%",
+                        title="Taxa de Reposição Sustentável",
+                        description=f"Taxa calculada para zerar déficit/superávit: {sustainable_ratio:.2f}%".replace('.', ','),
                         action=SuggestionAction.UPDATE_REPLACEMENT_RATE,
                         action_value=sustainable_ratio,
-                        action_label=f"Aplicar {sustainable_ratio:.1f}%",
+                        action_label=f"Aplicar {sustainable_ratio:.2f}%".replace('.', ','),
                         priority=1,
-                        impact_description=f"Taxa atual: {current_ratio:.1f}% • Zera déficit/superávit",
+                        impact_description=f"Taxa atual: {current_ratio:.2f}% • Zera déficit/superávit".replace('.', ','),
                         confidence=0.99,
-                        trade_off_info="Esta taxa equilibra perfeitamente contribuições e benefícios usando root finding"
+                        trade_off_info="Esta taxa equilibra perfeitamente contribuições e benefícios"
                     )
         except Exception as e:
             # Log do erro para debug (opcional)
@@ -357,12 +359,12 @@ class SuggestionsEngine:
                     id=str(uuid.uuid4()),
                     type=SuggestionType.TRADE_OFF_OPTIONS,
                     title="Opção: Aumentar Contribuição",
-                    description=f"Aumentar {increase:.2f} pontos percentuais zera o déficit",
+                    description=f"Aumentar {increase:.2f} pontos percentuais zera o déficit".replace('.', ','),
                     action=SuggestionAction.UPDATE_CONTRIBUTION_RATE,
                     action_value=optimal_rate,
-                    action_label=f"Aplicar {optimal_rate:.2f}%",
+                    action_label=f"Aplicar {optimal_rate:.2f}%".replace('.', ','),
                     priority=2,
-                    impact_description=f"Contribuição atual: {state.contribution_rate:.2f}% • Mantém benefício",
+                    impact_description=f"Contribuição atual: {state.contribution_rate:.2f}% • Mantém benefício".replace('.', ','),
                     confidence=0.9,
                     trade_off_info="Vantagem: mantém benefício • Desvantagem: maior custo mensal"
                 )

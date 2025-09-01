@@ -340,7 +340,7 @@ def calculate_sustainable_benefit_with_engine(
     try:
         f_low = objective_function(low_bound)
         f_high = objective_function(high_bound)
-        print(f"DEBUG: Bounds iniciais - Low={low_bound:.2f} (f={f_low:.2f}), High={high_bound:.2f} (f={f_high:.2f})")
+        # Bounds iniciais verificados
         
         # Se ambos têm mesmo sinal, expandir bounds agressivamente
         if (f_low * f_high) > 0:
@@ -349,12 +349,12 @@ def calculate_sustainable_benefit_with_engine(
                 for multiplier in [5.0, 10.0, 20.0, 50.0, 100.0]:
                     high_bound = salary_monthly * multiplier
                     f_high = objective_function(high_bound)
-                    print(f"DEBUG: Testando high_bound={high_bound:.2f} (f={f_high:.2f})")
+                    pass  # Testando novos bounds
                     if f_high <= 0:  # Encontrou déficit
                         break
                 else:
                     # Se ainda não encontrou, usar o último valor testado
-                    print(f"DEBUG: Não encontrou raiz até {high_bound:.2f}, usando como limite superior")
+                    pass  # Usando limite superior expandido
                     
             else:  # Ambos negativos (déficit), diminuir benefício  
                 low_bound = salary_monthly * 0.05
