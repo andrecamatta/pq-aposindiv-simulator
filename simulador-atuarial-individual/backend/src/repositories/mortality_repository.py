@@ -20,6 +20,16 @@ class MortalityTableRepository(BaseRepository[MortalityTable]):
         statement = select(MortalityTable).where(MortalityTable.is_system == True)
         return list(self.session.exec(statement))
     
+    def get_active_tables(self) -> List[MortalityTable]:
+        """Buscar tábuas ativas"""
+        statement = select(MortalityTable).where(MortalityTable.is_active == True)
+        return list(self.session.exec(statement))
+    
+    def get_by_code(self, code: str) -> Optional[MortalityTable]:
+        """Buscar tábua por código"""
+        statement = select(MortalityTable).where(MortalityTable.code == code)
+        return self.session.exec(statement).first()
+    
     def get_by_country(self, country: str) -> List[MortalityTable]:
         """Buscar tábuas por país"""
         statement = select(MortalityTable).where(MortalityTable.country == country)

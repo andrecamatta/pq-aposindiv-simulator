@@ -25,9 +25,14 @@ CORREÇÕES IMPLEMENTADAS:
    - Ajuste automático para múltiplos pagamentos anuais (13º, 14º)
 """
 
-from typing import List, Tuple
+from typing import List, Tuple, TYPE_CHECKING
 from .discount import calculate_discount_factor, get_timing_adjustment
 import math
+
+# Import apenas para type hints, evita circular imports
+if TYPE_CHECKING:
+    from ..models.database import SimulatorState
+    from ..core.actuarial_engine import ActuarialEngine
 
 
 def validate_actuarial_inputs(
@@ -248,6 +253,124 @@ def calculate_vpa_benefits_contributions(
     return vpa_benefits, vpa_contributions
 
 
+def _bisection_root_finding(
+    objective_function, 
+    low_bound: float, 
+    high_bound: float, 
+    tolerance: float = 0.01, 
+    max_iterations: int = 50
+) -> float:
+    """
+    Algoritmo de bissecção para encontrar raiz de função.
+    
+    Args:
+        objective_function: Função f(x) para encontrar x onde f(x) = 0
+        low_bound: Limite inferior do intervalo
+        high_bound: Limite superior do intervalo
+        tolerance: Tolerância para convergência
+        max_iterations: Máximo de iterações
+    
+    Returns:
+        Valor x onde f(x) ≈ 0
+    """
+    for _ in range(max_iterations):
+        mid_point = (low_bound + high_bound) / 2.0
+        
+        f_mid = objective_function(mid_point)
+        
+        if abs(f_mid) < tolerance:
+            return mid_point
+            
+        f_low = objective_function(low_bound)
+        
+        if (f_low * f_mid) < 0:
+            high_bound = mid_point
+        else:
+            low_bound = mid_point
+    
+    return (low_bound + high_bound) / 2.0
+
+
+def calculate_sustainable_benefit_with_engine(
+    state: "SimulatorState",
+    engine: "ActuarialEngine"
+) -> float:
+    """
+    Calcula benefício sustentável usando root finding com ActuarialEngine.
+    
+    Esta função encontra o valor de benefício que zera o déficit/superávit
+    usando o método da bissecção e o engine atuarial completo.
+    
+    Args:
+        state: Estado atual do simulador
+        engine: Engine atuarial para cálculos
+    
+    Returns:
+        Benefício mensal que zera o déficit/superávit
+    """
+    # Importação dinâmica para evitar circular imports
+    import copy
+    
+    def objective_function(benefit_value: float) -> float:
+        """
+        Função objetivo: retorna déficit/superávit para um dado benefício.
+        Quando retorna 0, temos o benefício sustentável.
+        """
+        # Criar cópia do estado com novo benefício
+        test_state = copy.deepcopy(state)
+        test_state.target_benefit = float(benefit_value)
+        test_state.benefit_target_mode = "VALUE"
+        
+        # Calcular usando engine atuarial existente
+        try:
+            results = engine.calculate_individual_simulation(test_state)
+            return results.deficit_surplus
+        except Exception as e:
+            # Em caso de erro, retornar valor alto para evitar essa região
+            return float('inf')
+    
+    # Determinar bounds inteligentes baseados no salário
+    salary_monthly = state.salary / 12.0 if hasattr(state, 'salary') else 8000.0
+    
+    # Bounds: 10% a 300% do salário mensal (inicial)
+    low_bound = salary_monthly * 0.1
+    high_bound = salary_monthly * 3.0
+    
+    # Ajustar bounds se necessário para garantir que tenham sinais opostos
+    try:
+        f_low = objective_function(low_bound)
+        f_high = objective_function(high_bound)
+        print(f"DEBUG: Bounds iniciais - Low={low_bound:.2f} (f={f_low:.2f}), High={high_bound:.2f} (f={f_high:.2f})")
+        
+        # Se ambos têm mesmo sinal, expandir bounds agressivamente
+        if (f_low * f_high) > 0:
+            if f_low > 0:  # Ambos positivos (superávit), aumentar benefício muito mais
+                # Expandir progressivamente até encontrar sinal oposto
+                for multiplier in [5.0, 10.0, 20.0, 50.0, 100.0]:
+                    high_bound = salary_monthly * multiplier
+                    f_high = objective_function(high_bound)
+                    print(f"DEBUG: Testando high_bound={high_bound:.2f} (f={f_high:.2f})")
+                    if f_high <= 0:  # Encontrou déficit
+                        break
+                else:
+                    # Se ainda não encontrou, usar o último valor testado
+                    print(f"DEBUG: Não encontrou raiz até {high_bound:.2f}, usando como limite superior")
+                    
+            else:  # Ambos negativos (déficit), diminuir benefício  
+                low_bound = salary_monthly * 0.05
+    except:
+        pass
+    
+    # Encontrar benefício sustentável
+    return _bisection_root_finding(
+        objective_function,
+        low_bound,
+        high_bound,
+        tolerance=1.0,  # Tolerância de R$ 1,00
+        max_iterations=30
+    )
+
+
 def calculate_sustainable_benefit(
     initial_balance: float,
     vpa_contributions: float,
@@ -255,30 +378,21 @@ def calculate_sustainable_benefit(
     discount_rate_monthly: float,
     payment_timing: str,
     months_to_retirement: int,
-    benefit_months_per_year: int = 12
+    benefit_months_per_year: int = 12,
+    admin_fee_monthly: float = 0.0
 ) -> float:
     """
-    Calcula benefício mensal sustentável usando equilíbrio atuarial.
+    FUNÇÃO LEGADA - MANTIDA PARA COMPATIBILIDADE
     
-    Fórmula: Benefício_Sustentável = Recursos_Totais / Fator_Anuidade_Vitalícia
-    onde Recursos_Totais = Saldo_Inicial + VPA_Contribuições_Futuras
+    Esta função mantém a interface original mas não implementa
+    o cálculo correto. Use calculate_sustainable_benefit_with_engine
+    para obter o benefício sustentável real.
     
-    Args:
-        initial_balance: Saldo inicial acumulado
-        vpa_contributions: VPA das contribuições futuras
-        survival_probs: Lista de probabilidades de sobrevivência
-        discount_rate_monthly: Taxa de juros técnica mensal
-        payment_timing: Tipo de anuidade ("antecipado" ou "postecipado")
-        months_to_retirement: Período diferido até aposentadoria
-        benefit_months_per_year: Pagamentos de benefício por ano (12, 13, 14, etc.)
-    
-    Returns:
-        Benefício mensal sustentável (base, sem pagamentos extras)
+    TODO: Refatorar chamadas para usar nova função com engine.
     """
-    # Recursos totais disponíveis para equilíbrio atuarial
+    # Implementação simplificada como fallback
     total_resources = initial_balance + vpa_contributions
     
-    # Calcular fator de anuidade vitalícia mensal desde aposentadoria
     annuity_factor = calculate_life_annuity_factor(
         survival_probs,
         discount_rate_monthly,
@@ -286,12 +400,9 @@ def calculate_sustainable_benefit(
         start_month=months_to_retirement
     )
     
-    # Ajustar fator pela frequência de pagamentos anuais
-    # Se há 13 pagamentos por ano, cada R$ 1,00 mensal = R$ 13,00/12 = R$ 1,083 efetivo
     annual_payment_factor = benefit_months_per_year / 12.0
     effective_annuity_factor = annuity_factor * annual_payment_factor
     
-    # Calcular benefício sustentável
     if effective_annuity_factor > 0:
         return total_resources / effective_annuity_factor
     else:

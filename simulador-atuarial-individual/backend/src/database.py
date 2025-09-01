@@ -1,6 +1,7 @@
 from sqlmodel import SQLModel, create_engine, Session
 from pathlib import Path
 import os
+import logging
 from typing import Generator
 
 # Configuração do banco de dados
@@ -33,20 +34,31 @@ def get_session() -> Generator[Session, None, None]:
 
 def init_database():
     """Inicializa o banco de dados com dados padrão"""
-    create_db_and_tables()
+    logger = logging.getLogger(__name__)
     
-    # Aqui podemos adicionar dados iniciais se necessário
-    with Session(engine) as session:
-        # Verificar se já existem dados para evitar duplicação
-        from .models.database import MortalityTable
+    create_db_and_tables()
+    logger.info("Banco de dados inicializado")
+    
+    # Inicializar tábuas de mortalidade obrigatórias
+    try:
+        from .core.mortality_initializer import MortalityTableInitializer
         
-        # Exemplo: verificar se já existem tábuas de mortalidade
-        existing_tables = session.query(MortalityTable).first()
-        if not existing_tables:
-            # Aqui seria chamada a função para popular tábuas iniciais
-            pass
+        initializer = MortalityTableInitializer()
         
-        session.commit()
+        with Session(engine) as session:
+            report = initializer.ensure_required_tables(session)
+            
+            if report["failed_to_load"] > 0:
+                logger.warning(
+                    f"Algumas tábuas obrigatórias falharam ao carregar: "
+                    f"{', '.join(report['failed_tables'])}"
+                )
+            else:
+                logger.info("Todas as tábuas obrigatórias estão disponíveis")
+                
+    except Exception as e:
+        logger.error(f"Erro na inicialização de tábuas obrigatórias: {str(e)}", exc_info=True)
+        # Não bloquear a inicialização da aplicação por falhas nas tábuas
 
 
 # Função para resetar o banco (útil para desenvolvimento)

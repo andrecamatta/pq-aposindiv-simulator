@@ -85,29 +85,116 @@ def get_mortality_table(table_code: str, gender: str) -> np.ndarray:
     if cache_key in _CACHE:
         return _CACHE[cache_key]
     
-    if cache_key not in _TABLE_LOADERS:
-        raise ValueError(f"Tábua {table_code} para gênero {gender} não encontrada")
+    # Primeiro tentar o sistema antigo (compatibilidade)
+    if cache_key in _TABLE_LOADERS:
+        loader = _TABLE_LOADERS[cache_key]
+        table_data = loader()
+        _CACHE[cache_key] = table_data
+        return table_data
     
-    loader = _TABLE_LOADERS[cache_key]
-    table_data = loader()
+    # Tentar o sistema novo (banco de dados)
+    try:
+        from ..database import engine
+        from ..models.database import MortalityTable
+        from sqlmodel import Session, select
+        
+        with Session(engine) as session:
+            # Procurar tábua específica por gênero primeiro
+            specific_code = f"{table_code}_{gender}"
+            statement = select(MortalityTable).where(
+                MortalityTable.code == specific_code,
+                MortalityTable.is_active == True
+            )
+            table = session.exec(statement).first()
+            
+            if table:
+                table_data_dict = table.get_table_data()
+                # Converter para numpy array no formato esperado
+                max_age = max(table_data_dict.keys())
+                mortality_rates = np.zeros(max_age + 1)
+                for age, rate in table_data_dict.items():
+                    mortality_rates[age] = rate
+                
+                _CACHE[cache_key] = mortality_rates
+                return mortality_rates
+            
+            # Se não encontrar específica, procurar genérica com o gênero correto
+            statement = select(MortalityTable).where(
+                MortalityTable.code.like(f"{table_code}%"),
+                MortalityTable.gender == gender,
+                MortalityTable.is_active == True
+            )
+            table = session.exec(statement).first()
+            
+            if table:
+                table_data_dict = table.get_table_data()
+                max_age = max(table_data_dict.keys())
+                mortality_rates = np.zeros(max_age + 1)
+                for age, rate in table_data_dict.items():
+                    mortality_rates[age] = rate
+                
+                _CACHE[cache_key] = mortality_rates
+                return mortality_rates
     
-    _CACHE[cache_key] = table_data
-    return table_data
+    except Exception as e:
+        print(f"Erro ao carregar tábua do banco: {e}")
+    
+    raise ValueError(f"Tábua {table_code} para gênero {gender} não encontrada")
 
 
 def get_mortality_table_info() -> list[Dict[str, Any]]:
-    """Retorna informações sobre todas as tábuas disponíveis"""
-    return [
-        {
+    """Retorna informações sobre todas as tábuas disponíveis (genéricas, sem especificar gênero)"""
+    tables_info = []
+    
+    # Adicionar tábuas do sistema antigo
+    for code, table in MORTALITY_TABLES.items():
+        tables_info.append({
             "code": code,
             "name": table["name"],
             "description": table["description"],
             "source": table["source"],
             "is_official": table["is_official"],
             "regulatory_approved": table["regulatory_approved"]
-        }
-        for code, table in MORTALITY_TABLES.items()
-    ]
+        })
+    
+    # Adicionar tábuas do banco de dados (agrupadas por família)
+    try:
+        from ..database import engine
+        from ..models.database import MortalityTable
+        from sqlmodel import Session, select
+        
+        with Session(engine) as session:
+            statement = select(MortalityTable).where(MortalityTable.is_active == True)
+            db_tables = session.exec(statement).all()
+            
+            # Agrupar tábuas por família (removendo sufixo _M/_F)
+            table_families = {}
+            for table in db_tables:
+                # Extrair código da família (remover _M, _F)
+                family_code = table.code
+                if family_code.endswith('_M') or family_code.endswith('_F'):
+                    family_code = family_code[:-2]
+                
+                if family_code not in table_families:
+                    # Usar dados da primeira tábua da família para metadados
+                    table_families[family_code] = {
+                        "code": family_code,
+                        "name": table.name.replace(" Masculina", "").replace(" Feminina", ""),
+                        "description": table.description or "",
+                        "source": table.source,
+                        "is_official": table.is_official,
+                        "regulatory_approved": table.regulatory_approved
+                    }
+            
+            # Adicionar apenas se não existir no sistema antigo
+            for family_code, family_info in table_families.items():
+                if not any(t["code"] == family_code for t in tables_info):
+                    tables_info.append(family_info)
+    
+    except Exception as e:
+        print(f"Erro ao carregar tábuas do banco: {e}")
+    
+    return tables_info
 
 
 def validate_mortality_table(table_code: str) -> bool:

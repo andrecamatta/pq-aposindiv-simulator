@@ -1,0 +1,93 @@
+{
+  "version": "1.0",
+  "updated_at": "2025-08-31T14:50:00.000000",
+  "required_tables": [
+    {
+      "code": "BR_EMS_2021_M",
+      "name": "BR-EMS 2021 Masculina",
+      "source": "local",
+      "gender": "M",
+      "country": "BR",
+      "year": 2021,
+      "is_official": true,
+      "regulatory_approved": true,
+      "enabled": true,
+      "file_path": "data/mortality_tables/br_ems_2021_male.csv"
+    },
+    {
+      "code": "BR_EMS_2021_F",
+      "name": "BR-EMS 2021 Feminina",
+      "source": "local",
+      "gender": "F",
+      "country": "BR",
+      "year": 2021,
+      "is_official": true,
+      "regulatory_approved": true,
+      "enabled": true,
+      "file_path": "data/mortality_tables/br_ems_2021_female.csv"
+    },
+    {
+      "code": "AT_2000_M",
+      "name": "AT-2000 Masculina",
+      "source": "local",
+      "gender": "M",
+      "country": "BR",
+      "year": 2000,
+      "is_official": true,
+      "regulatory_approved": true,
+      "enabled": true,
+      "file_path": "data/mortality_tables/at_2000_male.csv"
+    },
+    {
+      "code": "AT_2000_F",
+      "name": "AT-2000 Feminina",
+      "source": "local",
+      "gender": "F",
+      "country": "BR",
+      "year": 2000,
+      "is_official": true,
+      "regulatory_approved": true,
+      "enabled": true,
+      "file_path": "data/mortality_tables/at_2000_female.csv"
+    },
+    {
+      "code": "BR_EMS_2010_M",
+      "name": "BR-EMS 2010 Masculina",
+      "source": "local",
+      "gender": "M",
+      "country": "BR",
+      "year": 2010,
+      "is_official": true,
+      "regulatory_approved": true,
+      "enabled": true,
+      "file_path": "data/mortality_tables/br_ems_2010_male.csv"
+    },
+    {
+      "code": "BR_EMS_2010_F",
+      "name": "BR-EMS 2010 Feminina",
+      "source": "local",
+      "gender": "F",
+      "country": "BR",
+      "year": 2010,
+      "is_official": true,
+      "regulatory_approved": true,
+      "enabled": true,
+      "file_path": "data/mortality_tables/br_ems_2010_female.csv"
+    }
+  ],
+  "optional_tables": [],
+  "sources_config": {
+    "pymort": {
+      "enabled": true,
+      "cache_duration_hours": 24
+    },
+    "pyliferisk": {
+      "enabled": true,
+      "cache_duration_hours": 168
+    },
+    "local": {
+      "enabled": true,
+      "data_directory": "data/mortality_tables"
+    }
+  }
+}

@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 
 from .participant import SimulatorState, Gender, CalculationMethod, BenefitTargetMode, PaymentTiming
+from .mixins import JSONSerializationMixin
 
 
 class User(SQLModel, table=True):
@@ -45,7 +46,7 @@ class UserProfile(SQLModel, table=True):
         self.simulator_state = state.model_dump_json()
 
 
-class ActuarialAssumption(SQLModel, table=True):
+class ActuarialAssumption(SQLModel, JSONSerializationMixin, table=True):
     """Premissas atuariais pré-definidas e personalizadas"""
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
@@ -62,39 +63,59 @@ class ActuarialAssumption(SQLModel, table=True):
     
     def get_parameters(self) -> Dict[str, Any]:
         """Deserializa os parâmetros"""
-        return json.loads(self.parameters)
+        return self.get_json_field("parameters")
     
     def set_parameters(self, params: Dict[str, Any]):
         """Serializa os parâmetros"""
-        self.parameters = json.dumps(params)
+        self.set_json_field("parameters", params)
 
 
-class MortalityTable(SQLModel, table=True):
-    """Tábuas de mortalidade"""
+class MortalityTable(SQLModel, JSONSerializationMixin, table=True):
+    """Tábuas de mortalidade com metadados expandidos"""
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
+    code: str = Field(unique=True, description="Código único da tábua (ex: BR_EMS_2021, AT_2000)")
     description: Optional[str] = None
     country: Optional[str] = None
     year: Optional[int] = None
     gender: Optional[str] = None  # "M", "F", ou "UNISEX"
     
+    # Metadados da fonte
+    source: str = Field(description="Fonte da tábua (pymort, local, csv, excel)")
+    source_id: Optional[str] = None  # ID da tábua na fonte original
+    version: Optional[str] = None
+    is_official: bool = False  # Tábua oficial/regulamentar
+    regulatory_approved: bool = False  # Aprovada por órgão regulador
+    
     # Dados da tábua serializados como JSON
     table_data: str = Field(description="JSON com os dados da tábua de mortalidade")
+    table_metadata: str = Field(default="{}", description="JSON com metadados adicionais")
     
+    # Status e controle
+    is_active: bool = True  # Tábua ativa para uso
     is_system: bool = False  # Tábuas do sistema não podem ser editadas
+    last_loaded: Optional[datetime] = None  # Última vez que foi carregada da fonte
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = None
     
     def get_table_data(self) -> Dict[int, float]:
         """Deserializa os dados da tábua"""
-        return {int(k): v for k, v in json.loads(self.table_data).items()}
+        return self.get_json_field_with_transform("table_data", key_transform=int)
     
     def set_table_data(self, data: Dict[int, float]):
         """Serializa os dados da tábua"""
-        self.table_data = json.dumps({str(k): v for k, v in data.items()})
+        self.set_json_field_with_transform("table_data", data, key_transform=str)
+    
+    def get_metadata(self) -> Dict[str, Any]:
+        """Deserializa os metadados"""
+        return self.get_json_field("table_metadata")
+    
+    def set_metadata(self, metadata: Dict[str, Any]):
+        """Serializa os metadados"""
+        self.set_json_field("table_metadata", metadata)
 
 
-class SimulationResult(SQLModel, table=True):
+class SimulationResult(SQLModel, JSONSerializationMixin, table=True):
     """Resultados de simulações para cache e histórico"""
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: Optional[int] = Field(default=None, foreign_key="user.id")
@@ -111,8 +132,8 @@ class SimulationResult(SQLModel, table=True):
     
     def get_results(self) -> Dict[str, Any]:
         """Deserializa os resultados"""
-        return json.loads(self.results)
+        return self.get_json_field("results")
     
     def set_results(self, results_data: Dict[str, Any]):
         """Serializa os resultados"""
-        self.results = json.dumps(results_data)
+        self.set_json_field("results", results_data)

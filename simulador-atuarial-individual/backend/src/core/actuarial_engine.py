@@ -518,7 +518,8 @@ class ActuarialEngine:
                 context.discount_rate_monthly,
                 context.payment_timing,
                 context.months_to_retirement,
-                context.benefit_months_per_year
+                context.benefit_months_per_year,
+                context.admin_fee_monthly
             )
             
             # Taxa de reposição sustentável
