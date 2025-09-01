@@ -1,8 +1,9 @@
 import React from 'react';
+import { Icon } from '../../design-system/components/Icon';
 import { Bar } from 'react-chartjs-2';
 import type { SimulatorResults, SimulatorState } from '../../types/simulator.types';
 import { getZeroLineGridConfig } from '../../utils/chartSetup';
-import { formatPercentage } from '../../utils/formatting';
+import { formatPercentageBR } from '../../utils/formatBR';
 
 interface SufficiencyBarChartProps {
   results: SimulatorResults;
@@ -15,7 +16,7 @@ const SufficiencyBarChart: React.FC<SufficiencyBarChartProps> = ({ results, stat
     return (
       <div className="h-64 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-4xl mb-4">📈</div>
+          <Icon name="trending-up" size="xl" className="text-gray-400 mb-4" />
           <p className="text-gray-500">Dados insuficientes para gerar o gráfico</p>
         </div>
       </div>
@@ -83,7 +84,7 @@ const SufficiencyBarChart: React.FC<SufficiencyBarChartProps> = ({ results, stat
         callbacks: {
           label: function(context: any) {
             const value = context.parsed.y;
-            return `${context.label}: ${formatPercentage(value)}`;
+            return `${context.label}: ${formatPercentageBR(value)}`;
           },
         },
       },
@@ -91,7 +92,7 @@ const SufficiencyBarChart: React.FC<SufficiencyBarChartProps> = ({ results, stat
         display: true,
         anchor: 'end' as const,
         align: 'top' as const,
-        formatter: (value: number) => formatPercentage(value),
+        formatter: (value: number) => formatPercentageBR(value),
         font: {
           size: 12,
           weight: 'bold' as const,
@@ -122,7 +123,7 @@ const SufficiencyBarChart: React.FC<SufficiencyBarChartProps> = ({ results, stat
           },
           color: '#6B7280',
           callback: function(value: any) {
-            return formatPercentage(value);
+            return formatPercentageBR(value);
           },
         },
         title: {
@@ -151,7 +152,19 @@ const SufficiencyBarChart: React.FC<SufficiencyBarChartProps> = ({ results, stat
             ? 'bg-green-100 text-green-800'
             : 'bg-red-100 text-red-800'
         }`}>
-          {sustainableRate >= targetRate ? '✓ Meta Alcançada' : '⚠ Meta Não Alcançada'}
+          <div className="flex items-center gap-2">
+            {sustainableRate >= targetRate ? (
+              <>
+                <Icon name="check-circle" size="sm" className="text-green-600" />
+                <span>Meta Alcançada</span>
+              </>
+            ) : (
+              <>
+                <Icon name="alert-triangle" size="sm" className="text-yellow-600" />
+                <span>Meta Não Alcançada</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
       
@@ -163,7 +176,7 @@ const SufficiencyBarChart: React.FC<SufficiencyBarChartProps> = ({ results, stat
       {/* Análise de Gap */}
       <div className="text-center text-sm text-gray-600">
         <span className="font-medium">
-          Gap: {formatPercentage(Math.abs(sustainableRate - targetRate))}
+          Gap: {formatPercentageBR(Math.abs(sustainableRate - targetRate))}
         </span>
         {sustainableRate < targetRate && (
           <span className="text-red-600 ml-1">(Déficit)</span>

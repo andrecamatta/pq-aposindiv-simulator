@@ -1,6 +1,6 @@
 import React, { useRef, useState, useCallback } from 'react';
 import type { SimulatorState, MortalityTable } from '../types';
-import { InformationCircleIcon } from '@heroicons/react/24/outline';
+import { Icon } from '../design-system/components/Icon';
 import { useFormHandler } from '../hooks';
 
 interface ParameterPanelProps {
@@ -45,7 +45,7 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
           <label className="text-xs font-medium text-gray-700">{label}</label>
           {tooltip && (
             <div className="relative group">
-              <InformationCircleIcon className="h-3 w-3 text-gray-400 cursor-help" />
+              <Icon name="info" className="h-3 w-3 text-gray-400 cursor-help" />
               <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 rounded shadow-lg whitespace-nowrap z-10">
                 {tooltip}
               </div>
@@ -70,12 +70,18 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
   return (
     <div className="bg-white rounded-lg shadow-lg p-4 space-y-4 max-w-md">
       <h2 className="text-lg font-bold text-gray-900 border-b pb-2">
-        📝 Parâmetros
+        <div className="flex items-center gap-2">
+          <Icon name="file-text" size="sm" className="text-gray-700" />
+          Parâmetros
+        </div>
       </h2>
 
       {/* Dados do Participante */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-800">👤 Participante</h3>
+        <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+          <Icon name="user" size="sm" className="text-gray-700" />
+          Participante
+        </h3>
         
         <div className="grid grid-cols-2 gap-2">
           <div>
@@ -134,7 +140,10 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
 
       {/* Parâmetros do Plano */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-800">💼 Plano</h3>
+        <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+          <Icon name="target" size="sm" className="text-gray-700" />
+          Plano
+        </h3>
         
         <SliderField
           label="Saldo Inicial"
@@ -166,6 +175,7 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
           step={0.1}
           value={state.accrual_rate}
           suffix="%"
+          formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
           tooltip="Rentabilidade real esperada"
         />
 
@@ -188,13 +198,17 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
           step={0.5}
           value={state.contribution_rate}
           suffix="%"
+          formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
           tooltip="% do salário para contribuição"
         />
       </div>
 
       {/* Base Atuarial */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-800">📊 Atuarial</h3>
+        <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+          <Icon name="bar-chart" size="sm" className="text-gray-700" />
+          Atuarial
+        </h3>
         
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Tábua Mortalidade</label>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Settings, TrendingUp, Cog, FileText } from 'lucide-react';
+import { createIconComponent } from './Icon';
 import SaiLogo from '../../assets/sai-logo.svg';
 
 export interface Tab {
@@ -19,7 +19,7 @@ export const tabs: Tab[] = [
   {
     id: 'participant',
     label: 'Participante',
-    icon: User,
+    icon: createIconComponent('user'),
     color: {
       primary: '#2563eb', // blue-600
       light: '#60a5fa',   // blue-400
@@ -30,7 +30,7 @@ export const tabs: Tab[] = [
   {
     id: 'assumptions',
     label: 'Premissas',
-    icon: Settings,
+    icon: createIconComponent('settings'),
     color: {
       primary: '#8b5cf6', // violet-600
       light: '#a78bfa',   // violet-400
@@ -41,7 +41,7 @@ export const tabs: Tab[] = [
   {
     id: 'technical',
     label: 'Técnico',
-    icon: Cog,
+    icon: createIconComponent('cog'),
     color: {
       primary: '#ea580c', // orange-600
       light: '#fb923c',   // orange-400
@@ -52,7 +52,7 @@ export const tabs: Tab[] = [
   {
     id: 'results',
     label: 'Resultados',
-    icon: TrendingUp,
+    icon: createIconComponent('trending-up'),
     color: {
       primary: '#059669', // emerald-600
       light: '#34d399',   // emerald-400
@@ -63,7 +63,7 @@ export const tabs: Tab[] = [
   {
     id: 'reports',
     label: 'Relatórios',
-    icon: FileText,
+    icon: createIconComponent('file-text'),
     color: {
       primary: '#db2777', // pink-600
       light: '#f472b6',   // pink-400

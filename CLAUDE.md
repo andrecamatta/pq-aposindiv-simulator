@@ -1,0 +1,1 @@
+- Se estiverem ocupadas as portas 8000 e 5173, sinta-se livre para matar os processos e subir novamente para realizar o teste

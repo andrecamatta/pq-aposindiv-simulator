@@ -1,7 +1,8 @@
 import React from 'react';
-import { FileText, Download, Printer, Mail, FileSpreadsheet, File } from 'lucide-react';
+import { Icon } from '../../design-system/components/Icon';
 import type { SimulatorResults, SimulatorState } from '../../types';
 import { Card, CardHeader, CardTitle, CardContent, Button } from '../../design-system/components';
+import { formatCurrencyBR, formatDecimalToPercentageBR } from '../../utils/formatBR';
 
 interface ReportsTabProps {
   results: SimulatorResults | null;
@@ -27,7 +28,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
         <CardHeader>
           <CardTitle className="flex items-center gap-4">
             <div className="w-16 h-16 bg-gradient-to-br from-pink-200 to-pink-400 rounded-2xl flex items-center justify-center shadow-lg">
-              <FileText className="w-8 h-8 text-white" />
+              <Icon name="file-text" size="xl" className="text-white" />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-pink-900">Relatórios e Exportações</h2>
@@ -42,7 +43,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
         <Card className="bg-gradient-to-br from-pink-50/70 to-pink-100/70 border-pink-200">
           <CardContent className="p-8 text-center">
             <div className="w-16 h-16 bg-pink-200 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-8 h-8 text-pink-500" />
+              <Icon name="file-text" size="xl" className="text-pink-500" />
             </div>
             <h3 className="text-xl font-bold text-pink-900 mb-2">Aguardando Resultados</h3>
             <p className="text-pink-600">
@@ -59,7 +60,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-pink-300 to-pink-500 rounded-xl flex items-center justify-center">
-                    <FileText className="w-6 h-6 text-white" />
+                    <Icon name="file-text" size="lg" className="text-white" />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-pink-900">Relatório Executivo</h3>
@@ -87,7 +88,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                       onClick={() => handlePreview('executive-pdf')}
                       className="text-pink-700 hover:bg-pink-100"
                     >
-                      <Printer className="w-4 h-4 mr-1" />
+                      <Icon name="printer" size="sm" className="mr-1" />
                       Preview
                     </Button>
                     <Button 
@@ -95,7 +96,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                       onClick={() => handleDownload('executive-pdf')}
                       className="bg-pink-500 hover:bg-pink-600 text-white"
                     >
-                      <Download className="w-4 h-4 mr-1" />
+                      <Icon name="download" size="sm" className="mr-1" />
                       PDF
                     </Button>
                   </div>
@@ -108,7 +109,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-pink-400 to-pink-600 rounded-xl flex items-center justify-center">
-                    <File className="w-6 h-6 text-white" />
+                    <Icon name="file" size="lg" className="text-white" />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-pink-900">Relatório Técnico</h3>
@@ -136,7 +137,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                       onClick={() => handlePreview('technical-pdf')}
                       className="text-pink-700 hover:bg-pink-100"
                     >
-                      <Printer className="w-4 h-4 mr-1" />
+                      <Icon name="printer" size="sm" className="mr-1" />
                       Preview
                     </Button>
                     <Button 
@@ -144,7 +145,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                       onClick={() => handleDownload('technical-pdf')}
                       className="bg-pink-500 hover:bg-pink-600 text-white"
                     >
-                      <Download className="w-4 h-4 mr-1" />
+                      <Icon name="download" size="sm" className="mr-1" />
                       PDF
                     </Button>
                   </div>
@@ -157,7 +158,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-pink-700 rounded-xl flex items-center justify-center">
-                    <FileSpreadsheet className="w-6 h-6 text-white" />
+                    <Icon name="file-spreadsheet" size="lg" className="text-white" />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-pink-900">Planilha de Dados</h3>
@@ -184,7 +185,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                       onClick={() => handleDownload('data-excel')}
                       className="bg-green-500 hover:bg-green-600 text-white"
                     >
-                      <Download className="w-4 h-4 mr-1" />
+                      <Icon name="download" size="sm" className="mr-1" />
                       Excel
                     </Button>
                     <Button 
@@ -192,7 +193,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                       onClick={() => handleDownload('data-csv')}
                       className="bg-blue-500 hover:bg-blue-600 text-white"
                     >
-                      <Download className="w-4 h-4 mr-1" />
+                      <Icon name="download" size="sm" className="mr-1" />
                       CSV
                     </Button>
                   </div>
@@ -205,7 +206,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-pink-600 to-rose-600 rounded-xl flex items-center justify-center">
-                    <Mail className="w-6 h-6 text-white" />
+                    <Icon name="mail" size="lg" className="text-white" />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-pink-900">Envio por Email</h3>
@@ -227,7 +228,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                     className="bg-pink-500 hover:bg-pink-600 text-white w-full"
                     disabled
                   >
-                    <Mail className="w-4 h-4 mr-2" />
+                    <Icon name="mail" size="sm" className="mr-2" />
                     Configurar Email (Em breve)
                   </Button>
                 </div>
@@ -243,19 +244,19 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                 <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
                   <p className="text-xs text-pink-600 uppercase font-medium mb-1">RMBA</p>
                   <p className="text-sm font-bold text-pink-900">
-                    R$ {results.rmba.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                    {formatCurrencyBR(results.rmba, 0)}
                   </p>
                 </div>
                 <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
                   <p className="text-xs text-pink-600 uppercase font-medium mb-1">RMBC</p>
                   <p className="text-sm font-bold text-pink-900">
-                    R$ {results.rmbc.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                    {formatCurrencyBR(results.rmbc, 0)}
                   </p>
                 </div>
                 <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
                   <p className="text-xs text-pink-600 uppercase font-medium mb-1">Superávit</p>
                   <p className="text-sm font-bold text-pink-900">
-                    {(results.superavit_percentage * 100).toFixed(1)}%
+                    {formatDecimalToPercentageBR(results.superavit_percentage, 1)}
                   </p>
                 </div>
                 <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">

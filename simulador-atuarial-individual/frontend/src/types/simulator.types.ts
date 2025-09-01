@@ -118,3 +118,47 @@ export interface WebSocketMessage {
   calculation_id?: string;
   computation_time_ms?: number;
 }
+
+// Tipos para sugestões inteligentes
+export type SuggestionType = "balance_plan" | "improve_benefit" | "reduce_contribution" | "optimize_retirement" | "sustainable_benefit" | "trade_off_options" | "optimize_multiple";
+export type SuggestionAction = "update_contribution_rate" | "update_retirement_age" | "update_target_benefit" | "update_accrual_rate" | "apply_sustainable_benefit" | "update_replacement_rate" | "update_multiple_params";
+
+export interface Suggestion {
+  id: string;
+  type: SuggestionType;
+  title: string;
+  description: string;
+  action: SuggestionAction;
+  action_value?: number;
+  action_values?: Record<string, number>;  // Para múltiplos parâmetros
+  action_label: string;
+  priority: number;
+  impact_description: string;
+  confidence: number;
+  trade_off_info?: string;  // Informação sobre trade-offs
+}
+
+export interface SuggestionsRequest {
+  state: SimulatorState;
+  max_suggestions?: number;
+  focus_area?: string;
+}
+
+export interface SuggestionsResponse {
+  suggestions: Suggestion[];
+  context: Record<string, any>;
+  computation_time_ms: number;
+}
+
+export interface ApplySuggestionRequest {
+  state: SimulatorState;
+  action: SuggestionAction;
+  action_value?: number;
+  action_values?: Record<string, number>;
+}
+
+export interface ApplySuggestionResponse {
+  updated_state: SimulatorState;
+  new_results: SimulatorResults;
+  message: string;
+}

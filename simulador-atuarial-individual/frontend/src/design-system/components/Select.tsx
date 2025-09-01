@@ -1,7 +1,7 @@
 import React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
-import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import { ChevronDown } from 'lucide-react';
 
 const selectVariants = cva(
   [
@@ -119,7 +119,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             {loading ? (
               <div className="w-4 h-4 border-2 border-gray-300 border-t-primary-500 rounded-full animate-spin" />
             ) : (
-              <ChevronDownIcon className="w-4 h-4 text-gray-400" />
+              <ChevronDown className="w-4 h-4 text-gray-400" />
             )}
           </div>
         </div>

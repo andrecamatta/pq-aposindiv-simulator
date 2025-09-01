@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BarChart3, TrendingUp, TrendingDown, Eye, CheckCircle, AlertTriangle, Target, DollarSign, PieChart, Clock, Info } from 'lucide-react';
 import type { SimulatorResults } from '../../types';
-import { formatCurrency, formatPercentage } from '../../utils/formatting';
+import { formatCurrencyBR, formatPercentageBR, formatCompactBR, formatNumberBR, formatDurationBR } from '../../utils/formatBR';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Modal, ModalFooter, Button } from '../../design-system/components';
 
 interface CompactResultsSectionProps {
@@ -83,7 +83,7 @@ const CompactResultsSection: React.FC<CompactResultsSectionProps> = ({ results, 
             </div>
           </div>
           <div className="text-lg font-bold text-gray-900 mb-1">
-            {formatCurrency(results.rmba)}
+            {formatCurrencyBR(results.rmba)}
           </div>
           <div className="text-xs text-gray-500">
             Reserva Benefícios a Conceder
@@ -101,7 +101,7 @@ const CompactResultsSection: React.FC<CompactResultsSectionProps> = ({ results, 
             </div>
           </div>
           <div className="text-lg font-bold text-gray-900 mb-1">
-            {formatCurrency(results.rmbc)}
+            {formatCurrencyBR(results.rmbc)}
           </div>
           <div className="text-xs text-gray-500">
             Reserva Benefícios Concedidos
@@ -139,10 +139,10 @@ const CompactResultsSection: React.FC<CompactResultsSectionProps> = ({ results, 
           <div className={`text-lg font-bold mb-1 ${
             (results.deficit_surplus || 0) >= 0 ? 'text-success-700' : 'text-error-700'
           }`}>
-            {formatCurrency(Math.abs(results.deficit_surplus || 0))}
+            {formatCurrencyBR(Math.abs(results.deficit_surplus || 0))}
           </div>
           <div className="text-xs text-gray-500">
-            {formatPercentage(Math.abs(results.deficit_surplus_percentage || 0))}
+            {formatPercentageBR(Math.abs(results.deficit_surplus_percentage || 0))}
           </div>
         </Card>
       </div>
@@ -156,25 +156,25 @@ const CompactResultsSection: React.FC<CompactResultsSectionProps> = ({ results, 
                 ? 'text-success-600' 
                 : 'text-error-600'
             }`}>
-              {(results.required_contribution_rate || 0).toFixed(1)}%
+              {formatPercentageBR(results.required_contribution_rate || 0, 1)}
             </div>
             <div className="text-xs text-gray-600">Taxa Necessária</div>
           </div>
           <div className="text-center">
             <div className="text-sm font-bold text-gray-900 mb-1">
-              {(results.total_contributions / 1000000).toFixed(1)}M
+              {formatCompactBR(results.total_contributions)}
             </div>
             <div className="text-xs text-gray-600">Total Contribuições</div>
           </div>
           <div className="text-center">
             <div className="text-sm font-bold text-gray-900 mb-1">
-              {(results.total_benefits / 1000000).toFixed(1)}M
+              {formatCompactBR(results.total_benefits)}
             </div>
             <div className="text-xs text-gray-600">Total Benefícios</div>
           </div>
           <div className="text-center">
             <div className="text-sm font-bold text-gray-900 mb-1">
-              {results.liability_duration.toFixed(1)}
+              {formatDurationBR(results.liability_duration, 1)}
             </div>
             <div className="text-xs text-gray-600">Duration (anos)</div>
           </div>
@@ -205,19 +205,19 @@ const CompactResultsSection: React.FC<CompactResultsSectionProps> = ({ results, 
                   <tr className="hover:bg-gray-50">
                     <td className="py-3 px-4 text-sm font-medium text-gray-600">VPA Benefícios Futuros</td>
                     <td className="py-3 px-4 text-sm font-bold text-gray-900 text-right">
-                      {formatCurrency(results.actuarial_present_value_benefits)}
+                      {formatCurrencyBR(results.actuarial_present_value_benefits)}
                     </td>
                   </tr>
                   <tr className="hover:bg-gray-50">
                     <td className="py-3 px-4 text-sm font-medium text-gray-600">VPA Salários Futuros</td>
                     <td className="py-3 px-4 text-sm font-bold text-gray-900 text-right">
-                      {formatCurrency(results.actuarial_present_value_salary)}
+                      {formatCurrencyBR(results.actuarial_present_value_salary)}
                     </td>
                   </tr>
                   <tr className="hover:bg-gray-50">
                     <td className="py-3 px-4 text-sm font-medium text-gray-600">Convexidade</td>
                     <td className="py-3 px-4 text-sm font-bold text-gray-900 text-right">
-                      {results.convexity.toFixed(2)}
+                      {formatNumberBR(results.convexity, 2)}
                     </td>
                   </tr>
                   <tr className="hover:bg-gray-50">
@@ -229,7 +229,7 @@ const CompactResultsSection: React.FC<CompactResultsSectionProps> = ({ results, 
                   <tr className="hover:bg-gray-50">
                     <td className="py-3 px-4 text-sm font-medium text-gray-600">Tempo de Cálculo</td>
                     <td className="py-3 px-4 text-sm font-bold text-gray-900 text-right">
-                      {results.computation_time_ms.toFixed(1)}ms
+                      {formatNumberBR(results.computation_time_ms, 1)}ms
                     </td>
                   </tr>
                   <tr className="hover:bg-gray-50">

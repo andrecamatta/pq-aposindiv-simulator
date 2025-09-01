@@ -1,7 +1,7 @@
 import React from 'react';
 import { Doughnut } from 'react-chartjs-2';
 import type { SimulatorResults } from '../../types/simulator.types';
-import { formatCurrency } from '../../utils';
+import { formatCurrencyBR } from '../../utils/formatBR';
 
 interface RMBACompositionChartProps {
   results: SimulatorResults;
@@ -53,7 +53,7 @@ const RMBACompositionChart: React.FC<RMBACompositionChartProps> = ({ results }) 
           label: function(context: any) {
             const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
             const percentage = ((context.parsed / total) * 100).toFixed(1);
-            return `${context.label}: ${formatCurrency(context.parsed, 0)} (${percentage}%)`;
+            return `${context.label}: ${formatCurrencyBR(context.parsed, 0)} (${percentage}%)`;
           },
         },
       },
@@ -62,7 +62,7 @@ const RMBACompositionChart: React.FC<RMBACompositionChartProps> = ({ results }) 
   };
 
   const centerValue = results.rmba;
-  const centerText = formatCurrency(centerValue, 0);
+  const centerText = formatCurrencyBR(centerValue, 0);
 
   return (
     <div className="relative h-80">

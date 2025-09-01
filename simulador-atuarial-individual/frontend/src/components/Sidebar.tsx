@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart3, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Icon, createIconComponent } from '../design-system/components/Icon';
 import { StatusBadge } from '../design-system/components';
 
 interface SidebarProps {
@@ -12,13 +12,13 @@ const menuItems = [
   {
     id: 'dashboard',
     name: 'Dashboard',
-    icon: BarChart3,
+    icon: createIconComponent('bar-chart'),
     description: 'Simulação'
   },
   {
     id: 'reports',
     name: 'Relatórios',
-    icon: FileText,
+    icon: createIconComponent('file-text'),
     description: 'Exportação'
   }
 ];
@@ -45,9 +45,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange, conne
             title={isCollapsed ? 'Expandir sidebar' : 'Recolher sidebar'}
           >
             {isCollapsed ? (
-              <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-white" />
+              <Icon name="chevron-right" size="sm" className="text-gray-400 group-hover:text-white" />
             ) : (
-              <ChevronLeft className="w-4 h-4 text-gray-400 group-hover:text-white" />
+              <Icon name="chevron-left" size="sm" className="text-gray-400 group-hover:text-white" />
             )}
           </button>
         </div>

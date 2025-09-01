@@ -1,5 +1,14 @@
 import axios from 'axios';
-import type { SimulatorState, SimulatorResults, MortalityTable, WebSocketMessage } from '../types';
+import type { 
+  SimulatorState, 
+  SimulatorResults, 
+  MortalityTable, 
+  WebSocketMessage,
+  SuggestionsRequest,
+  SuggestionsResponse,
+  ApplySuggestionRequest,
+  ApplySuggestionResponse
+} from '../types';
 
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -31,6 +40,16 @@ export const apiService = {
     const response = await api.get('/health');
     return response.data;
   },
+
+  async getSuggestions(request: SuggestionsRequest): Promise<SuggestionsResponse> {
+    const response = await api.post('/suggestions', request);
+    return response.data;
+  },
+
+  async applySuggestion(request: ApplySuggestionRequest): Promise<ApplySuggestionResponse> {
+    const response = await api.post('/apply-suggestion', request);
+    return response.data;
+  },
 };
 
 // WebSocket client
@@ -53,7 +72,7 @@ export class WebSocketClient {
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const wsUrl = `ws://localhost:8001/ws/${this.clientId}`;
+        const wsUrl = `ws://localhost:8000/ws/${this.clientId}`;
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {

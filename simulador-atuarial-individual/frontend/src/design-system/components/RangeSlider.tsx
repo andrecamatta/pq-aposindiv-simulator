@@ -3,6 +3,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
 import { HelpCircle } from 'lucide-react';
 import { Tooltip } from './Tooltip';
+import { useEditableValue } from '../../hooks';
 import styles from './RangeSlider.module.css';
 
 const sliderVariants = cva(
@@ -76,6 +77,17 @@ const RangeSlider = React.memo(React.forwardRef<HTMLInputElement, RangeSliderPro
       onChange(parseFloat(event.target.value));
     }, [onChange]);
 
+    // Hook para gerenciar edição de valor
+    const editableValue = useEditableValue({
+      value,
+      min,
+      max,
+      step,
+      onChange,
+      formatDisplay,
+      disabled,
+    });
+
     // Memoizar estilo do background para evitar recalculação desnecessária
     const backgroundStyle = useMemo(() => ({
       background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${percentage}%, #e5e7eb ${percentage}%, #e5e7eb 100%)`
@@ -100,8 +112,44 @@ const RangeSlider = React.memo(React.forwardRef<HTMLInputElement, RangeSliderPro
               )}
             </div>
             
-            <div className="bg-primary-50 text-primary-700 px-3 py-1 rounded-md text-sm font-semibold border border-primary-200">
-              {formatDisplay(value)}{suffix}
+            <div className="relative">
+              {editableValue.isEditing ? (
+                <input
+                  ref={editableValue.inputRef}
+                  type="text"
+                  value={editableValue.tempValue}
+                  onChange={(e) => editableValue.handleInputChange(e.target.value)}
+                  onKeyDown={editableValue.handleKeyDown}
+                  onBlur={editableValue.handleBlur}
+                  onFocus={editableValue.handleFocus}
+                  className={cn(
+                    'bg-primary-50 text-primary-700 px-3 py-1 rounded-md text-sm font-semibold border text-center min-w-0',
+                    editableValue.hasError 
+                      ? 'border-error-500 ring-1 ring-error-500 ring-opacity-20' 
+                      : 'border-primary-200 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:ring-opacity-20'
+                  )}
+                  style={{ width: 'auto', minWidth: '60px' }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={editableValue.handleClick}
+                  disabled={disabled}
+                  className={cn(
+                    'bg-primary-50 text-primary-700 px-3 py-1 rounded-md text-sm font-semibold border border-primary-200 transition-colors',
+                    !disabled && 'hover:bg-primary-100 hover:border-primary-300 cursor-pointer',
+                    disabled && 'cursor-not-allowed opacity-50'
+                  )}
+                >
+                  {editableValue.displayValue}{suffix}
+                </button>
+              )}
+              
+              {editableValue.hasError && editableValue.errorMessage && (
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 px-2 py-1 bg-error-600 text-white text-xs rounded whitespace-nowrap z-10">
+                  {editableValue.errorMessage}
+                </div>
+              )}
             </div>
           </div>
         )}

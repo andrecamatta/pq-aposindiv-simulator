@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, AlertTriangle, XCircle, Info, X } from 'lucide-react';
+import { Icon } from './Icon';
 import { cva } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
 
@@ -39,15 +39,15 @@ const Toast: React.FC<ToastProps> = ({
   const getIcon = () => {
     switch (variant) {
       case 'success':
-        return <CheckCircle className="w-5 h-5 text-success-600" />;
+        return <Icon name="check-circle" size="md" color="success" />;
       case 'error':
-        return <XCircle className="w-5 h-5 text-error-600" />;
+        return <Icon name="x-circle" size="md" color="error" />;
       case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-warning-600" />;
+        return <Icon name="alert-triangle" size="md" color="warning" />;
       case 'info':
-        return <Info className="w-5 h-5 text-info-600" />;
+        return <Icon name="info" size="md" className="text-info-600" />;
       default:
-        return <Info className="w-5 h-5 text-slate-600" />;
+        return <Icon name="info" size="md" color="neutral" />;
     }
   };
 
@@ -75,7 +75,7 @@ const Toast: React.FC<ToastProps> = ({
           className="absolute right-2 top-2 rounded-md p-1 hover:bg-black/10 transition-colors"
           aria-label="Close notification"
         >
-          <X className="w-4 h-4" />
+          <Icon name="close" size="sm" />
         </button>
       )}
       

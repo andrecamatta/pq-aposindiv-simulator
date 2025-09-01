@@ -1,7 +1,7 @@
 import React from 'react';
-import { BarChart3, TrendingUp, TrendingDown, CheckCircle, AlertTriangle, Target, DollarSign, PieChart, Clock } from 'lucide-react';
+import { Icon } from '../design-system/components/Icon';
 import type { SimulatorResults } from '../types';
-import { formatCurrency, formatPercentage } from '../utils/formatting';
+import { formatCurrencyBR, formatPercentageBR, formatCompactBR, formatNumberBR, formatDurationBR } from '../utils/formatBR';
 import { 
   Card, 
   CardHeader, 
@@ -42,7 +42,7 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading })
       <Card padding="lg">
         <div className="text-center text-gray-500">
           <div className="w-16 h-16 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-            <BarChart3 className="w-8 h-8 text-gray-400" />
+            <Icon name="bar-chart" size="xl" color="muted" />
           </div>
           <h3 className="text-lg font-semibold text-gray-700 mb-2">Resultados da Simulação</h3>
           <p className="text-sm">Configure os parâmetros à esquerda para visualizar os resultados</p>
@@ -62,11 +62,11 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading })
               RMBA
             </Badge>
             <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-              <BarChart3 className="w-5 h-5 text-primary-600" />
+              <Icon name="bar-chart" size="md" color="primary" />
             </div>
           </div>
           <div className="text-2xl font-bold text-gray-900 mb-1">
-            {formatCurrency(results.rmba)}
+            {formatCurrencyBR(results.rmba)}
           </div>
           <div className="text-sm text-gray-500">
             Reserva Benefícios a Conceder
@@ -80,11 +80,11 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading })
               RMBC
             </Badge>
             <div className="w-10 h-10 bg-success-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-success-600" />
+              <Icon name="check-circle" size="md" color="success" />
             </div>
           </div>
           <div className="text-2xl font-bold text-gray-900 mb-1">
-            {formatCurrency(results.rmbc)}
+            {formatCurrencyBR(results.rmbc)}
           </div>
           <div className="text-sm text-gray-500">
             Reserva Benefícios Concedidos
@@ -113,19 +113,19 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading })
               (results.deficit_surplus || 0) >= 0 ? 'bg-success-100' : 'bg-error-100'
             }`}>
               {(results.deficit_surplus || 0) >= 0 ? (
-                <TrendingUp className="w-5 h-5 text-success-600" />
+                <Icon name="trending-up" size="md" color="success" />
               ) : (
-                <TrendingDown className="w-5 h-5 text-error-600" />
+                <Icon name="trending-down" size="md" color="error" />
               )}
             </div>
           </div>
           <div className={`text-2xl font-bold mb-1 ${
             (results.deficit_surplus || 0) >= 0 ? 'text-success-700' : 'text-error-700'
           }`}>
-            {formatCurrency(Math.abs(results.deficit_surplus || 0))}
+            {formatCurrencyBR(Math.abs(results.deficit_surplus || 0))}
           </div>
           <div className="text-sm text-gray-500">
-            {formatPercentage(Math.abs(results.deficit_surplus_percentage || 0))}
+            {formatPercentageBR(Math.abs(results.deficit_surplus_percentage || 0), 1)}
           </div>
         </Card>
       </div>
@@ -135,7 +135,7 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading })
         <CardHeader withBorder>
           <CardTitle className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-              <Target className="w-5 h-5 text-primary-600" />
+              <Icon name="target" size="md" color="primary" />
             </div>
             Métricas-Chave
           </CardTitle>
@@ -151,7 +151,7 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading })
                   : 'bg-error-100 text-error-600 group-hover:bg-error-200'
               }`}>
                 <span className="text-lg font-bold">
-                  {(results.required_contribution_rate || 0).toFixed(1)}%
+                  {formatPercentageBR(results.required_contribution_rate || 0, 1)}
                 </span>
               </div>
               <div className="text-sm font-medium text-gray-600">Taxa Necessária</div>
@@ -160,10 +160,10 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading })
             {/* Total Contribuições */}
             <div className="text-center group">
               <div className="w-16 h-16 mx-auto bg-primary-100 text-primary-600 rounded-full flex items-center justify-center mb-3 transition-all duration-200 group-hover:scale-105 group-hover:bg-primary-200">
-                <DollarSign className="w-6 h-6" />
+                <Icon name="dollar-sign" size="lg" className="text-primary-600" />
               </div>
               <div className="text-lg font-bold text-gray-900 mb-1">
-                {(results.total_contributions / 1000000).toFixed(1)}M
+                {formatCompactBR(results.total_contributions)}
               </div>
               <div className="text-sm font-medium text-gray-600">Total Contribuições</div>
             </div>
@@ -171,10 +171,10 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading })
             {/* Total Benefícios */}
             <div className="text-center group">
               <div className="w-16 h-16 mx-auto bg-info-100 text-info-600 rounded-full flex items-center justify-center mb-3 transition-all duration-200 group-hover:scale-105 group-hover:bg-info-200">
-                <PieChart className="w-6 h-6" />
+                <Icon name="pie-chart" size="lg" className="text-info-600" />
               </div>
               <div className="text-lg font-bold text-gray-900 mb-1">
-                {(results.total_benefits / 1000000).toFixed(1)}M
+                {formatCompactBR(results.total_benefits)}
               </div>
               <div className="text-sm font-medium text-gray-600">Total Benefícios</div>
             </div>
@@ -182,10 +182,10 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading })
             {/* Duration */}
             <div className="text-center group">
               <div className="w-16 h-16 mx-auto bg-warning-100 text-warning-600 rounded-full flex items-center justify-center mb-3 transition-all duration-200 group-hover:scale-105 group-hover:bg-warning-200">
-                <Clock className="w-6 h-6" />
+                <Icon name="clock" size="lg" className="text-warning-600" />
               </div>
               <div className="text-lg font-bold text-gray-900 mb-1">
-                {results.liability_duration.toFixed(1)}
+                {formatDurationBR(results.liability_duration, 1)}
               </div>
               <div className="text-sm font-medium text-gray-600">Duration (anos)</div>
             </div>
@@ -198,7 +198,7 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading })
         <CardHeader withBorder>
           <CardTitle className="flex items-center gap-3">
             <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <span className="text-purple-600 text-lg">⚖️</span>
+              <Icon name="scale" size="md" className="text-purple-600" />
             </div>
             Decomposição Atuarial
           </CardTitle>
@@ -210,19 +210,19 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading })
               <TableRow>
                 <TableCell className="font-medium text-gray-600">VPA Benefícios Futuros</TableCell>
                 <TableCell numeric className="font-bold text-gray-900">
-                  {formatCurrency(results.actuarial_present_value_benefits)}
+                  {formatCurrencyBR(results.actuarial_present_value_benefits)}
                 </TableCell>
               </TableRow>
               <TableRow>
                 <TableCell className="font-medium text-gray-600">VPA Salários Futuros</TableCell>
                 <TableCell numeric className="font-bold text-gray-900">
-                  {formatCurrency(results.actuarial_present_value_salary)}
+                  {formatCurrencyBR(results.actuarial_present_value_salary)}
                 </TableCell>
               </TableRow>
               <TableRow>
                 <TableCell className="font-medium text-gray-600">Convexidade</TableCell>
                 <TableCell numeric className="font-bold text-gray-900">
-                  {results.convexity.toFixed(2)}
+                  {formatNumberBR(results.convexity, 2)}
                 </TableCell>
               </TableRow>
               <TableRow>
@@ -234,7 +234,7 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading })
               <TableRow>
                 <TableCell className="font-medium text-gray-600">Tempo de Cálculo</TableCell>
                 <TableCell numeric className="font-bold text-gray-900">
-                  {results.computation_time_ms.toFixed(1)}ms
+                  {formatNumberBR(results.computation_time_ms, 1)}ms
                 </TableCell>
               </TableRow>
               <TableRow>
@@ -253,7 +253,7 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, loading })
         <CardHeader withBorder>
           <CardTitle className="flex items-center gap-3">
             <div className="w-10 h-10 bg-success-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-success-600" />
+              <Icon name="check-circle" size="md" color="success" />
             </div>
             Status de Validação
           </CardTitle>

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { SimulatorState } from '../../types';
 import { useFormHandler } from '../../hooks';
+import { formatCurrencyBR } from '../../utils/formatBR';
 
 interface ParticipantSectionProps {
   state: SimulatorState;
@@ -162,11 +163,11 @@ const ParticipantSection: React.FC<ParticipantSectionProps> = ({
           </div>
           <div className="flex justify-between">
             <span className="text-slate-600 font-medium">Salário mensal:</span>
-            <span className="font-bold text-slate-800">R$ {state.salary.toLocaleString('pt-BR')}</span>
+            <span className="font-bold text-slate-800">{formatCurrencyBR(state.salary, 0)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-slate-600 font-medium">Saldo já acumulado:</span>
-            <span className="font-bold text-slate-800">R$ {state.initial_balance.toLocaleString('pt-BR')}</span>
+            <span className="font-bold text-slate-800">{formatCurrencyBR(state.initial_balance, 0)}</span>
           </div>
         </div>
       </div>

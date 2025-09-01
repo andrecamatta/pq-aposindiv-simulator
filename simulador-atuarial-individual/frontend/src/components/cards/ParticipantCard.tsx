@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, HelpCircle } from 'lucide-react';
+import { Icon } from '../../design-system/components/Icon';
 import type { SimulatorState } from '../../types';
 import { 
   Card, 
@@ -32,7 +32,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
       <CardHeader withBorder>
         <CardTitle className="flex items-center gap-3">
           <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-            <User className="w-5 h-5 text-primary-600" />
+            <Icon name="user" size="md" color="primary" />
           </div>
           Dados do Participante
         </CardTitle>
@@ -45,7 +45,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             <div className="flex items-center gap-2 mb-2">
               <span className="text-sm font-semibold text-gray-700">Meta de Aposentadoria</span>
               <Tooltip content="Defina se deseja especificar um valor fixo em reais ou uma taxa de reposição baseada no salário atual">
-                <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                <Icon name="help-circle" size="sm" className="text-gray-400 hover:text-gray-600 cursor-help" />
               </Tooltip>
             </div>
             <div className="flex rounded-lg border border-gray-200 overflow-hidden">
@@ -78,7 +78,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                 onChange={(e) => handleInputChange('target_benefit', parseNumericValue(e.target.value))}
                 disabled={loading}
                 placeholder="Ex: 5000"
-                leftIcon={<span className="text-gray-500 text-sm font-medium">R$</span>}
+                leftIcon={<Icon name="dollar-sign" size="sm" color="muted" />}
                 helperText="Valor mensal desejado do benefício"
               />
             ) : (
@@ -101,7 +101,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-gray-700">Idade Atual</span>
               <Tooltip content="Idade do participante em anos completos">
-                <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                <Icon name="help-circle" size="sm" className="text-gray-400 hover:text-gray-600 cursor-help" />
               </Tooltip>
             </div>
             <Input
@@ -120,7 +120,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-gray-700">Gênero</span>
             <Tooltip content="Utilizado para seleção da tábua de mortalidade apropriada">
-              <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+              <Icon name="help-circle" size="sm" className="text-gray-400 hover:text-gray-600 cursor-help" />
             </Tooltip>
           </div>
           <Select
@@ -139,7 +139,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-gray-700">Salário Atual</span>
             <Tooltip content="Salário mensal atual em reais">
-              <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+              <Icon name="help-circle" size="sm" className="text-gray-400 hover:text-gray-600 cursor-help" />
             </Tooltip>
           </div>
           <Input
@@ -150,7 +150,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             onChange={(e) => handleInputChange('salary', parseNumericValue(e.target.value))}
             disabled={loading}
             placeholder="Ex: 8000"
-            leftIcon={<span className="text-gray-500 text-sm font-medium">R$</span>}
+            leftIcon={<Icon name="dollar-sign" size="sm" color="muted" />}
           />
         </div>
 
@@ -159,7 +159,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-gray-700">Saldo Inicial</span>
             <Tooltip content="Reservas acumuladas até o momento">
-              <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+              <Icon name="help-circle" size="sm" className="text-gray-400 hover:text-gray-600 cursor-help" />
             </Tooltip>
           </div>
           <Input
@@ -170,7 +170,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             onChange={(e) => handleInputChange('initial_balance', parseNumericValue(e.target.value))}
             disabled={loading}
             placeholder="Ex: 50000"
-            leftIcon={<span className="text-gray-500 text-sm font-medium">R$</span>}
+            leftIcon={<Icon name="dollar-sign" size="sm" color="muted" />}
           />
         </div>
 
@@ -179,7 +179,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-gray-700">Idade de Aposentadoria</span>
             <Tooltip content="Idade planejada para aposentadoria">
-              <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+              <Icon name="help-circle" size="sm" className="text-gray-400 hover:text-gray-600 cursor-help" />
             </Tooltip>
           </div>
           <Input

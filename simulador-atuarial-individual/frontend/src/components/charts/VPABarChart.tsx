@@ -1,7 +1,8 @@
 import React from 'react';
+import { Icon } from '../../design-system/components/Icon';
 import { Bar } from 'react-chartjs-2';
 import type { SimulatorResults } from '../../types/simulator.types';
-import { formatCurrency } from '../../utils';
+import { formatCurrencyBR } from '../../utils/formatBR';
 import { getZeroLineGridConfig } from '../../utils/chartSetup';
 
 interface VPABarChartProps {
@@ -15,7 +16,7 @@ const VPABarChart: React.FC<VPABarChartProps> = ({ results }) => {
     return (
       <div className="h-64 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-4xl mb-4">📊</div>
+          <Icon name="bar-chart" size="xl" className="text-gray-400 mb-4" />
           <p className="text-gray-500">Dados insuficientes para gerar o gráfico</p>
         </div>
       </div>
@@ -71,7 +72,7 @@ const VPABarChart: React.FC<VPABarChartProps> = ({ results }) => {
         callbacks: {
           label: function(context: any) {
             const value = context.parsed.y;
-            return `${context.label}: ${formatCurrency(value)}`;
+            return `${context.label}: ${formatCurrencyBR(value)}`;
           },
         },
       },
@@ -83,7 +84,7 @@ const VPABarChart: React.FC<VPABarChartProps> = ({ results }) => {
           const value = context.parsed?.y ?? context.raw;
           return value < 0 ? 'bottom' : 'top';
         },
-        formatter: (value: number) => formatCurrency(value),
+        formatter: (value: number) => formatCurrencyBR(value),
         font: {
           size: 11,
           weight: 'bold' as const,
@@ -114,7 +115,7 @@ const VPABarChart: React.FC<VPABarChartProps> = ({ results }) => {
           },
           color: '#6B7280',
           callback: function(value: any) {
-            return formatCurrency(value);
+            return formatCurrencyBR(value);
           },
         },
         title: {

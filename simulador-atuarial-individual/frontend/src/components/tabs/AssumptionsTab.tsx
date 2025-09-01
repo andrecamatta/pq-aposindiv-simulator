@@ -1,7 +1,7 @@
 import React from 'react';
 import { Settings } from 'lucide-react';
 import type { SimulatorState } from '../../types';
-import { Card, CardHeader, CardTitle, CardContent, RangeSlider, Select } from '../../design-system/components';
+import { RangeSlider, Select } from '../../design-system/components';
 import { useFormHandler } from '../../hooks';
 import InfoTooltip from '../../design-system/components/InfoTooltip';
 
@@ -19,19 +19,20 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
   const { handleInputChange } = useFormHandler({ onStateChange });
 
   return (
-    <Card className="border-gray-200">
-      <CardHeader className="pb-4">
-        <CardTitle className="flex items-center gap-2 text-xl">
-          <Settings className="w-5 h-5 text-gray-600" />
-          <span>Premissas Financeiras</span>
-        </CardTitle>
-      </CardHeader>
+    <div className="space-y-8">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3 mb-2">
+          <Settings className="w-6 h-6 text-violet-600" />
+          Premissas Financeiras
+        </h1>
+        <p className="text-gray-600">Configure as premissas atuariais e financeiras para a simulação.</p>
+      </div>
       
-      <CardContent>
-        <div className="space-y-6">
+      <div className="bg-white rounded-xl shadow-sm p-8">
+        <div className="space-y-10">
           {/* Benefícios e Contribuições */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">
               Benefícios & Contribuições
             </h3>
             
@@ -80,6 +81,7 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
                 max={100}
                 step={5}
                 onChange={(value) => handleInputChange('target_replacement_rate', value)}
+                formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
                 suffix="%"
                 disabled={loading}
               />
@@ -113,6 +115,7 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
               max={25}
               step={0.5}
               onChange={(value) => handleInputChange('contribution_rate', value)}
+              formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
               suffix="%"
               disabled={loading}
             />
@@ -120,7 +123,7 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
 
           {/* Taxas de Rentabilidade */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">
               Taxas de Rentabilidade
             </h3>
             
@@ -136,6 +139,7 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
               max={12}
               step={0.1}
               onChange={(value) => handleInputChange('accrual_rate', value)}
+              formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
               suffix="%"
               disabled={loading}
             />
@@ -152,37 +156,14 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
               max={12}
               step={0.1}
               onChange={(value) => handleInputChange('discount_rate', value / 100)}
+              formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
               suffix="%"
-              disabled={loading}
-            />
-          </div>
-
-          {/* Crescimento Temporal */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
-              Crescimento no Tempo
-            </h3>
-            
-            <RangeSlider
-              label={
-                <span className="flex items-center gap-2">
-                  Crescimento Salarial Real
-                  <InfoTooltip content="Crescimento real anual dos salários (já descontada a inflação)." />
-                </span>
-              }
-              value={state.salary_growth_real || 0.02}
-              min={0}
-              max={0.10}
-              step={0.001}
-              onChange={(value) => handleInputChange('salary_growth_real', value)}
-              suffix="%"
-              formatDisplay={(v) => `${(v * 100).toFixed(1)}`}
               disabled={loading}
             />
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

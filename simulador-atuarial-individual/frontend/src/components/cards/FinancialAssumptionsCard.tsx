@@ -50,6 +50,7 @@ const FinancialAssumptionsCard: React.FC<FinancialAssumptionsCardProps> = ({
             max={25}
             step={0.5}
             onChange={(value) => handleInputChange('contribution_rate', value)}
+            formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
             suffix="%"
             tooltip="Percentual do salário destinado à contribuição mensal"
             disabled={loading}
@@ -62,6 +63,7 @@ const FinancialAssumptionsCard: React.FC<FinancialAssumptionsCardProps> = ({
             max={12}
             step={0.1}
             onChange={(value) => handleInputChange('accrual_rate', value)}
+            formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
             suffix="%"
             tooltip="Rentabilidade real anual esperada dos investimentos (já descontada a inflação)"
             disabled={loading}
@@ -76,7 +78,7 @@ const FinancialAssumptionsCard: React.FC<FinancialAssumptionsCardProps> = ({
             onChange={(value) => handleInputChange('discount_rate', value)}
             suffix="%"
             tooltip="Taxa real usada para calcular o valor presente das obrigações"
-            formatDisplay={(v) => `${(v * 100).toFixed(1)}`}
+            formatDisplay={(v) => (v * 100).toFixed(2).replace('.', ',')}
             disabled={loading}
           />
           
@@ -89,7 +91,7 @@ const FinancialAssumptionsCard: React.FC<FinancialAssumptionsCardProps> = ({
             onChange={(value) => handleInputChange('salary_growth_real', value)}
             suffix="%"
             tooltip="Crescimento real anual dos salários (em termos reais, já descontada a inflação)"
-            formatDisplay={(v) => `${(v * 100).toFixed(1)}`}
+            formatDisplay={(v) => (v * 100).toFixed(2).replace('.', ',')}
             disabled={loading}
           />
         </div>

@@ -1,7 +1,8 @@
 import React from 'react';
+import { Icon } from '../../design-system/components/Icon';
 import { Line } from 'react-chartjs-2';
 import type { SimulatorResults } from '../../types/simulator.types';
-import { formatCurrency } from '../../utils';
+import { formatCurrencyBR } from '../../utils/formatBR';
 import { InfoTooltip } from '../../design-system/components';
 import { getZeroLineGridConfig } from '../../utils/chartSetup';
 
@@ -17,7 +18,7 @@ const ActuarialChart: React.FC<ActuarialChartProps> = ({ results, currentAge }) 
     return (
       <div className="h-[32rem] flex items-center justify-center">
         <div className="text-center">
-          <div className="text-4xl mb-4">📊</div>
+          <Icon name="bar-chart" size="xl" className="text-gray-400 mb-4" />
           <p className="text-gray-500">Dados insuficientes para gerar o gráfico</p>
           <p className="text-sm text-gray-400">Configure os parâmetros e execute a simulação</p>
         </div>
@@ -87,7 +88,7 @@ const ActuarialChart: React.FC<ActuarialChartProps> = ({ results, currentAge }) 
         callbacks: {
           label: function(context: any) {
             const value = context.parsed.y;
-            return `${context.dataset.label}: ${formatCurrency(value)}`;
+            return `${context.dataset.label}: ${formatCurrencyBR(value)}`;
           },
         },
       },
@@ -125,7 +126,7 @@ const ActuarialChart: React.FC<ActuarialChartProps> = ({ results, currentAge }) 
           },
           color: '#6B7280',
           callback: function(value: any) {
-            return formatCurrency(value);
+            return formatCurrencyBR(value);
           },
         },
       },

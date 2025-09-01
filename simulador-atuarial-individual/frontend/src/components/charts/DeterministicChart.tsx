@@ -1,9 +1,10 @@
 import React from 'react';
+import { Icon } from '../../design-system/components/Icon';
 import { Line } from 'react-chartjs-2';
 import type { SimulatorResults } from '../../types/simulator.types';
 import { InfoTooltip } from '../../design-system/components';
 import { getZeroLineGridConfig } from '../../utils/chartSetup';
-import { formatCurrency } from '../../utils';
+import { formatCurrencyBR } from '../../utils/formatBR';
 
 interface DeterministicChartProps {
   results: SimulatorResults;
@@ -17,7 +18,7 @@ const DeterministicChart: React.FC<DeterministicChartProps> = ({ results, curren
     return (
       <div className="h-[32rem] flex items-center justify-center">
         <div className="text-center">
-          <div className="text-4xl mb-4">📊</div>
+          <Icon name="bar-chart" size="xl" className="text-gray-400 mb-4" />
           <p className="text-gray-500">Dados insuficientes para gerar o gráfico</p>
           <p className="text-sm text-gray-400">Configure os parâmetros e execute a simulação</p>
         </div>
@@ -82,7 +83,7 @@ const DeterministicChart: React.FC<DeterministicChartProps> = ({ results, curren
         callbacks: {
           label: function(context: any) {
             const value = context.parsed.y;
-            return `${context.dataset.label}: ${formatCurrency(value, 0)}`;
+            return `${context.dataset.label}: ${formatCurrencyBR(value, 0)}`;
           },
         },
       },
@@ -120,7 +121,7 @@ const DeterministicChart: React.FC<DeterministicChartProps> = ({ results, curren
           },
           color: '#6B7280',
           callback: function(value: any) {
-            return formatCurrency(value, 0);
+            return formatCurrencyBR(value, 0);
           },
         },
       },

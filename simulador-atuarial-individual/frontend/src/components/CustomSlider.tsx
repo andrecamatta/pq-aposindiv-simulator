@@ -1,4 +1,5 @@
 import React, { useRef, useState, useCallback } from 'react';
+import { useEditableValue } from '../hooks';
 
 interface CustomSliderProps {
   label: string;
@@ -27,6 +28,17 @@ const CustomSlider: React.FC<CustomSliderProps> = ({
 }) => {
   const sliderRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Hook para gerenciar edição de valor
+  const editableValue = useEditableValue({
+    value,
+    min,
+    max,
+    step,
+    onChange,
+    formatDisplay,
+    disabled,
+  });
 
   const getValueFromPosition = useCallback((clientX: number) => {
     if (!sliderRef.current) return value;
@@ -92,9 +104,45 @@ const CustomSlider: React.FC<CustomSliderProps> = ({
             </div>
           )}
         </div>
-        <span className="text-sm font-bold text-white bg-gradient-to-r from-indigo-500 to-purple-600 px-3 py-1 rounded-lg shadow-sm">
-          {formatDisplay(value)}{suffix}
-        </span>
+        <div className="relative">
+          {editableValue.isEditing ? (
+            <input
+              ref={editableValue.inputRef}
+              type="text"
+              value={editableValue.tempValue}
+              onChange={(e) => editableValue.handleInputChange(e.target.value)}
+              onKeyDown={editableValue.handleKeyDown}
+              onBlur={editableValue.handleBlur}
+              onFocus={editableValue.handleFocus}
+              className={`text-sm font-bold px-3 py-1 rounded-lg shadow-sm text-center min-w-0 border ${
+                editableValue.hasError 
+                  ? 'bg-red-50 text-red-700 border-red-500 ring-1 ring-red-500 ring-opacity-20' 
+                  : 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 border-transparent focus:ring-1 focus:ring-white focus:ring-opacity-50'
+              }`}
+              style={{ width: 'auto', minWidth: '60px' }}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={editableValue.handleClick}
+              disabled={disabled}
+              className={`text-sm font-bold text-white bg-gradient-to-r from-indigo-500 to-purple-600 px-3 py-1 rounded-lg shadow-sm transition-all ${
+                !disabled 
+                  ? 'hover:from-indigo-600 hover:to-purple-700 hover:shadow-md cursor-pointer' 
+                  : 'cursor-not-allowed opacity-50'
+              }`}
+            >
+              {editableValue.displayValue}{suffix}
+            </button>
+          )}
+          
+          {editableValue.hasError && editableValue.errorMessage && (
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 px-2 py-1 bg-red-600 text-white text-xs rounded whitespace-nowrap z-10 shadow-lg">
+              {editableValue.errorMessage}
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-4 border-l-transparent border-r-transparent border-b-red-600"></div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="relative">

@@ -112,7 +112,8 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                 max={3}
                 step={0.1}
                 onChange={handleAdminFeeChange}
-                formatDisplay={(v) => `${v.toFixed(1)}%`}
+                formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
+                suffix="%"
                 disabled={loading}
               />
               
@@ -128,7 +129,8 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                 max={15}
                 step={0.5}
                 onChange={handleLoadingFeeChange}
-                formatDisplay={(v) => `${v.toFixed(1)}%`}
+                formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
+                suffix="%"
                 disabled={loading}
               />
             </div>

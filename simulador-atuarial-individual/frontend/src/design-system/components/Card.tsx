@@ -5,16 +5,17 @@ import { cn } from '../../lib/utils';
 // S-Tier Card Component for content containers
 const cardVariants = cva(
   [
-    'bg-white rounded-lg border border-gray-200 shadow-card',
+    'bg-white rounded-lg',
     'transition-all duration-150 ease-in-out',
   ],
   {
     variants: {
       variant: {
-        default: 'hover:shadow-card-hover',
-        elevated: 'shadow-md hover:shadow-lg',
-        flat: 'shadow-none border-gray-200',
-        interactive: 'cursor-pointer hover:shadow-card-hover hover:border-gray-300 active:scale-[0.99]',
+        default: 'shadow-sm',
+        elevated: 'shadow-md hover:shadow-lg border border-gray-100',
+        flat: 'shadow-none',
+        minimal: 'shadow-none border-none',
+        interactive: 'cursor-pointer shadow-sm hover:shadow-md active:scale-[0.99]',
       },
       padding: {
         none: 'p-0',
@@ -57,8 +58,8 @@ const CardHeader = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'flex flex-col space-y-1.5',
-      withBorder && 'pb-4 border-b border-gray-200',
+      'flex flex-col space-y-1.5 pb-4',
+      withBorder && 'border-b border-gray-100',
       className
     )}
     {...props}
@@ -117,8 +118,8 @@ const CardFooter = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'flex items-center',
-      withBorder && 'pt-4 border-t border-gray-200',
+      'flex items-center pt-4',
+      withBorder && 'border-t border-gray-100',
       className
     )}
     {...props}
