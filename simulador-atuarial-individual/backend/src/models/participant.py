@@ -42,6 +42,7 @@ class SimulatorState(BaseModel):
     
     # Base atuarial (pré-definida + editável)
     mortality_table: str       # "BR_EMS_2021", "AT_2000", "SOA_2017", "CUSTOM"
+    mortality_aggravation: float = 0.0  # Agravamento percentual da tábua (-10% a +20%)
     discount_rate: float       # Taxa de desconto atuarial (ex: 0.06 = 6% a.a.)
     salary_growth_real: float  # Crescimento salarial real (ex: 0.02 = 2% a.a.)
     
@@ -76,6 +77,12 @@ class SimulatorState(BaseModel):
     last_update: Optional[datetime] = None
     calculation_id: Optional[str] = None
 
+    @field_validator('mortality_aggravation')
+    def validate_mortality_aggravation(cls, v):
+        if v < -10 or v > 20:
+            raise ValueError('Agravamento deve estar entre -10% e +20%')
+        return v
+    
     @field_validator('target_benefit', 'target_replacement_rate', mode='before')
     def check_benefit_target(cls, v, info):
         mode = info.data.get('benefit_target_mode')

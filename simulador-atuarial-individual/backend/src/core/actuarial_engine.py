@@ -134,8 +134,11 @@ class ActuarialEngine:
         # Criar contexto atuarial com taxas mensais
         context = ActuarialContext.from_state(state)
         
-        # Obter tábua de mortalidade
-        mortality_table = get_mortality_table(state.mortality_table, state.gender.value)
+        print(f"[ENGINE_DEBUG] Taxa administrativa anual: {state.admin_fee_rate}")
+        print(f"[ENGINE_DEBUG] Taxa administrativa mensal: {context.admin_fee_monthly}")
+        
+        # Obter tábua de mortalidade com agravamento
+        mortality_table = get_mortality_table(state.mortality_table, state.gender.value, state.mortality_aggravation)
         
         # Calcular projeções temporais
         projections = self._calculate_projections(state, context, mortality_table)
@@ -350,7 +353,13 @@ class ActuarialEngine:
             accumulated *= (1 + context.discount_rate_monthly)
             
             # Aplicar taxa administrativa mensal sobre o saldo
+            if month < 5:  # Log apenas os primeiros meses
+                print(f"[ENGINE_DEBUG] Mês {month}: saldo antes taxa adm: {accumulated}")
+            
             accumulated *= (1 - context.admin_fee_monthly)
+            
+            if month < 5:
+                print(f"[ENGINE_DEBUG] Mês {month}: saldo após taxa adm: {accumulated}, taxa aplicada: {context.admin_fee_monthly}")
             
             if month < months_to_retirement:  # Fase ativa: acumular contribuições
                 # Adicionar contribuição líquida (já com carregamento descontado)
@@ -537,7 +546,7 @@ class ActuarialEngine:
         """Calcula análise de sensibilidade"""
         # Criar contexto base e obter tábua de mortalidade
         base_context = ActuarialContext.from_state(state)
-        base_mortality_table = get_mortality_table(state.mortality_table, state.gender.value)
+        base_mortality_table = get_mortality_table(state.mortality_table, state.gender.value, state.mortality_aggravation)
         base_projections = self._calculate_projections(state, base_context, base_mortality_table)
         base_rmba = self._calculate_rmba(state, base_context, base_projections)
         
@@ -631,7 +640,7 @@ class ActuarialEngine:
         # Calcular VPA do benefício alvo para cálculo de percentuais
         monthly_data = projections["monthly_data"]
         months_to_retirement = context.months_to_retirement
-        mortality_table = get_mortality_table(state.mortality_table, state.gender.value)
+        mortality_table = get_mortality_table(state.mortality_table, state.gender.value, state.mortality_aggravation)
         
         # Obter o benefício alvo mensal correto baseado no modo
         if state.benefit_target_mode == BenefitTargetMode.REPLACEMENT_RATE:

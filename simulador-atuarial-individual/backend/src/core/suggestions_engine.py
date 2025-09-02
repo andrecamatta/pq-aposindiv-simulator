@@ -320,7 +320,11 @@ class SuggestionsEngine:
             # Verificar em TODAS as sugestões existentes, não apenas nas locais
             has_benefit_suggestion = any(
                 s for s in existing_suggestions 
-                if s and s.action in [SuggestionAction.APPLY_SUSTAINABLE_BENEFIT, SuggestionAction.UPDATE_TARGET_BENEFIT]
+                if s and s.action in [
+                    SuggestionAction.APPLY_SUSTAINABLE_BENEFIT, 
+                    SuggestionAction.UPDATE_TARGET_BENEFIT,
+                    SuggestionAction.UPDATE_REPLACEMENT_RATE  # Evitar duplicação de sugestões de taxa
+                ]
             )
             
             if not has_benefit_suggestion:

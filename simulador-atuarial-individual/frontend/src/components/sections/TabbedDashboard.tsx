@@ -25,7 +25,7 @@ const TabbedDashboard: React.FC<TabbedDashboardProps> = ({
   onStateChange,
   loading
 }) => {
-  const [activeTab, setActiveTab] = useState('participant');
+  const [activeTab, setActiveTab] = useState('technical');
   
   const currentTab = tabs.find(tab => tab.id === activeTab);
 

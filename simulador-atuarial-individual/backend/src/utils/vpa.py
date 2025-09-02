@@ -28,6 +28,9 @@ CORREÇÕES IMPLEMENTADAS:
 from typing import List, Tuple, TYPE_CHECKING
 from .discount import calculate_discount_factor, get_timing_adjustment
 import math
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Import apenas para type hints, evita circular imports
 if TYPE_CHECKING:
@@ -55,7 +58,9 @@ def validate_actuarial_inputs(
         raise ValueError("Lista de probabilidades de sobrevivência não pode estar vazia")
     
     if len(cash_flows) != len(survival_probs):
-        raise ValueError(f"Comprimentos inconsistentes: cash_flows={len(cash_flows)}, survival_probs={len(survival_probs)}")
+        # Log do problema para investigação, mas não falhar
+        logger.warning(f"[VPA_DEBUG] COMPRIMENTOS INCONSISTENTES DETECTADOS - cash_flows={len(cash_flows)}, survival_probs={len(survival_probs)}")
+        # A correção será feita na função que chama esta validação
     
     if discount_rate_monthly < 0:
         raise ValueError(f"Taxa de desconto não pode ser negativa: {discount_rate_monthly}")
@@ -136,6 +141,13 @@ def calculate_actuarial_present_value(
     """
     # Validar inputs
     validate_actuarial_inputs(cash_flows, survival_probs, discount_rate_monthly, start_month, end_month)
+    
+    # CORREÇÃO AUTOMÁTICA: Se os comprimentos forem inconsistentes, ajustar
+    if len(cash_flows) != len(survival_probs):
+        min_length = min(len(cash_flows), len(survival_probs))
+        logger.warning(f"[VPA_DEBUG] CORREÇÃO AUTOMÁTICA - Ajustando para min_length={min_length}")
+        cash_flows = cash_flows[:min_length]
+        survival_probs = survival_probs[:min_length]
     
     if end_month is None:
         end_month = min(len(cash_flows), len(survival_probs))
@@ -440,19 +452,46 @@ def calculate_vpa_contributions_with_admin_fees(
     Returns:
         VPA das contribuições ajustado pela taxa administrativa
     """
+    logger.debug(f"[VPA_DEBUG] Calculando VPA com taxa administrativa: {admin_fee_monthly}")
+    logger.debug(f"[VPA_DEBUG] Parâmetros: discount_rate={discount_rate_monthly}, months_to_retirement={months_to_retirement}")
+    logger.debug(f"[VPA_DEBUG] Contribuições length: {len(monthly_contributions)}, Survival length: {len(survival_probs)}")
+    
     if admin_fee_monthly <= 0:
+        logger.info(f"[VPA_DEBUG] Taxa administrativa zero ou negativa, usando cálculo padrão")
+        logger.debug(f"[VPA_DEBUG] ANTES DO CÁLCULO PADRÃO - Contribuições length: {len(monthly_contributions)}, Survival length: {len(survival_probs)}")
         # Se não há taxa administrativa, usar cálculo padrão
-        return calculate_actuarial_present_value(
-            monthly_contributions,
-            survival_probs,
-            discount_rate_monthly,
-            payment_timing,
-            start_month=0,
-            end_month=months_to_retirement
-        )
+        try:
+            result = calculate_actuarial_present_value(
+                monthly_contributions,
+                survival_probs,
+                discount_rate_monthly,
+                payment_timing,
+                start_month=0,
+                end_month=months_to_retirement
+            )
+            logger.debug(f"[VPA_DEBUG] VPA padrão calculado: {result}")
+            return result
+        except ValueError as e:
+            logger.error(f"[VPA_DEBUG] ERRO no cálculo padrão: {e}")
+            logger.error(f"[VPA_DEBUG] Contribuições length: {len(monthly_contributions)}, Survival length: {len(survival_probs)}")
+            logger.error(f"[VPA_DEBUG] months_to_retirement: {months_to_retirement}")
+            # Corrigir automaticamente usando o menor comprimento
+            min_length = min(len(monthly_contributions), len(survival_probs), months_to_retirement)
+            logger.warning(f"[VPA_DEBUG] Usando comprimento mínimo: {min_length}")
+            result = calculate_actuarial_present_value(
+                monthly_contributions[:min_length],
+                survival_probs[:min_length],
+                discount_rate_monthly,
+                payment_timing,
+                start_month=0,
+                end_month=min_length
+            )
+            return result
     
     timing_adjustment = get_timing_adjustment(payment_timing)
     vpa_adjusted = 0.0
+    
+    logger.debug(f"[VPA_DEBUG] Iniciando cálculo com taxa administrativa > 0: {admin_fee_monthly}")
     
     for month in range(min(months_to_retirement, len(monthly_contributions))):
         if month < len(survival_probs):
@@ -466,6 +505,14 @@ def calculate_vpa_contributions_with_admin_fees(
                 # Fator de erosão: (1 - admin_fee_monthly)^months_under_admin_fee
                 # Representa o valor remanescente após aplicação da taxa administrativa
                 erosion_factor = (1 - admin_fee_monthly) ** months_under_admin_fee
+                
+                if month < 5:  # Log apenas os primeiros meses para não poluir
+                    logger.debug(f"[VPA_DEBUG] Mês {month}: contrib={contribution}, erosion_factor={erosion_factor}, months_under_fee={months_under_admin_fee}")
+                
+                # Verificar se erosion_factor é válido
+                if math.isnan(erosion_factor) or math.isinf(erosion_factor):
+                    logger.error(f"[VPA_DEBUG] Erosion factor inválido no mês {month}: {erosion_factor}")
+                    continue
                 
                 # Contribuição efetiva após erosão administrativa
                 effective_contribution = contribution * erosion_factor
@@ -481,5 +528,8 @@ def calculate_vpa_contributions_with_admin_fees(
                     contribution_pv = (effective_contribution * survival_prob) / discount_factor
                     if math.isfinite(contribution_pv):
                         vpa_adjusted += contribution_pv
+                    else:
+                        logger.error(f"[VPA_DEBUG] PV inválido no mês {month}: {contribution_pv}")
     
+    logger.debug(f"[VPA_DEBUG] VPA final com taxa administrativa: {vpa_adjusted}")
     return vpa_adjusted

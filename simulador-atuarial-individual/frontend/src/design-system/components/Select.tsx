@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
 import { ChevronDown } from 'lucide-react';
 
 const selectVariants = cva(
   [
-    'flex w-full appearance-none border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900',
+    'flex w-full items-center justify-between border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900',
     'transition-all duration-150 ease-in-out cursor-pointer',
     'focus:border-primary-500 focus:ring-2 focus:ring-primary-500 focus:ring-opacity-20 focus:outline-none',
     'disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-gray-50',
@@ -14,9 +14,9 @@ const selectVariants = cva(
   {
     variants: {
       size: {
-        sm: 'h-8 px-2 text-xs',
-        md: 'h-9 px-3 text-sm',
-        lg: 'h-10 px-4 text-base',
+        sm: 'h-9 px-2 text-xs',
+        md: 'h-11 px-3 text-sm',
+        lg: 'h-12 px-4 text-base',
       },
       variant: {
         default: '',
@@ -38,7 +38,7 @@ export interface SelectOption {
 }
 
 export interface SelectProps
-  extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'size'>,
+  extends Omit<React.HTMLAttributes<HTMLDivElement>, 'size'>,
     VariantProps<typeof selectVariants> {
   label?: string;
   helperText?: string;
@@ -46,9 +46,13 @@ export interface SelectProps
   options: SelectOption[];
   placeholder?: string;
   loading?: boolean;
+  value?: string;
+  onChange?: (value: string) => void;
+  disabled?: boolean;
+  name?: string;
 }
 
-const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
+const Select = React.forwardRef<HTMLDivElement, SelectProps>(
   (
     {
       className,
@@ -60,21 +64,127 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       options,
       placeholder,
       loading,
-      id,
+      value,
+      onChange,
       disabled,
+      name,
+      id,
       'aria-invalid': ariaInvalid,
       ...props
     },
     ref
   ) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [selectedValue, setSelectedValue] = useState(value || '');
+    const containerRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const listRef = useRef<HTMLUListElement>(null);
     const reactId = React.useId();
     const selectId = id || `select-${reactId}`;
     const hasError = Boolean(error);
     const actualVariant = hasError ? 'error' : variant;
     const isInvalid = ariaInvalid || hasError;
 
+    // Encontrar a opção selecionada
+    const selectedOption = options.find(option => option.value === selectedValue);
+    const displayText = selectedOption?.label || placeholder || 'Selecione...';
+
+    // Sincronizar com prop value externa
+    useEffect(() => {
+      if (value !== undefined) {
+        setSelectedValue(value);
+      }
+    }, [value]);
+
+    // Fechar dropdown quando clicar fora
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
+      };
+
+      if (isOpen) {
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+      }
+    }, [isOpen]);
+
+    // Navegação por teclado
+    const handleKeyDown = (event: React.KeyboardEvent) => {
+      if (disabled || loading) return;
+
+      switch (event.key) {
+        case 'Enter':
+        case ' ':
+          event.preventDefault();
+          setIsOpen(!isOpen);
+          break;
+        case 'Escape':
+          setIsOpen(false);
+          buttonRef.current?.focus();
+          break;
+        case 'ArrowDown':
+          event.preventDefault();
+          if (!isOpen) {
+            setIsOpen(true);
+          } else {
+            // Focar no primeiro item da lista
+            const firstItem = listRef.current?.querySelector('[role="option"]') as HTMLElement;
+            firstItem?.focus();
+          }
+          break;
+        case 'ArrowUp':
+          event.preventDefault();
+          if (!isOpen) {
+            setIsOpen(true);
+          } else {
+            // Focar no último item da lista
+            const items = listRef.current?.querySelectorAll('[role="option"]');
+            const lastItem = items?.[items.length - 1] as HTMLElement;
+            lastItem?.focus();
+          }
+          break;
+      }
+    };
+
+    const handleOptionClick = (optionValue: string) => {
+      if (disabled || loading) return;
+      
+      setSelectedValue(optionValue);
+      setIsOpen(false);
+      onChange?.(optionValue);
+      buttonRef.current?.focus();
+    };
+
+    const handleOptionKeyDown = (event: React.KeyboardEvent, optionValue: string, index: number) => {
+      switch (event.key) {
+        case 'Enter':
+        case ' ':
+          event.preventDefault();
+          handleOptionClick(optionValue);
+          break;
+        case 'Escape':
+          setIsOpen(false);
+          buttonRef.current?.focus();
+          break;
+        case 'ArrowDown':
+          event.preventDefault();
+          const nextIndex = (index + 1) % options.length;
+          const nextItem = listRef.current?.children[nextIndex] as HTMLElement;
+          nextItem?.focus();
+          break;
+        case 'ArrowUp':
+          event.preventDefault();
+          const prevIndex = index === 0 ? options.length - 1 : index - 1;
+          const prevItem = listRef.current?.children[prevIndex] as HTMLElement;
+          prevItem?.focus();
+          break;
+      }
+    };
+
     return (
-      <div className="space-y-1">
+      <div className="space-y-1" ref={containerRef}>
         {label && (
           <label
             htmlFor={selectId}
@@ -84,44 +194,80 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           </label>
         )}
         
-        <div className="relative">
-          <select
+        <div className="relative" ref={ref} {...props}>
+          <button
+            ref={buttonRef}
+            type="button"
             className={cn(
-              selectVariants({ size, variant: actualVariant, className }),
-              'pr-10'
+              selectVariants({ size, variant: actualVariant, className })
             )}
-            ref={ref}
             id={selectId}
             disabled={disabled || loading}
             aria-invalid={isInvalid}
+            aria-expanded={isOpen}
+            aria-haspopup="listbox"
             aria-describedby={
               error ? `${selectId}-error` : helperText ? `${selectId}-helper` : undefined
             }
-            {...props}
+            onClick={() => !disabled && !loading && setIsOpen(!isOpen)}
+            onKeyDown={handleKeyDown}
           >
-            {placeholder && (
-              <option value="" disabled>
-                {placeholder}
-              </option>
-            )}
-            {options.map((option) => (
-              <option
-                key={option.value}
-                value={option.value}
-                disabled={option.disabled}
-              >
-                {option.label}
-              </option>
-            ))}
-          </select>
-          
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-            {loading ? (
-              <div className="w-4 h-4 border-2 border-gray-300 border-t-primary-500 rounded-full animate-spin" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-gray-400" />
-            )}
-          </div>
+            <span className={cn(
+              'block truncate text-left',
+              !selectedOption && 'text-gray-500'
+            )}>
+              {displayText}
+            </span>
+            
+            <span className="flex items-center ml-2">
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-gray-300 border-t-primary-500 rounded-full animate-spin" />
+              ) : (
+                <ChevronDown className={cn(
+                  'w-5 h-5 text-gray-400 transition-transform duration-200',
+                  isOpen && 'rotate-180'
+                )} />
+              )}
+            </span>
+          </button>
+
+          {/* Dropdown */}
+          {isOpen && !disabled && !loading && (
+            <ul
+              ref={listRef}
+              className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto focus:outline-none"
+              role="listbox"
+              aria-labelledby={selectId}
+            >
+              {options.map((option, index) => (
+                <li
+                  key={option.value}
+                  className={cn(
+                    'cursor-pointer select-none relative px-3 py-2 focus:outline-none',
+                    option.disabled && 'opacity-50 cursor-not-allowed',
+                    selectedValue === option.value 
+                      ? 'bg-white text-gray-900 font-medium' 
+                      : 'bg-white hover:bg-gray-100 focus:bg-gray-100'
+                  )}
+                  role="option"
+                  tabIndex={-1}
+                  aria-selected={selectedValue === option.value}
+                  aria-disabled={option.disabled}
+                  onClick={() => !option.disabled && handleOptionClick(option.value)}
+                  onKeyDown={(e) => !option.disabled && handleOptionKeyDown(e, option.value, index)}
+                >
+                  <span className="block truncate">{option.label}</span>
+                  {selectedValue === option.value && (
+                    <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-primary-600">
+                      <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         
         {error && (
@@ -141,6 +287,15 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           >
             {helperText}
           </p>
+        )}
+
+        {/* Hidden input para compatibilidade com forms */}
+        {name && (
+          <input
+            type="hidden"
+            name={name}
+            value={selectedValue}
+          />
         )}
       </div>
     );

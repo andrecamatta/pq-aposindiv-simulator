@@ -44,6 +44,11 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
     { value: 14, label: '14 meses (13º + 14º)' }
   ], []);
 
+  const benefitModeOptions = useMemo(() => [
+    { value: 'VALUE', label: 'Valor Fixo (R$)' },
+    { value: 'REPLACEMENT_RATE', label: 'Taxa de Reposição (%)' }
+  ], []);
+
   // Memoizar handlers específicos para evitar re-renders
   const handleAdminFeeChange = useCallback((value: number) => {
     handleInputChange('admin_fee_rate', value / 100);
@@ -71,6 +76,19 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
               <Select
                 label={
                   <span className="flex items-center gap-2">
+                    Modalidade de Benefício
+                    <InfoTooltip content="Escolha como definir o benefício desejado. Valor fixo especifica um valor em reais, enquanto taxa de reposição especifica um percentual do salário final." />
+                  </span>
+                }
+                value={state.benefit_target_mode || 'VALUE'}
+                onChange={(value) => handleInputChange('benefit_target_mode', value)}
+                options={benefitModeOptions}
+                disabled={loading}
+              />
+
+              <Select
+                label={
+                  <span className="flex items-center gap-2">
                     Tábua de Mortalidade
                     <InfoTooltip content="Define probabilidades de sobrevivência. BR_EMS_2021 é conservadora e adequada ao mercado brasileiro." />
                   </span>
@@ -94,6 +112,25 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                 disabled={loading}
               />
             </div>
+            
+            <div className="mt-4">
+              <RangeSlider
+                label={
+                  <span className="flex items-center gap-2">
+                    Agravamento da Tábua
+                    <InfoTooltip content="Margem de segurança atuarial. Valores positivos tornam o cálculo mais conservador (reduzem superávit), negativos menos conservador (aumentam superávit). Padrão de mercado SUSEP." />
+                  </span>
+                }
+                value={state.mortality_aggravation || 0}
+                min={-10}
+                max={20}
+                step={1}
+                onChange={(value) => handleInputChange('mortality_aggravation', value)}
+                formatDisplay={(v) => v > 0 ? `+${v.toFixed(0)}` : `${v.toFixed(0)}`}
+                suffix="%"
+                disabled={loading}
+              />
+            </div>
           </div>
 
           {/* Custos Administrativos */}
@@ -107,7 +144,7 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                     <InfoTooltip content="Taxa administrativa anual cobrada sobre o saldo acumulado. Aplicada mensalmente." />
                   </span>
                 }
-                value={(state.admin_fee_rate || 0.01) * 100}
+                value={(state.admin_fee_rate ?? 0.01) * 100}
                 min={0}
                 max={3}
                 step={0.1}
@@ -124,7 +161,7 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                     <InfoTooltip content="Percentual descontado das contribuições antes de serem aplicadas ao saldo." />
                   </span>
                 }
-                value={(state.loading_fee_rate || 0) * 100}
+                value={(state.loading_fee_rate ?? 0) * 100}
                 min={0}
                 max={15}
                 step={0.5}
@@ -148,7 +185,7 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                   </span>
                 }
                 value={state.payment_timing || 'postecipado'}
-                onChange={(e) => handleInputChange('payment_timing', e.target.value)}
+                onChange={(value) => handleInputChange('payment_timing', value)}
                 options={timingOptions}
                 disabled={loading}
               />
@@ -161,7 +198,7 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                   </span>
                 }
                 value={state.salary_months_per_year || 13}
-                onChange={(e) => handleInputChange('salary_months_per_year', parseInt(e.target.value))}
+                onChange={(value) => handleInputChange('salary_months_per_year', parseInt(value))}
                 options={monthsOptions}
                 disabled={loading}
               />
@@ -174,7 +211,7 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                   </span>
                 }
                 value={state.benefit_months_per_year || 13}
-                onChange={(e) => handleInputChange('benefit_months_per_year', parseInt(e.target.value))}
+                onChange={(value) => handleInputChange('benefit_months_per_year', parseInt(value))}
                 options={monthsOptions}
                 disabled={loading}
               />

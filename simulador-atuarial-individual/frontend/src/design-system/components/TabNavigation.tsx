@@ -17,6 +17,17 @@ export interface Tab {
 
 export const tabs: Tab[] = [
   {
+    id: 'technical',
+    label: 'Técnico',
+    icon: createIconComponent('cog'),
+    color: {
+      primary: '#ea580c', // orange-600
+      light: '#fb923c',   // orange-400
+      gradient: 'from-orange-400 to-orange-600',
+      bg: 'bg-orange-50'
+    }
+  },
+  {
     id: 'participant',
     label: 'Participante',
     icon: createIconComponent('user'),
@@ -36,17 +47,6 @@ export const tabs: Tab[] = [
       light: '#a78bfa',   // violet-400
       gradient: 'from-violet-400 to-violet-600',
       bg: 'bg-violet-50'
-    }
-  },
-  {
-    id: 'technical',
-    label: 'Técnico',
-    icon: createIconComponent('cog'),
-    color: {
-      primary: '#ea580c', // orange-600
-      light: '#fb923c',   // orange-400
-      gradient: 'from-orange-400 to-orange-600',
-      bg: 'bg-orange-50'
     }
   },
   {

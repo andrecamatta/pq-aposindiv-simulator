@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Força fundo branco nas opções dos dropdowns */
+[role="listbox"] {
+  background-color: #ffffff !important;
+}
+
+[role="option"]:not([aria-selected="true"]) {
+  background-color: #ffffff !important;
+}
+
+[role="option"]:not([aria-selected="true"]):hover {
+  background-color: #f3f4f6 !important;
+}
+
+[role="option"]:not([aria-selected="true"]):focus {
+  background-color: #f3f4f6 !important;
+}
+
 /* Professional slider with working drag functionality */
 .slider {
   -webkit-appearance: none;

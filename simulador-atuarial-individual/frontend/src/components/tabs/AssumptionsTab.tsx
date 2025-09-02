@@ -36,22 +36,6 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
               Benefícios & Contribuições
             </h3>
             
-            <Select
-              label={
-                <span className="flex items-center gap-2">
-                  Modalidade de Benefício
-                  <InfoTooltip content="Escolha como definir o benefício desejado. Valor fixo especifica um valor em reais, enquanto taxa de reposição especifica um percentual do salário final." />
-                </span>
-              }
-              value={state.benefit_target_mode || 'VALUE'}
-              onChange={(e) => handleInputChange('benefit_target_mode', e.target.value)}
-              options={[
-                { value: 'VALUE', label: 'Valor Fixo (R$)' },
-                { value: 'REPLACEMENT_RATE', label: 'Taxa de Reposição (%)' }
-              ]}
-              disabled={loading}
-            />
-            
             {state.benefit_target_mode === 'VALUE' ? (
               <RangeSlider
                 label={
@@ -65,7 +49,7 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
                 max={100000}
                 step={1000}
                 onChange={(value) => handleInputChange('target_benefit', value)}
-                formatDisplay={(v) => `R$ ${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0 }).format(v)}`}
+                formatDisplay={(v) => `R$ ${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)}`}
                 disabled={loading}
               />
             ) : (

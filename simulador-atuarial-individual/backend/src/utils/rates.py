@@ -1,6 +1,10 @@
 """
 Utilitários para conversão de taxas
 """
+import logging
+import math
+
+logger = logging.getLogger(__name__)
 
 
 def annual_to_monthly_rate(annual_rate: float) -> float:
@@ -15,7 +19,24 @@ def annual_to_monthly_rate(annual_rate: float) -> float:
     Returns:
         Taxa mensal equivalente
     """
-    return (1 + annual_rate) ** (1/12) - 1
+    logger.debug(f"[TAXA_DEBUG] Convertendo taxa anual {annual_rate} para mensal")
+    
+    if annual_rate == 0:
+        logger.info(f"[TAXA_DEBUG] Taxa anual é zero, retornando taxa mensal zero")
+        return 0.0
+    
+    if annual_rate < -1:
+        logger.warning(f"[TAXA_DEBUG] Taxa anual negativa muito baixa: {annual_rate}")
+        
+    monthly_rate = (1 + annual_rate) ** (1/12) - 1
+    
+    # Verificar se o resultado é válido
+    if math.isnan(monthly_rate) or math.isinf(monthly_rate):
+        logger.error(f"[TAXA_DEBUG] Taxa mensal inválida calculada: {monthly_rate} (input: {annual_rate})")
+        return 0.0
+    
+    logger.debug(f"[TAXA_DEBUG] Taxa anual {annual_rate} -> taxa mensal {monthly_rate}")
+    return monthly_rate
 
 
 def monthly_to_annual_rate(monthly_rate: float) -> float:

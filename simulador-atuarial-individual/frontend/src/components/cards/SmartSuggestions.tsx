@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Icon } from '../../design-system/components/Icon';
 import { apiService } from '../../services/api';
+import { formatCurrencyBR, formatPercentageBR } from '../../utils/formatBR';
 import type { 
   SimulatorState, 
   Suggestion, 
@@ -171,8 +172,8 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
               <div className="text-xs text-gray-500 mb-1">Situação Atual</div>
               <div className="text-sm font-medium text-gray-900">
                 {context.current_deficit_surplus > 0 
-                  ? `Superávit: R$ ${Math.abs(context.current_deficit_surplus).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
-                  : `Déficit: R$ ${Math.abs(context.current_deficit_surplus).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+                  ? `Superávit: ${formatCurrencyBR(Math.abs(context.current_deficit_surplus))}`
+                  : `Déficit: ${formatCurrencyBR(Math.abs(context.current_deficit_surplus))}`
                 }
               </div>
             </div>

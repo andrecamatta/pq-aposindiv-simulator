@@ -78,21 +78,76 @@ _TABLE_LOADERS = {
 _CACHE = {}
 
 
-def get_mortality_table(table_code: str, gender: str) -> np.ndarray:
-    """Obtém tábua de mortalidade específica"""
-    cache_key = (table_code, gender)
+def apply_mortality_aggravation(mortality_table: np.ndarray, aggravation_pct: float) -> np.ndarray:
+    """
+    Aplica agravamento percentual à tábua de mortalidade seguindo padrão de mercado.
+    
+    IMPORTANTE: No contexto atuarial brasileiro (SUSEP), agravamento é usado como 
+    margem de segurança/prudência. Valores positivos tornam o cálculo mais conservador.
+    
+    Comportamento implementado (padrão de mercado):
+    - Agravamento POSITIVO: Reduz mortalidade → Mais benefícios → Maior RMBA → MENOR superávit (mais conservador)
+    - Agravamento NEGATIVO: Aumenta mortalidade → Menos benefícios → Menor RMBA → MAIOR superávit (menos conservador)
+    
+    Args:
+        mortality_table: Array numpy com probabilidades de morte anuais (qx)
+        aggravation_pct: Percentual de agravamento (-10 a +20)
+    
+    Returns:
+        Array numpy com probabilidades ajustadas
+    """
+    if aggravation_pct == 0.0:
+        return mortality_table.copy()
+    
+    # CORREÇÃO: Inverter sinal para seguir padrão de mercado (margem de segurança)
+    # Agravamento positivo = mais conservador = menor mortalidade = mais benefícios futuros
+    aggravation_factor = 1 - (aggravation_pct / 100)  # Sinal invertido
+    adjusted_table = mortality_table * aggravation_factor
+    
+    # Garantir que qx permaneça no intervalo válido [0, 1]
+    adjusted_table = np.clip(adjusted_table, 0.0, 1.0)
+    
+    return adjusted_table
+
+
+def get_mortality_table(table_code: str, gender: str, aggravation_pct: float = 0.0) -> np.ndarray:
+    """Obtém tábua de mortalidade específica com agravamento opcional"""
+    # Cache considerando o agravamento
+    cache_key = (table_code, gender, aggravation_pct)
     
     if cache_key in _CACHE:
         return _CACHE[cache_key]
     
-    # Primeiro tentar o sistema antigo (compatibilidade)
-    if cache_key in _TABLE_LOADERS:
-        loader = _TABLE_LOADERS[cache_key]
-        table_data = loader()
-        _CACHE[cache_key] = table_data
-        return table_data
+    # Primeiro, obter a tábua base (sem agravamento)
+    base_cache_key = (table_code, gender)
+    base_table = None
     
-    # Tentar o sistema novo (banco de dados)
+    if base_cache_key in _CACHE:
+        base_table = _CACHE[base_cache_key]
+    
+    # Carregar tábua base se não estiver em cache
+    if base_table is None:
+        # Primeiro tentar o sistema antigo (compatibilidade)
+        if base_cache_key in _TABLE_LOADERS:
+            loader = _TABLE_LOADERS[base_cache_key]
+            base_table = loader()
+            _CACHE[base_cache_key] = base_table
+        else:
+            # Tentar o sistema novo (banco de dados)
+            base_table = _load_from_database(table_code, gender)
+            if base_table is not None:
+                _CACHE[base_cache_key] = base_table
+            else:
+                raise ValueError(f"Tábua {table_code} para gênero {gender} não encontrada")
+    
+    # Aplicar agravamento à tábua base
+    adjusted_table = apply_mortality_aggravation(base_table, aggravation_pct)
+    _CACHE[cache_key] = adjusted_table
+    return adjusted_table
+
+
+def _load_from_database(table_code: str, gender: str) -> np.ndarray:
+    """Carrega tábua do banco de dados"""
     try:
         from ..database import engine
         from ..models.database import MortalityTable
@@ -114,8 +169,6 @@ def get_mortality_table(table_code: str, gender: str) -> np.ndarray:
                 mortality_rates = np.zeros(max_age + 1)
                 for age, rate in table_data_dict.items():
                     mortality_rates[age] = rate
-                
-                _CACHE[cache_key] = mortality_rates
                 return mortality_rates
             
             # Se não encontrar específica, procurar genérica com o gênero correto
@@ -132,14 +185,12 @@ def get_mortality_table(table_code: str, gender: str) -> np.ndarray:
                 mortality_rates = np.zeros(max_age + 1)
                 for age, rate in table_data_dict.items():
                     mortality_rates[age] = rate
-                
-                _CACHE[cache_key] = mortality_rates
                 return mortality_rates
     
     except Exception as e:
         print(f"Erro ao carregar tábua do banco: {e}")
     
-    raise ValueError(f"Tábua {table_code} para gênero {gender} não encontrada")
+    return None
 
 
 def get_mortality_table_info() -> list[Dict[str, Any]]:

@@ -18,6 +18,7 @@ export interface SimulatorState {
   
   // Base atuarial
   mortality_table: string;
+  mortality_aggravation: number;  // Agravamento percentual da tábua (-10% a +20%)
   discount_rate: number;
   salary_growth_real: number;
   

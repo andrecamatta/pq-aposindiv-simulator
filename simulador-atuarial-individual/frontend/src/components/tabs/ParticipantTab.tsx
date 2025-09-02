@@ -42,22 +42,6 @@ const ParticipantTab: React.FC<ParticipantTabProps> = ({
               Informações Pessoais
             </h3>
             
-            <Input
-              label={
-                <span className="flex items-center gap-2">
-                  Idade Atual
-                  <InfoTooltip content="Sua idade atual. A simulação projeta até os 100 anos." />
-                </span>
-              }
-              type="number"
-              value={state.age || ''}
-              onChange={(e) => handleInputChange('age', parseInt(e.target.value) || 0)}
-              placeholder="35"
-              min={18}
-              max={80}
-              disabled={loading}
-            />
-            
             <Select
               label={
                 <span className="flex items-center gap-2">
@@ -66,8 +50,24 @@ const ParticipantTab: React.FC<ParticipantTabProps> = ({
                 </span>
               }
               value={state.gender}
-              onChange={(e) => handleInputChange('gender', e.target.value)}
+              onChange={(value) => handleInputChange('gender', value)}
               options={genderOptions}
+              disabled={loading}
+            />
+            
+            <RangeSlider
+              label={
+                <span className="flex items-center gap-2">
+                  Idade Atual
+                  <InfoTooltip content="Sua idade atual. A simulação projeta até os 100 anos." />
+                </span>
+              }
+              value={state.age || 30}
+              min={18}
+              max={80}
+              step={1}
+              onChange={(value) => handleInputChange('age', value)}
+              suffix=" anos"
               disabled={loading}
             />
           </div>
