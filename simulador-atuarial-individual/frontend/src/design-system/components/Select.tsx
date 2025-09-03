@@ -5,11 +5,11 @@ import { ChevronDown } from 'lucide-react';
 
 const selectVariants = cva(
   [
-    'flex w-full items-center justify-between border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900',
-    'transition-all duration-150 ease-in-out cursor-pointer',
-    'focus:border-primary-500 focus:ring-2 focus:ring-primary-500 focus:ring-opacity-20 focus:outline-none',
+    'flex w-full items-center justify-between border border-[#dbe2e6] bg-white px-4 py-3 text-base text-[#111618]',
+    'transition-all duration-150 ease-in-out cursor-pointer rounded-md',
+    'focus:border-[#13a4ec] focus:ring-1 focus:ring-[#13a4ec] focus:ring-opacity-20 focus:outline-none',
     'disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-gray-50',
-    'aria-invalid:border-error-500 aria-invalid:ring-error-500 aria-invalid:ring-opacity-20',
+    'aria-invalid:border-red-500 aria-invalid:ring-red-500 aria-invalid:ring-opacity-20',
   ],
   {
     variants: {
@@ -184,11 +184,11 @@ const Select = React.forwardRef<HTMLDivElement, SelectProps>(
     };
 
     return (
-      <div className="space-y-1" ref={containerRef}>
+      <div className="space-y-2" ref={containerRef}>
         {label && (
           <label
             htmlFor={selectId}
-            className="block text-sm font-medium text-gray-700"
+            className="block text-sm font-medium text-[#111618] mb-2"
           >
             {label}
           </label>
@@ -214,7 +214,7 @@ const Select = React.forwardRef<HTMLDivElement, SelectProps>(
           >
             <span className={cn(
               'block truncate text-left',
-              !selectedOption && 'text-gray-500'
+              !selectedOption && 'text-[#9ca3af]'
             )}>
               {displayText}
             </span>
@@ -224,7 +224,7 @@ const Select = React.forwardRef<HTMLDivElement, SelectProps>(
                 <div className="w-5 h-5 border-2 border-gray-300 border-t-primary-500 rounded-full animate-spin" />
               ) : (
                 <ChevronDown className={cn(
-                  'w-5 h-5 text-gray-400 transition-transform duration-200',
+                  'w-5 h-5 text-[#617c89] transition-transform duration-200',
                   isOpen && 'rotate-180'
                 )} />
               )}
@@ -258,7 +258,7 @@ const Select = React.forwardRef<HTMLDivElement, SelectProps>(
                 >
                   <span className="block truncate">{option.label}</span>
                   {selectedValue === option.value && (
-                    <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-primary-600">
+                    <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-[#13a4ec]">
                       <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>

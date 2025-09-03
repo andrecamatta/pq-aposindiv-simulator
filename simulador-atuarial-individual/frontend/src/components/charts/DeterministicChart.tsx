@@ -9,10 +9,11 @@ import { formatCurrencyBR } from '../../utils/formatBR';
 interface DeterministicChartProps {
   results: SimulatorResults;
   currentAge: number;
+  planType?: string;
 }
 
 
-const DeterministicChart: React.FC<DeterministicChartProps> = ({ results, currentAge }) => {
+const DeterministicChart: React.FC<DeterministicChartProps> = ({ results, currentAge, planType }) => {
   // Verificações de segurança
   if (!results || !results.projection_years || !Array.isArray(results.projection_years)) {
     return (
@@ -29,7 +30,10 @@ const DeterministicChart: React.FC<DeterministicChartProps> = ({ results, curren
   // Calcular labels de idade baseadas na idade atual
   const ageLabels = results.projection_years.map(year => currentAge + year);
   
-  // Simulação determinística - sem consideração de mortalidade
+  // Determinar labels conforme o tipo de plano
+  const isCDPlan = planType === 'CD';
+  const reserveLabel = isCDPlan ? 'Saldo Individual CD' : 'Reservas Acumuladas (Determinística)';
+  const benefitLabel = isCDPlan ? 'Renda CD Anual' : 'Benefícios Anuais Projetados';
   
   const data = {
     labels: ageLabels,
@@ -37,16 +41,16 @@ const DeterministicChart: React.FC<DeterministicChartProps> = ({ results, curren
       {
         label: 'Salários Anuais (Valores Reais)',
         data: results.projected_salaries || [],
-        borderColor: '#3B82F6',
-        backgroundColor: '#3B82F6',
+        borderColor: '#13a4ec', // primary color
+        backgroundColor: '#13a4ec',
         tension: 0.4,
         fill: false,
         pointRadius: 2,
       },
       {
-        label: 'Benefícios Anuais Projetados',
+        label: benefitLabel,
         data: results.projected_benefits || [],
-        borderColor: '#10B981',
+        borderColor: '#34D399', // softer emerald-400
         backgroundColor: 'transparent',
         borderDash: [5, 5],
         tension: 0.4,
@@ -54,10 +58,10 @@ const DeterministicChart: React.FC<DeterministicChartProps> = ({ results, curren
         pointRadius: 2,
       },
       {
-        label: 'Reservas Acumuladas (Determinística)',
+        label: reserveLabel,
         data: results.accumulated_reserves || [],
-        borderColor: '#8B5CF6',
-        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+        borderColor: '#A78BFA', // softer violet-400
+        backgroundColor: 'rgba(167, 139, 250, 0.1)',
         tension: 0.4,
         fill: true,
         pointRadius: 2,

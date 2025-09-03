@@ -3,7 +3,6 @@ import { Settings } from 'lucide-react';
 import type { SimulatorState, MortalityTable, PaymentTiming, PlanType, CDConversionMode } from '../../types';
 import { Card, CardHeader, CardTitle, CardContent, Select, RangeSlider } from '../../design-system/components';
 import { useFormHandler } from '../../hooks';
-import InfoTooltip from '../../design-system/components/InfoTooltip';
 
 interface TechnicalTabProps {
   state: SimulatorState;
@@ -73,22 +72,6 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
     handleInputChange('loading_fee_rate', value / 100);
   }, [handleInputChange]);
 
-  const handleAccumulationRateChange = useCallback((value: number) => {
-    handleInputChange('accumulation_rate', value / 100);
-  }, [handleInputChange]);
-
-  const handleConversionRateChange = useCallback((value: number) => {
-    handleInputChange('conversion_rate', value / 100);
-  }, [handleInputChange]);
-
-  const handleDiscountRateChange = useCallback((value: number) => {
-    handleInputChange('discount_rate', value / 100);
-  }, [handleInputChange]);
-
-  const handleSalaryGrowthChange = useCallback((value: number) => {
-    handleInputChange('salary_growth_real', value / 100);
-  }, [handleInputChange]);
-
   const handleWithdrawalPercentageChange = useCallback((value: number) => {
     handleInputChange('cd_withdrawal_percentage', value);
   }, [handleInputChange]);
@@ -103,16 +86,15 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
       </CardHeader>
       
       <CardContent>
-        <div className="space-y-6">
+        <div className="space-y-8">
           {/* Tipo de Plano */}
           <div>
             <h4 className="text-sm font-medium text-gray-700 mb-4">Tipo de Plano</h4>
-            <div className="grid md:grid-cols-1 gap-6">
+            <div className="grid md:grid-cols-1 gap-8">
               <Select
                 label={
-                  <span className="flex items-center gap-2">
+                  <span title="BD (Benefício Definido): benefício garantido, contribuição variável. CD (Contribuição Definida): contribuição fixa, benefício baseado no saldo acumulado.">
                     Tipo de Plano
-                    <InfoTooltip content="BD (Benefício Definido): benefício garantido, contribuição variável. CD (Contribuição Definida): contribuição fixa, benefício baseado no saldo acumulado." />
                   </span>
                 }
                 value={state.plan_type || 'BD'}
@@ -126,17 +108,12 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
           {/* Configurações Atuariais */}
           <div>
             <h4 className="text-sm font-medium text-gray-700 mb-4">Configurações Atuariais</h4>
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-2 gap-8">
               {/* Modalidade de Benefício - sempre presente */}
               <Select
                 label={
-                  <span className="flex items-center gap-2">
+                  <span title={state.plan_type === 'CD' ? "Como converter o saldo acumulado em renda na aposentadoria." : "Escolha como definir o benefício desejado. Valor fixo especifica um valor em reais, enquanto taxa de reposição especifica um percentual do salário final."}>
                     {state.plan_type === 'CD' ? 'Modalidade de Conversão' : 'Modalidade de Benefício'}
-                    <InfoTooltip content={
-                      state.plan_type === 'CD' 
-                        ? "Como converter o saldo acumulado em renda na aposentadoria."
-                        : "Escolha como definir o benefício desejado. Valor fixo especifica um valor em reais, enquanto taxa de reposição especifica um percentual do salário final."
-                    } />
                   </span>
                 }
                 value={state.plan_type === 'CD' ? (state.cd_conversion_mode || 'ACTUARIAL') : (state.benefit_target_mode || 'VALUE')}
@@ -147,9 +124,8 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
 
               <Select
                 label={
-                  <span className="flex items-center gap-2">
+                  <span title="Define probabilidades de sobrevivência. BR_EMS_2021 é conservadora e adequada ao mercado brasileiro.">
                     Tábua de Mortalidade
-                    <InfoTooltip content="Define probabilidades de sobrevivência. BR_EMS_2021 é conservadora e adequada ao mercado brasileiro." />
                   </span>
                 }
                 value={state.mortality_table || 'BR_EMS_2021'}
@@ -159,151 +135,32 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
               />
             </div>
 
-            {/* Configurações específicas por tipo de plano */}
-            <div className="grid md:grid-cols-2 gap-6 mt-6">
-              {state.plan_type === 'BD' ? (
-                <>
-                  {/* Configurações BD */}
-                  <div>
-                    <RangeSlider
-                      label={
-                        <span className="flex items-center gap-2">
-                          Taxa de Desconto
-                          <InfoTooltip content="Taxa utilizada para trazer valores futuros a valor presente. Representa o retorno esperado dos investimentos." />
-                        </span>
-                      }
-                      value={(state.discount_rate || 0.055) * 100}
-                      min={3}
-                      max={12}
-                      step={0.1}
-                      onChange={handleDiscountRateChange}
-                      formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-                      suffix="% a.a."
-                      disabled={loading}
-                    />
-                  </div>
-                  <div>
-                    <RangeSlider
-                      label={
-                        <span className="flex items-center gap-2">
-                          Taxa Crescimento Salarial Real
-                          <InfoTooltip content="Taxa de crescimento real dos salários (acima da inflação). Considera ganhos de produtividade e progressão de carreira." />
-                        </span>
-                      }
-                      value={(state.salary_growth_real || 0.025) * 100}
-                      min={0}
-                      max={6}
-                      step={0.1}
-                      onChange={handleSalaryGrowthChange}
-                      formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-                      suffix="% a.a."
-                      disabled={loading}
-                    />
-                  </div>
-                  <div>
-                    <Select
-                      label={
-                        <span className="flex items-center gap-2">
-                          Método de Cálculo
-                          <InfoTooltip content="PUC: custos crescentes ao longo do tempo. EAN: custos uniformes durante a carreira." />
-                        </span>
-                      }
-                      value={state.calculation_method || 'PUC'}
-                      onChange={(e) => handleInputChange('calculation_method', e.target.value)}
-                      options={methodOptions}
-                      disabled={loading}
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Configurações CD */}
-                  <div>
-                    <RangeSlider
-                      label={
-                        <span className="flex items-center gap-2">
-                          Taxa de Acumulação
-                          <InfoTooltip content="Taxa de retorno dos investimentos durante a fase de acumulação (antes da aposentadoria)." />
-                        </span>
-                      }
-                      value={(state.accumulation_rate || 0.065) * 100}
-                      min={3}
-                      max={15}
-                      step={0.1}
-                      onChange={handleAccumulationRateChange}
-                      formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-                      suffix="% a.a."
-                      disabled={loading}
-                    />
-                  </div>
-                  <div>
-                    <RangeSlider
-                      label={
-                        <span className="flex items-center gap-2">
-                          Taxa de Conversão
-                          <InfoTooltip content="Taxa utilizada para converter o saldo acumulado em renda na aposentadoria. Geralmente mais conservadora." />
-                        </span>
-                      }
-                      value={(state.conversion_rate || 0.045) * 100}
-                      min={2}
-                      max={10}
-                      step={0.1}
-                      onChange={handleConversionRateChange}
-                      formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-                      suffix="% a.a."
-                      disabled={loading}
-                    />
-                  </div>
-                  <div>
-                    <RangeSlider
-                      label={
-                        <span className="flex items-center gap-2">
-                          Taxa Crescimento Salarial Real
-                          <InfoTooltip content="Taxa de crescimento real dos salários (acima da inflação). Afeta as contribuições futuras." />
-                        </span>
-                      }
-                      value={(state.salary_growth_real || 0.025) * 100}
-                      min={0}
-                      max={6}
-                      step={0.1}
-                      onChange={handleSalaryGrowthChange}
-                      formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-                      suffix="% a.a."
-                      disabled={loading}
-                    />
-                  </div>
-                  
-                  {/* Campo condicional para modalidade PERCENTAGE */}
-                  {state.cd_conversion_mode === 'PERCENTAGE' && (
-                    <div>
-                      <RangeSlider
-                        label={
-                          <span className="flex items-center gap-2">
-                            Percentual de Saque Anual
-                            <InfoTooltip content="Percentual do saldo que será sacado anualmente na aposentadoria." />
-                          </span>
-                        }
-                        value={state.cd_withdrawal_percentage || 5}
-                        min={2}
-                        max={15}
-                        step={0.5}
-                        onChange={handleWithdrawalPercentageChange}
-                        formatDisplay={(v) => v.toFixed(1).replace('.', ',')}
-                        suffix="% a.a."
-                        disabled={loading}
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+            {/* Campo condicional para modalidade PERCENTAGE em CD */}
+            {state.plan_type === 'CD' && state.cd_conversion_mode === 'PERCENTAGE' && (
+              <div className="grid md:grid-cols-1 gap-8 mt-8">
+                <RangeSlider
+                  label={
+                    <span title="Percentual do saldo que será sacado anualmente na aposentadoria.">
+                      Percentual de Saque Anual
+                    </span>
+                  }
+                  value={state.cd_withdrawal_percentage || 5}
+                  min={2}
+                  max={15}
+                  step={0.5}
+                  onChange={handleWithdrawalPercentageChange}
+                  formatDisplay={(v) => v.toFixed(1).replace('.', ',')}
+                  suffix="% a.a."
+                  disabled={loading}
+                />
+              </div>
+            )}
             
             <div className="mt-6">
               <RangeSlider
                 label={
-                  <span className="flex items-center gap-2">
+                  <span title="Margem de segurança atuarial. Valores positivos tornam o cálculo mais conservador, negativos menos conservador. Padrão de mercado SUSEP.">
                     Agravamento da Tábua
-                    <InfoTooltip content="Margem de segurança atuarial. Valores positivos tornam o cálculo mais conservador, negativos menos conservador. Padrão de mercado SUSEP." />
                   </span>
                 }
                 value={state.mortality_aggravation || 0}
@@ -321,12 +178,11 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
           {/* Custos Administrativos */}
           <div>
             <h4 className="text-sm font-medium text-gray-700 mb-4">Custos Administrativos</h4>
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-2 gap-8">
               <RangeSlider
                 label={
-                  <span className="flex items-center gap-2">
+                  <span title="Taxa administrativa anual cobrada sobre o saldo acumulado. Aplicada mensalmente.">
                     Taxa Anual sobre Saldo
-                    <InfoTooltip content="Taxa administrativa anual cobrada sobre o saldo acumulado. Aplicada mensalmente." />
                   </span>
                 }
                 value={(state.admin_fee_rate ?? 0.01) * 100}
@@ -341,9 +197,8 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
               
               <RangeSlider
                 label={
-                  <span className="flex items-center gap-2">
+                  <span title="Percentual descontado das contribuições antes de serem aplicadas ao saldo.">
                     Taxa de Carregamento
-                    <InfoTooltip content="Percentual descontado das contribuições antes de serem aplicadas ao saldo." />
                   </span>
                 }
                 value={(state.loading_fee_rate ?? 0) * 100}
@@ -361,12 +216,11 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
           {/* Configurações de Pagamento */}
           <div>
             <h4 className="text-sm font-medium text-gray-700 mb-4">Configurações de Pagamento</h4>
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-3 gap-8">
               <Select
                 label={
-                  <span className="flex items-center gap-2">
+                  <span title="Antecipado: pagamentos no início do período. Postecipado: pagamentos no final do período.">
                     Timing de Pagamento
-                    <InfoTooltip content="Antecipado: pagamentos no início do período. Postecipado: pagamentos no final do período." />
                   </span>
                 }
                 value={state.payment_timing || 'postecipado'}
@@ -377,9 +231,8 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
 
               <Select
                 label={
-                  <span className="flex items-center gap-2">
+                  <span title="Quantidade de salários pagos por ano (inclui 13º, 14º salário).">
                     Salários por Ano
-                    <InfoTooltip content="Quantidade de salários pagos por ano (inclui 13º, 14º salário)." />
                   </span>
                 }
                 value={state.salary_months_per_year || 13}
@@ -390,9 +243,8 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
 
               <Select
                 label={
-                  <span className="flex items-center gap-2">
+                  <span title="Quantidade de benefícios pagos por ano na aposentadoria (inclui 13º, 14º).">
                     Benefícios por Ano
-                    <InfoTooltip content="Quantidade de benefícios pagos por ano na aposentadoria (inclui 13º, 14º)." />
                   </span>
                 }
                 value={state.benefit_months_per_year || 13}

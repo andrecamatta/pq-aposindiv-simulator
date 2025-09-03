@@ -18,17 +18,17 @@ const RMBACompositionChart: React.FC<RMBACompositionChartProps> = ({ results }) 
           -results.actuarial_present_value_salary,
         ],
         backgroundColor: [
-          '#EF4444',
-          '#10B981',
+          '#F87171', // softer red-400
+          '#34D399', // softer emerald-400
         ],
         borderColor: [
-          '#DC2626',
-          '#059669',
+          '#FCA5A5', // even softer red-300 for border
+          '#6EE7B7', // even softer emerald-300 for border
         ],
         borderWidth: 2,
         hoverBackgroundColor: [
-          '#F87171',
-          '#34D399',
+          '#FECACA', // red-200 on hover
+          '#A7F3D0', // emerald-200 on hover
         ],
       },
     ],

@@ -24,28 +24,46 @@ const SufficiencyAnalysisChart: React.FC<SufficiencyAnalysisChartProps> = ({ res
     );
   }
 
-  // Análise de suficiência: Saldo Inicial + (-RMBA) = Déficit/Superávit
-  const initialBalance = isNaN(state.initial_balance) ? 0 : state.initial_balance;
-  const negativeRMBA = isNaN(results.rmba) ? 0 : -results.rmba;
-  const deficitSurplus = isNaN(results.deficit_surplus) ? 0 : results.deficit_surplus;
-  
-  const chartData = [initialBalance, negativeRMBA, deficitSurplus];
+  const isCDPlan = state.plan_type === 'CD';
+
+  // Lógica condicional para BD vs CD
+  let chartData, labels, analysisTitle;
+
+  if (isCDPlan) {
+    // Para CD: Análise de Adequação do Saldo
+    const saldoFinalCD = results.individual_balance || 0;
+    const rendaAnualCD = (results.monthly_income_cd || 0) * 12;
+    const contribuicoesTotais = results.total_contributions || 0;
+    
+    chartData = [contribuicoesTotais, saldoFinalCD - contribuicoesTotais, rendaAnualCD];
+    labels = ['Contribuições\nTotais', 'Rendimentos\nAcumulados', 'Renda Anual\nCD'];
+    analysisTitle = 'Análise de Adequação do Saldo CD';
+  } else {
+    // Para BD: Análise de Suficiência original
+    const initialBalance = isNaN(state.initial_balance) ? 0 : state.initial_balance;
+    const negativeRMBA = isNaN(results.rmba) ? 0 : -results.rmba;
+    const deficitSurplus = isNaN(results.deficit_surplus) ? 0 : results.deficit_surplus;
+    
+    chartData = [initialBalance, negativeRMBA, deficitSurplus];
+    labels = ['Saldo\nInicial', '-RMBA\n(Passivo Reduzido)', 'Déficit/Superávit\n(Resultado)'];
+    analysisTitle = 'Análise de Suficiência Financeira';
+  }
 
   const data = {
-    labels: ['Saldo\nInicial', '-RMBA\n(Passivo Reduzido)', 'Déficit/Superávit\n(Resultado)'],
+    labels: labels,
     datasets: [
       {
-        label: 'Análise de Suficiência (R$)',
+        label: analysisTitle + ' (R$)',
         data: chartData,
         backgroundColor: [
-          'rgba(59, 130, 246, 0.8)',  // Azul para Saldo Inicial
-          'rgba(245, 158, 11, 0.8)',  // Laranja para -RMBA
-          'rgba(99, 102, 241, 0.8)',  // Roxo para resultado final
+          'rgba(147, 197, 253, 0.8)',  // Azul suave
+          'rgba(252, 211, 77, 0.8)',   // Âmbar suave
+          'rgba(167, 139, 250, 0.8)',  // Roxo suave
         ],
         borderColor: [
-          'rgb(59, 130, 246)',        // Azul
-          'rgb(245, 158, 11)',        // Laranja
-          'rgb(99, 102, 241)',        // Roxo
+          'rgb(147, 197, 253)',       // Azul suave
+          'rgb(252, 211, 77)',        // Âmbar suave
+          'rgb(167, 139, 250)',       // Roxo suave
         ],
         borderWidth: 2,
         borderRadius: 8,
@@ -146,16 +164,31 @@ const SufficiencyAnalysisChart: React.FC<SufficiencyAnalysisChartProps> = ({ res
       {/* Explicação da Fórmula */}
       <div className="bg-gray-50 rounded-lg p-3">
         <div className="text-center text-sm text-gray-600">
-          <div className="font-medium mb-1">Equação de Suficiência Financeira:</div>
-          <div className="font-mono text-xs">
-            <span className="text-blue-600">Saldo Inicial</span>
-            {" + "}
-            <span className="text-orange-600">(-RMBA)</span>
-            {" = "}
-            <span className="text-indigo-600">
-              {deficitSurplus >= 0 ? 'Superávit' : 'Déficit'}
-            </span>
-          </div>
+          {isCDPlan ? (
+            <>
+              <div className="font-medium mb-1">Composição do Patrimônio CD:</div>
+              <div className="font-mono text-xs">
+                <span className="text-blue-400">Contribuições</span>
+                {" + "}
+                <span className="text-amber-400">Rendimentos</span>
+                {" → "}
+                <span className="text-violet-400">Renda Anual</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="font-medium mb-1">Equação de Suficiência Financeira:</div>
+              <div className="font-mono text-xs">
+                <span className="text-blue-400">Saldo Inicial</span>
+                {" + "}
+                <span className="text-amber-400">(-RMBA)</span>
+                {" = "}
+                <span className="text-violet-400">
+                  {chartData[2] >= 0 ? 'Superávit' : 'Déficit'}
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -1,77 +1,82 @@
-# 🧮 Simulador Atuarial Interativo Individual
+# 🧮 Simulador Atuarial Individual
 
-Sistema web completo para simulação determinística de reservas matemáticas e projeções previdenciárias personalizadas, desenvolvido com rigor atuarial profissional.
+Sistema web moderno para simulação atuarial de reservas matemáticas e projeções previdenciárias individuais, desenvolvido com rigor técnico profissional.
 
-## 🎯 Características Principais
+## 🎯 Visão Geral
 
-- **⚡ Reatividade Total**: Alterações em parâmetros atualizam resultados instantaneamente via WebSocket
-- **📊 Interface Profissional**: Design moderno com terminologia atuarial técnica precisa
-- **🔍 Rigor Atuarial**: Implementação completa de funções atuariais com precisão profissional
-- **📋 Tábuas Oficiais**: BR-EMS 2021 e AT-2000 com dados reais da SUSEP
-- **⚖️ Conformidade Regulatória**: Métodos aprovados (PUC, EAN) e validação de premissas
-- **🎛️ Análise de Sensibilidade**: Impacto automático de variações em parâmetros-chave
+O Simulador Atuarial Individual é uma aplicação web completa que permite calcular e visualizar:
 
-## 🏗️ Arquitetura
+- **Reservas Matemáticas**: PMBC (Plano de Benefício Contribuição Definida) e PMBD (Plano de Benefício Definido)
+- **Projeções Temporais**: Evolução de salários, contribuições e benefícios
+- **Análise de Sensibilidade**: Impacto de variações em parâmetros-chave
+- **Sugestões Inteligentes**: Recomendações automáticas baseadas no perfil do participante
+
+### Principais Características
+
+- ⚡ **Interface Reativa**: Atualização instantânea via WebSocket
+- 📊 **Dashboard Profissional**: Métricas atuariais formatadas com precisão
+- 🔍 **Cálculos Rigorosos**: Engine atuarial com funções matemáticas precisas
+- 📋 **Tábuas Oficiais**: BR-EMS 2021 e AT-2000 (SUSEP)
+- 🎛️ **Sistema de Abas**: Organização intuitiva por contexto (Participante, Premissas, Técnico, Resultados)
+
+## 🏗️ Arquitetura do Sistema
 
 ```
 simulador-atuarial-individual/
-├── backend/                   # API Python + FastAPI
+├── backend/                    # API Python + FastAPI
 │   ├── src/
-│   │   ├── core/             # Engine atuarial
-│   │   ├── api/              # REST API + WebSocket
-│   │   ├── models/           # Modelos Pydantic
-│   │   └── utils/            # Utilitários
+│   │   ├── api/               # Endpoints REST + WebSocket
+│   │   ├── core/              # Engine atuarial principal
+│   │   ├── models/            # Modelos de dados (Pydantic)
+│   │   ├── utils/             # Utilitários matemáticos
+│   │   └── scripts/           # Scripts de análise
 │   ├── data/
-│   │   └── mortality_tables/ # Tábuas oficiais CSV
-│   └── pyproject.toml        # Dependências uv
-├── frontend/                  # React + TypeScript
+│   │   └── mortality_tables/  # Tábuas CSV oficiais
+│   └── pyproject.toml         # Dependências com uv
+├── frontend/                   # React + TypeScript
 │   ├── src/
-│   │   ├── components/       # Componentes UI
-│   │   ├── hooks/            # Hooks personalizados
-│   │   ├── services/         # API client + WebSocket
-│   │   └── types/            # Tipos TypeScript
+│   │   ├── components/        # Componentes UI organizados
+│   │   ├── design-system/     # Sistema de design customizado
+│   │   ├── hooks/             # Hooks React personalizados
+│   │   ├── services/          # Cliente API + WebSocket
+│   │   └── types/             # Definições TypeScript
 │   └── package.json
-└── README.md
+└── docs/                      # Documentação técnica
 ```
 
-## 🚀 Instalação e Execução
+## 🚀 Configuração e Execução
 
 ### Pré-requisitos
 
-- **Python 3.11+** com `uv` instalado
-- **Node.js 18+** com `npm`
-- **Git**
+- **Python 3.11+** com [uv](https://docs.astral.sh/uv/) instalado
+- **Node.js 18+** com npm
+- **Git** para controle de versão
 
-### Backend (FastAPI)
+### 1. Backend (FastAPI + Engine Atuarial)
 
 ```bash
-# Navegar para o diretório backend
-cd backend
+# Clone o repositório (se necessário)
+git clone <repository-url>
+cd simulador-atuarial-individual/backend
 
-# Criar ambiente virtual com uv
-uv venv
-
-# Ativar ambiente virtual
-source .venv/bin/activate  # Linux/Mac
-# ou .venv\Scripts\activate  # Windows
-
-# Instalar dependências com uv
-uv pip install -e .
+# Instalar dependências com uv (recomendado)
+uv sync
 
 # Executar servidor de desenvolvimento
-uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
+PYTHONPATH=/path/to/backend uv run uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-O backend estará disponível em:
-- API: http://localhost:8000
-- Documentação: http://localhost:8000/docs
+**Endpoints Disponíveis:**
+- API REST: http://localhost:8000
+- Documentação Swagger: http://localhost:8000/docs
 - WebSocket: ws://localhost:8000/ws/{client_id}
+- Health Check: http://localhost:8000/health
 
-### Frontend (React)
+### 2. Frontend (React + TypeScript)
 
 ```bash
-# Navegar para o diretório frontend
-cd frontend
+# Navegar para o frontend
+cd ../frontend
 
 # Instalar dependências
 npm install
@@ -80,171 +85,170 @@ npm install
 npm run dev
 ```
 
-O frontend estará disponível em: http://localhost:5173
+**Aplicação Web:** http://localhost:5173
 
-## 📊 Funcionalidades Implementadas
+## 📊 Funcionalidades Principais
 
-### Engine Atuarial
+### 1. Engine Atuarial Completo
 
-- ✅ **Reservas Matemáticas**: RMBA e RMBC com métodos PUC e EAN
-- ✅ **Custo Normal**: Cálculo anual preciso
-- ✅ **Projeções Temporais**: Salários, benefícios, contribuições
-- ✅ **Matemática Financeira**: VPA, anuidades, duration, convexidade
+- ✅ **Reservas Matemáticas**: Cálculo PMBC e PMBD com métodos PUC e EAN
+- ✅ **Custo Normal**: Determinação anual precisa
+- ✅ **VPA (Valor Presente Atuarial)**: Cálculos de anuidades e fatores
+- ✅ **Projeções**: Salários, contribuições e benefícios ao longo do tempo
 - ✅ **Tábuas de Mortalidade**: BR-EMS 2021 e AT-2000 oficiais
-- ✅ **Planos CD**: Modalidades de conversão (vitalícia, prazo determinado)
-- ✅ **Visualizações Precisas**: Picos visuais alinhados com idade de aposentadoria
+- ✅ **Modalidades de Conversão**: Renda vitalícia e prazo determinado
 
-### Interface Web
+### 2. Interface Web Moderna
 
-- ✅ **Painel de Parâmetros**: Controles editáveis organizados por categoria
-- ✅ **Dashboard de Resultados**: Métricas principais formatadas
+- ✅ **Sistema de Abas**: Navegação organizada (Participante → Premissas → Técnico → Resultados)
+- ✅ **Painel de Parâmetros**: Controles editáveis com validação
+- ✅ **Dashboard de Resultados**: Métricas formatadas profissionalmente
+- ✅ **Gráficos Interativos**: Visualização da evolução temporal
 - ✅ **Comunicação Reativa**: WebSocket com debounce (300ms)
-- ✅ **Status de Conexão**: Indicador visual em tempo real
-- ✅ **Validação de Entrada**: Ranges apropriados e tipos corretos
+- ✅ **Design System**: Componentes consistentes e reutilizáveis
 
-### Análise Avançada
+### 3. Análise Avançada
 
-- ✅ **Sensibilidade Automática**: Taxa desconto, idade aposentadoria, mortalidade
-- ✅ **Decomposição Atuarial**: VPA detalhado e breakdown de custos  
-- ✅ **Métricas Profissionais**: Taxa reposição, duration, funding ratio
-- ✅ **Performance Tracking**: Tempo de cálculo em milissegundos
+- ✅ **Análise de Sensibilidade**: Taxa de desconto, idade de aposentadoria, mortalidade
+- ✅ **Sugestões Inteligentes**: Recomendações baseadas no perfil
+- ✅ **Decomposição de Custos**: Breakdown detalhado dos componentes
+- ✅ **Métricas Profissionais**: Taxa de reposição, duration, funding ratio
+- ✅ **Performance Tracking**: Tempo de cálculo em tempo real
 
-## 🔧 Estrutura Técnica
+## 🔧 Stack Tecnológico
 
-### Backend (Python)
+### Backend
+- **FastAPI 0.104+**: Framework web moderno e rápido
+- **Pydantic 2.5+**: Validação de dados robusta
+- **NumPy/Pandas**: Computação científica e análise de dados
+- **Uvicorn**: Servidor ASGI de alta performance
+- **WebSocket**: Comunicação bidirecional em tempo real
 
-**Stack Principal:**
-- FastAPI 0.104+ para API REST e WebSocket
-- Pydantic 2.5+ para validação de dados
-- NumPy/Pandas para cálculos atuariais
-- Uvicorn como servidor ASGI
+### Frontend
+- **React 18**: Biblioteca UI com hooks modernos
+- **TypeScript**: Tipagem estática para JavaScript
+- **TanStack Query**: Gerenciamento de estado do servidor
+- **Tailwind CSS**: Framework CSS utilitário
+- **Axios**: Cliente HTTP para comunicação com API
+- **Chart.js**: Biblioteca de gráficos interativos
 
-**Componentes:**
-- `ActuarialEngine`: Motor de cálculos atuariais
-- `MortalityTables`: Carregamento de tábuas oficiais
-- `FinancialMath`: Funções matemática financeira
-- `WebSocketManager`: Gerenciamento de conexões reativas
+## 📋 Tábuas de Mortalidade Oficiais
 
-### Frontend (React)
-
-**Stack Principal:**
-- React 18 com TypeScript
-- TanStack Query para estado servidor
-- Axios para HTTP client
-- Tailwind CSS para estilos
-
-**Componentes:**
-- `ParameterPanel`: Painel de entrada de parâmetros
-- `ResultsDashboard`: Dashboard de resultados
-- `useSimulator`: Hook principal de estado
-- `WebSocketClient`: Cliente WebSocket customizado
-
-## 📋 Tábuas de Mortalidade
-
-### BR-EMS 2021 ✅ OFICIAL
-- **Fonte**: SUSEP - Superintendência de Seguros Privados  
-- **Base**: 94 milhões de registros (2004-2018)
+### BR-EMS 2021 ✅
+- **Fonte**: SUSEP - Superintendência de Seguros Privados
+- **Base de Dados**: 94 milhões de registros (2004-2018)
 - **Status**: Tábua oficial aprovada para uso regulatório
-- **Formato**: CSV com colunas `idade,qx`
+- **Aplicação**: Seguros de vida e previdência no Brasil
 
-### AT-2000 ✅ OFICIAL  
+### AT-2000 ✅
 - **Fonte**: SUSEP - Anuidades Brasileiras
-- **Aplicação**: Seguros de anuidades e previdência
+- **Aplicação**: Seguros de anuidades e previdência privada
 - **Status**: Aprovada pela SUSEP para uso oficial
-- **Formato**: CSV com colunas `idade,qx`
+- **Características**: Específica para população de anuitários
 
-## ⚡ Performance
+## ⚡ Performance e Otimização
 
-**Métricas de Objetivo:**
-- Cálculos simples: < 300ms
-- Análise sensibilidade: < 1s  
-- Carregamento inicial: < 2s
+**Métricas de Performance:**
+- Cálculos simples: < 200ms
+- Análise de sensibilidade: < 500ms
+- Carregamento inicial: < 1s
 - Atualização reativa: < 100ms
 
 **Otimizações Implementadas:**
-- Cache de tábuas de mortalidade
-- Debounce em alterações de parâmetros
-- Cálculos paralelos para sensibilidade
-- Memoização de componentes React
+- Cache em memória das tábuas de mortalidade
+- Debounce inteligente para evitar cálculos desnecessários
+- Memoização de componentes React críticos
+- WebSocket eficiente para comunicação bidirecional
+
+## 🧪 Desenvolvimento e Testes
+
+### Comandos do Backend
+
+```bash
+cd backend
+
+# Instalar dependências de desenvolvimento
+uv sync --dev
+
+# Executar testes
+uv run python -m pytest
+
+# Formatação de código
+uv run black src/
+
+# Análise de código
+uv run ruff check src/
+
+# Executar scripts de análise
+uv run python -m src.scripts.analyze_excel_tables
+```
+
+### Comandos do Frontend
+
+```bash
+cd frontend
+
+# Build para produção
+npm run build
+
+# Verificação de tipos
+npm run lint
+
+# Testes E2E (Playwright)
+npx playwright test
+
+# Preview do build
+npm run preview
+```
 
 ## 🔍 Validações e Conformidade
 
 ### Validações de Entrada
-- Idade atual: 18-70 anos
-- Idade aposentadoria: > idade atual
-- Salário: > 0
-- Taxas: Ranges apropriados (0-20%)
+- **Idade Atual**: 18-70 anos
+- **Idade de Aposentadoria**: Maior que idade atual
+- **Salário Atual**: Valor positivo
+- **Taxas**: Ranges apropriados (0-30%)
+- **Períodos**: Consistência temporal
 
-### Conformidade Regulatória  
-- ✅ Tábuas oficiais SUSEP
-- ✅ Métodos atuariais aprovados (PUC, EAN)
-- ✅ Terminologia técnica precisa
-- ✅ Validação de premissas
+### Conformidade Regulatória
+- ✅ Utilização de tábuas oficiais SUSEP
+- ✅ Implementação de métodos atuariais aprovados
+- ✅ Terminologia técnica precisa e profissional
+- ✅ Validação rigorosa de premissas
 
-## 🛠️ Correções Recentes
+## 📈 Principais Casos de Uso
 
-### v1.1.0 - Correção de Picos Visuais (2025-01-09)
+1. **Planejamento Previdenciário Individual**
+   - Análise de cenários de aposentadoria
+   - Comparação entre modalidades CD e BD
+   - Otimização de contribuições
 
-**Problema Identificado:**
-- Picos visuais em gráficos de CD e BD apareciam em 64 anos em vez de 65 anos (idade de aposentadoria)
-- Inconsistência entre métricas (corretas) e visualização gráfica (incorreta)
+2. **Consultoria Atuarial**
+   - Cálculo de reservas matemáticas
+   - Análise de sensibilidade para clientes
+   - Validação de premissas técnicas
 
-**Solução Implementada:**
-- **Backend (actuarial_engine.py)**:
-  - Linha 1130: Correção na agregação anual para CD: `year_balance = monthly_balances[min(start_month, len(monthly_balances)-1)]`
-  - Linha 513: Correção na agregação anual para BD: `year_reserve = monthly_reserves[min(start_month, len(monthly_reserves)-1)]`
-- **Abordagem**: Mudança de `end_month-1` para `start_month` captura dados no início de cada ano de idade
-- **Resultado**: Picos visuais agora aparecem exatamente aos 65 anos para ambos os tipos de plano
+3. **Educação e Treinamento**
+   - Demonstração de conceitos atuariais
+   - Simulação interativa para aprendizado
+   - Visualização de impactos de parâmetros
 
-**Gráficos Corrigidos:**
-- ✅ CD - Evolução do Saldo CD (Ciclo de Vida Completo)  
-- ✅ BD - Simulação Determinística (Evolução das Reservas)
+## ⚠️ Considerações Importantes
 
-**Impacto**: Alinhamento perfeito entre métricas, pontos destacados e curvas visuais em todos os gráficos.
+**PARA USO PROFISSIONAL**: Este simulador foi desenvolvido para uso por profissionais atuários qualificados. Embora utilize métodos e tábuas oficiais, todos os resultados devem ser validados por atuário responsável antes de uso em análises formais ou regulatórias.
 
-## 🧪 Desenvolvimento
-
-### Estrutura de Comandos
-
-```bash
-# Backend
-cd backend
-uv pip install -e ".[dev]"          # Instalar deps desenvolvimento
-python -m pytest                     # Executar testes
-python -m black src/                  # Formatar código  
-python -m ruff check src/            # Linting
-
-# Frontend  
-cd frontend
-npm run build                        # Build produção
-npm run type-check                   # Verificar tipos
-npm run lint                         # ESLint
-```
-
-### Extensões Planejadas
-
-- 🔄 Cache Redis para sessões
-- 📈 Gráficos interativos (Chart.js)
-- 💾 Persistência de simulações  
-- 📊 Relatórios PDF exportáveis
-- 🌐 Multi-idioma (PT/EN)
-
-## ⚠️ Considerações Profissionais
-
-**IMPORTANTE**: Este simulador é desenvolvido para uso profissional por atuários qualificados. Embora utilize tábuas oficiais e métodos aprovados, todos os resultados devem ser validados por atuário responsável antes de uso em análises formais ou regulatórias.
-
-**Limitações Atuais**:
-- Simulação determinística (não estocástica)
-- Apenas participante individual (não população)
-- Tábuas estáticas (sem projeção de melhoria)
-- ETTJ fixa (não curva de juros dinâmica)
+**Limitações Atuais:**
+- Simulação determinística (não considera variabilidade estocástica)
+- Foco em participante individual (não população)
+- Tábuas estáticas (sem projeção de melhoria da mortalidade)
+- Taxa de juros fixa (não considera curva de juros dinâmica)
 
 ## 📄 Licença
 
-Desenvolvido para análise atuarial profissional. Código disponível para auditoria e validação técnica.
+Este projeto está licenciado sob Creative Commons BY-NC 4.0 - desenvolvido para análise atuarial profissional com código disponível para auditoria e validação técnica.
 
 ---
 
-**Versão**: 1.1.0  
-**Última Atualização**: Janeiro 2025  
-**Desenvolvido com**: Python 3.11, FastAPI, React 18, TypeScript
+**Versão**: 1.2.0  
+**Última Atualização**: Setembro 2025  
+**Tecnologias**: Python 3.11, FastAPI, React 18, TypeScript, uv, WebSocket

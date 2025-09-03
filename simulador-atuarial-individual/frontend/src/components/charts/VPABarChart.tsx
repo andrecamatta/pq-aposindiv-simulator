@@ -37,14 +37,14 @@ const VPABarChart: React.FC<VPABarChartProps> = ({ results }) => {
         label: 'Valores Atuariais (R$)',
         data: chartData,
         backgroundColor: [
-          'rgba(59, 130, 246, 0.8)',  // Azul para VPA Benefícios
-          'rgba(245, 158, 11, 0.8)',  // Laranja para VPA Contribuições
-          'rgba(99, 102, 241, 0.8)',  // Roxo para RMBA
+          'rgba(19, 164, 236, 0.6)',   // Primary blue softer
+          'rgba(251, 146, 60, 0.6)',   // Softer orange-400
+          'rgba(139, 92, 246, 0.6)',   // Softer violet-500
         ],
         borderColor: [
-          'rgb(59, 130, 246)',        // Azul
-          'rgb(245, 158, 11)',        // Laranja
-          'rgb(99, 102, 241)',        // Roxo
+          'rgba(19, 164, 236, 0.8)',   // Primary blue
+          'rgba(251, 146, 60, 0.8)',   // Orange-400
+          'rgba(139, 92, 246, 0.8)',   // Violet-500
         ],
         borderWidth: 2,
         borderRadius: 8,

@@ -2,19 +2,19 @@
 // Professional color palette inspired by Stripe, Linear, and Airbnb
 
 export const colors = {
-  // Primary Brand Colors
+  // Primary Brand Colors - Inspired by ActuarialSim reference
   primary: {
-    50: '#eff6ff',
-    100: '#dbeafe',
-    200: '#bfdbfe',
-    300: '#93c5fd',
-    400: '#60a5fa',
-    500: '#3b82f6', // Main brand color
-    600: '#2563eb',
-    700: '#1d4ed8',
-    800: '#1e40af',
-    900: '#1e3a8a',
-    950: '#172554',
+    50: '#eff8ff',
+    100: '#ddf0ff',
+    200: '#b3e1ff',
+    300: '#7dcbff',
+    400: '#38b0ff',
+    500: '#13a4ec', // Main brand color from reference
+    600: '#0e7bb8',
+    700: '#0d6195',
+    800: '#0f527a',
+    900: '#134566',
+    950: '#0c2b44',
   },
   
   // Perfect Neutral Scale

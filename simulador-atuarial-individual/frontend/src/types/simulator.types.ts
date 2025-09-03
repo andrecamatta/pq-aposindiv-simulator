@@ -56,10 +56,20 @@ export interface SimulatorState {
 }
 
 export interface SimulatorResults {
-  // Reservas Matemáticas
+  // Reservas Matemáticas (BD)
   rmba: number;
   rmbc: number;
   normal_cost: number;
+  
+  // Campos específicos para CD
+  individual_balance?: number;
+  net_accumulated_value?: number;
+  accumulated_return?: number;
+  effective_return_rate?: number;
+  monthly_income_cd?: number;
+  conversion_factor?: number;
+  administrative_cost_total?: number;
+  benefit_duration_years?: number;
   
   // Análise de Suficiência
   deficit_surplus: number;

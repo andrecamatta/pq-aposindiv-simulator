@@ -1,11 +1,9 @@
 import React from 'react';
-import { createIconComponent } from './Icon';
-import SaiLogo from '../../assets/sai-logo.svg';
 
 export interface Tab {
   id: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ReactNode;
   color: {
     primary: string;
     light: string;
@@ -15,166 +13,189 @@ export interface Tab {
   disabled?: boolean;
 }
 
+// Ícones SVG otimizados para cada tab
+const TechnicalIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+  </svg>
+);
+
+const ParticipantIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+  </svg>
+);
+
+const AssumptionsIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+);
+
+const ResultsIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+  </svg>
+);
+
+const ReportsIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  </svg>
+);
+
 export const tabs: Tab[] = [
   {
     id: 'technical',
     label: 'Técnico',
-    icon: createIconComponent('cog'),
+    icon: <TechnicalIcon className="w-6 h-6" />,
     color: {
-      primary: '#ea580c', // orange-600
-      light: '#fb923c',   // orange-400
-      gradient: 'from-orange-400 to-orange-600',
-      bg: 'bg-orange-50'
+      primary: '#1e3a8a', // Navy blue - Base sólida
+      light: '#3b82f6',   // Blue 500
+      gradient: 'from-blue-900 to-blue-700',
+      bg: 'bg-blue-50'
     }
   },
   {
     id: 'participant',
-    label: 'Participante',
-    icon: createIconComponent('user'),
+    label: 'Participante', 
+    icon: <ParticipantIcon className="w-6 h-6" />,
     color: {
-      primary: '#2563eb', // blue-600
-      light: '#60a5fa',   // blue-400
-      gradient: 'from-blue-400 to-blue-600',
-      bg: 'bg-blue-50'
+      primary: '#f59e0b', // Dourado premium
+      light: '#fbbf24',   // Amber 400
+      gradient: 'from-amber-500 to-yellow-600',
+      bg: 'bg-amber-50'
     }
   },
   {
     id: 'assumptions',
     label: 'Premissas',
-    icon: createIconComponent('settings'),
+    icon: <AssumptionsIcon className="w-6 h-6" />,
     color: {
-      primary: '#8b5cf6', // violet-600
-      light: '#a78bfa',   // violet-400
-      gradient: 'from-violet-400 to-violet-600',
-      bg: 'bg-violet-50'
+      primary: '#7c3aed', // Roxo real
+      light: '#a855f7',   // Purple 500
+      gradient: 'from-purple-600 to-violet-700', 
+      bg: 'bg-purple-50'
     }
   },
   {
     id: 'results',
     label: 'Resultados',
-    icon: createIconComponent('trending-up'),
+    icon: <ResultsIcon className="w-6 h-6" />,
     color: {
-      primary: '#059669', // emerald-600
-      light: '#34d399',   // emerald-400
-      gradient: 'from-emerald-400 to-emerald-600',
+      primary: '#059669', // Verde esmeralda
+      light: '#10b981',   // Emerald 500
+      gradient: 'from-emerald-600 to-teal-700',
       bg: 'bg-emerald-50'
     }
   },
   {
     id: 'reports',
     label: 'Relatórios',
-    icon: createIconComponent('file-text'),
+    icon: <ReportsIcon className="w-6 h-6" />,
     color: {
-      primary: '#db2777', // pink-600
-      light: '#f472b6',   // pink-400
-      gradient: 'from-pink-400 to-pink-600',
-      bg: 'bg-pink-50'
+      primary: '#ef4444', // Vermelho coral
+      light: '#f87171',   // Red 400
+      gradient: 'from-red-500 to-rose-600',
+      bg: 'bg-red-50'
     }
   }
 ];
 
 interface TabNavigationProps {
-  activeTab: string;
-  onTabChange: (tabId: string) => void;
   className?: string;
+  activeTab?: string;
+  onTabChange?: (tabId: string) => void;
+  state?: any; // SimulatorState para preview data
+  results?: any; // SimulatorResults para preview data
 }
 
 const TabNavigation: React.FC<TabNavigationProps> = ({
-  activeTab,
+  className = '',
+  activeTab = 'technical',
   onTabChange,
-  className = ''
+  state,
+  results
 }) => {
   return (
-    <div className={`w-full bg-gradient-to-r from-gray-50/20 via-white/30 to-gray-100/20 border-b border-gray-200/10 shadow-2xl backdrop-blur-2xl relative overflow-hidden ${className}`}>
-      {/* Floating orbs background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-4 -left-4 w-20 h-20 bg-gradient-to-br from-blue-200/15 to-purple-200/15 rounded-full blur-xl animate-pulse"></div>
-        <div className="absolute -top-2 right-1/4 w-16 h-16 bg-gradient-to-br from-pink-200/10 to-rose-200/10 rounded-full blur-lg animate-pulse delay-1000"></div>
-        <div className="absolute -bottom-2 right-1/3 w-12 h-12 bg-gradient-to-br from-green-200/15 to-emerald-200/15 rounded-full blur-md animate-pulse delay-2000"></div>
-      </div>
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        <div className="flex items-center justify-between py-4">
-          {/* Logo/Brand with enhanced gradient */}
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 relative">
-              <img src={SaiLogo} alt="SAI Logo" className="w-full h-full" />
+    <div className={`w-full bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 ${className}`}>
+      {/* Premium Header */}
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        <div className="flex items-center justify-between">
+          {/* Logo Premium */}
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 text-amber-400 drop-shadow-lg">
+              <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                <path d="M42.4379 44C42.4379 44 36.0744 33.9038 41.1692 24C46.8624 12.9336 42.2078 4 42.2078 4L7.01134 4C7.01134 4 11.6577 12.932 5.96912 23.9969C0.876273 33.9029 7.27094 44 7.27094 44L42.4379 44Z" fill="currentColor"></path>
+              </svg>
             </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-gray-700 via-gray-800 to-gray-900 bg-clip-text text-transparent">
-              Simulador Atuarial
-            </h1>
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">ActuarialSim</h1>
+            </div>
           </div>
 
-          {/* Enhanced Tab Navigation with glassmorphism */}
-          <nav className="flex items-center space-x-1 bg-white/70 backdrop-blur-md rounded-2xl p-1.5 border border-white/30 shadow-2xl relative overflow-hidden">
-            {/* Animated background glow */}
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-50/30 via-purple-50/20 to-pink-50/30 rounded-2xl opacity-60"></div>
-            
-            {tabs.map((tab, index) => {
+          {/* Elegant Tabs Navigation */}
+          <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md p-2 rounded-2xl border border-white/20">
+            {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
-              const Icon = tab.icon;
               
               return (
                 <button
                   key={tab.id}
-                  data-testid={`tab-${tab.id}`}
-                  onClick={() => onTabChange(tab.id)}
-                  className={`
-                    relative flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm
-                    transition-all duration-500 ease-out hover:scale-105 active:scale-95
-                    ${isActive 
-                      ? `text-white shadow-xl transform scale-[1.05] z-10`
-                      : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 hover:shadow-md'
-                    }
-                  `}
+                  onClick={() => onTabChange?.(tab.id)}
+                  className={`group relative flex items-center gap-3 px-6 py-4 rounded-xl font-semibold text-sm transition-all duration-300 transform hover:scale-105 ${
+                    isActive
+                      ? 'text-white shadow-2xl'
+                      : 'text-slate-300 hover:text-white hover:bg-white/10'
+                  }`}
                   style={{
-                    backgroundColor: isActive ? tab.color.primary : 'transparent',
-                    animationDelay: `${index * 100}ms`
+                    background: isActive 
+                      ? `linear-gradient(135deg, ${tab.color.primary}, ${tab.color.light})`
+                      : undefined
                   }}
                 >
-                  {isActive && (
-                    <>
-                      {/* Primary background with gradient */}
-                      <div 
-                        className="absolute inset-0 rounded-xl opacity-90"
-                        style={{
-                          background: `linear-gradient(135deg, ${tab.color.primary}, ${tab.color.light})`
-                        }}
-                      />
-                      
-                      {/* Glow effect */}
-                      <div 
-                        className="absolute inset-0 rounded-xl opacity-40 blur-md scale-110"
-                        style={{
-                          background: `linear-gradient(135deg, ${tab.color.primary}, ${tab.color.light})`
-                        }}
-                      />
-                      
-                      {/* Inner highlight */}
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent"></div>
-                    </>
-                  )}
-                  
-                  <Icon className={`
-                    w-4 h-4 transition-all duration-300 relative z-10
-                    ${isActive ? 'text-white drop-shadow-sm' : 'text-gray-500'}
-                    ${isActive ? 'animate-pulse' : ''}
-                  `} />
-                  <span className="relative z-10 drop-shadow-sm">{tab.label}</span>
-                  
+                  {/* Glow effect for active tab */}
                   {isActive && (
                     <div 
-                      className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-8 h-0.5 rounded-full shadow-md animate-pulse"
-                      style={{ 
-                        backgroundColor: tab.color.light,
-                        boxShadow: `0 0 8px ${tab.color.light}40`
+                      className="absolute inset-0 rounded-xl blur-lg opacity-50 -z-10 scale-110"
+                      style={{
+                        background: `linear-gradient(135deg, ${tab.color.primary}, ${tab.color.light})`
                       }}
                     />
+                  )}
+
+                  {/* Icon with premium styling */}
+                  <div className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 ${
+                    isActive 
+                      ? 'bg-white/20 text-white shadow-inner' 
+                      : 'text-slate-400 group-hover:text-slate-200'
+                  }`}>
+                    {tab.icon}
+                  </div>
+
+                  {/* Label */}
+                  <span className="font-bold tracking-wide whitespace-nowrap">
+                    {tab.label}
+                  </span>
+
+                  {/* Active pulse indicator */}
+                  {isActive && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-amber-400 to-yellow-500 rounded-full animate-pulse shadow-lg" />
                   )}
                 </button>
               );
             })}
-          </nav>
+          </div>
+
+          {/* Premium User Avatar */}
+          <div className="flex items-center gap-3">
+            <div className="bg-gradient-to-br from-amber-400 to-amber-600 rounded-full w-12 h-12 shadow-lg border-2 border-amber-300/50 flex items-center justify-center">
+              <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+          </div>
         </div>
       </div>
     </div>

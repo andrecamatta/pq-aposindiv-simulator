@@ -257,6 +257,9 @@ class ActuarialEngine:
         # Métricas específicas CD
         cd_metrics = self._calculate_cd_metrics(state, projections, monthly_income)
         
+        # Calcular duração precisa dos benefícios
+        benefit_duration_years = self._calculate_cd_benefit_duration(state, context, accumulated_balance, monthly_income, mortality_table)
+        
         # Análise de modalidades de conversão
         conversion_analysis = self._analyze_cd_conversion_modes(state, context, accumulated_balance, mortality_table)
         
@@ -287,6 +290,7 @@ class ActuarialEngine:
             monthly_income_cd=monthly_income,
             conversion_factor=conversion_factor_value,
             administrative_cost_total=administrative_costs,
+            benefit_duration_years=benefit_duration_years,
             
             # Análise de Suficiência (não aplicável a CD)
             deficit_surplus=0.0,
@@ -1315,6 +1319,98 @@ class ActuarialEngine:
         }
         return descriptions.get(mode, "Modalidade não definida")
     
+    def _calculate_cd_benefit_duration(self, state: SimulatorState, context: ActuarialContext, balance: float, monthly_income: float, mortality_table: np.ndarray) -> float:
+        """
+        Calcula duração precisa dos benefícios CD usando simulação mês a mês
+        
+        Args:
+            state: Estado do simulador
+            context: Contexto atuarial  
+            balance: Saldo acumulado na aposentadoria
+            monthly_income: Renda mensal CD calculada
+            mortality_table: Tábua de mortalidade
+            
+        Returns:
+            Duração dos benefícios em anos (pode ser vitalícia se > 50 anos)
+        """
+        if balance <= 0 or monthly_income <= 0:
+            return 0.0
+            
+        # Configurações
+        conversion_mode = state.cd_conversion_mode or CDConversionMode.ACTUARIAL
+        conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
+        
+        # Para modalidades com período determinado, retornar diretamente
+        if conversion_mode in [CDConversionMode.CERTAIN_5Y, CDConversionMode.CERTAIN_10Y, 
+                              CDConversionMode.CERTAIN_15Y, CDConversionMode.CERTAIN_20Y]:
+            years_map = {
+                CDConversionMode.CERTAIN_5Y: 5,
+                CDConversionMode.CERTAIN_10Y: 10,
+                CDConversionMode.CERTAIN_15Y: 15,
+                CDConversionMode.CERTAIN_20Y: 20
+            }
+            return float(years_map[conversion_mode])
+        
+        # Para modalidades vitalícias ou dinâmicas, simular mês a mês
+        remaining_balance = balance
+        months_count = 0
+        max_months = 50 * 12  # Limite máximo de 50 anos
+        
+        # Probabilidade de sobrevivência acumulada
+        cumulative_survival = 1.0
+        
+        while months_count < max_months and remaining_balance > 0 and cumulative_survival > 0.01:
+            # Calcular idade atual
+            current_age_years = state.retirement_age + (months_count / 12)
+            age_index = int(current_age_years)
+            
+            # Verificar mortalidade se modalidade for atuarial
+            if conversion_mode == CDConversionMode.ACTUARIAL:
+                if age_index < len(mortality_table):
+                    q_x_annual = mortality_table[age_index]
+                    if 0 <= q_x_annual <= 1:
+                        q_x_monthly = 1 - ((1 - q_x_annual) ** (1/12))
+                        p_x_monthly = 1 - q_x_monthly
+                        cumulative_survival *= p_x_monthly
+                    else:
+                        cumulative_survival = 0.0
+                else:
+                    cumulative_survival = 0.0
+            
+            # Calcular pagamento mensal (incluindo extras - 13º, 14º)
+            current_month_in_year = months_count % 12
+            monthly_payment = monthly_income
+            
+            extra_payments = context.benefit_months_per_year - 12
+            if extra_payments > 0:
+                if current_month_in_year == 11:  # Dezembro - 13º
+                    if extra_payments >= 1:
+                        monthly_payment += monthly_income
+                if current_month_in_year == 0 and months_count > 0:  # Janeiro - 14º
+                    if extra_payments >= 2:
+                        monthly_payment += monthly_income
+            
+            # Descontar pagamento do saldo
+            remaining_balance -= monthly_payment
+            
+            # Capitalizar saldo restante
+            remaining_balance *= (1 + conversion_rate_monthly)
+            
+            months_count += 1
+            
+            # Para modalidade percentage, recalcular renda baseada no saldo atual
+            if conversion_mode == CDConversionMode.PERCENTAGE:
+                percentage = state.cd_withdrawal_percentage or 5.0
+                monthly_income = (remaining_balance * (percentage / 100)) / 12
+                if monthly_income < 1.0:  # Critério de parada quando renda fica muito baixa
+                    break
+        
+        # Se chegou ao limite de 50 anos ou sobrevivência muito baixa, considerar vitalício
+        if months_count >= max_months or (conversion_mode == CDConversionMode.ACTUARIAL and cumulative_survival <= 0.01):
+            return float('inf')  # Indicar que é vitalício
+        
+        return months_count / 12.0  # Converter para anos
+
     def _calculate_cd_sensitivity(self, state: SimulatorState) -> Dict:
         """Calcula análise de sensibilidade específica para CD"""
         # Simplificado - pode ser expandido conforme necessário

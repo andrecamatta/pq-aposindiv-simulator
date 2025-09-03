@@ -12,9 +12,9 @@ const ContributionGauge: React.FC<ContributionGaugeProps> = ({ results, currentR
   const maxRate = Math.max(requiredRate * 1.5, 15);
   
   const getColor = (rate: number) => {
-    if (rate <= 8) return '#10B981'; // Green
-    if (rate <= 12) return '#F59E0B'; // Amber
-    return '#EF4444'; // Red
+    if (rate <= 8) return '#6EE7B7'; // Soft Green
+    if (rate <= 12) return '#FCD34D'; // Soft Amber
+    return '#F87171'; // Soft Red
   };
 
   const currentColor = getColor(currentRate);

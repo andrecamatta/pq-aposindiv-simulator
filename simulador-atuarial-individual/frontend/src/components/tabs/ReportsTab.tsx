@@ -1,5 +1,4 @@
 import React from 'react';
-import { Icon } from '../../design-system/components/Icon';
 import type { SimulatorResults, SimulatorState } from '../../types';
 import { Card, CardHeader, CardTitle, CardContent, Button } from '../../design-system/components';
 import { formatCurrencyBR, formatDecimalToPercentageBR } from '../../utils/formatBR';
@@ -28,7 +27,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
         <CardHeader>
           <CardTitle className="flex items-center gap-4">
             <div className="w-16 h-16 bg-gradient-to-br from-pink-200 to-pink-400 rounded-2xl flex items-center justify-center shadow-lg">
-              <Icon name="file-text" size="xl" className="text-white" />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-pink-900">Relatórios e Exportações</h2>
@@ -43,7 +41,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
         <Card className="bg-gradient-to-br from-pink-50/70 to-pink-100/70 border-pink-200">
           <CardContent className="p-8 text-center">
             <div className="w-16 h-16 bg-pink-200 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Icon name="file-text" size="xl" className="text-pink-500" />
             </div>
             <h3 className="text-xl font-bold text-pink-900 mb-2">Aguardando Resultados</h3>
             <p className="text-pink-600">
@@ -60,7 +57,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-pink-300 to-pink-500 rounded-xl flex items-center justify-center">
-                    <Icon name="file-text" size="lg" className="text-white" />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-pink-900">Relatório Executivo</h3>
@@ -88,7 +84,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                       onClick={() => handlePreview('executive-pdf')}
                       className="text-pink-700 hover:bg-pink-100"
                     >
-                      <Icon name="printer" size="sm" className="mr-1" />
                       Preview
                     </Button>
                     <Button 
@@ -96,7 +91,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                       onClick={() => handleDownload('executive-pdf')}
                       className="bg-pink-500 hover:bg-pink-600 text-white"
                     >
-                      <Icon name="download" size="sm" className="mr-1" />
                       PDF
                     </Button>
                   </div>
@@ -109,7 +103,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-pink-400 to-pink-600 rounded-xl flex items-center justify-center">
-                    <Icon name="file" size="lg" className="text-white" />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-pink-900">Relatório Técnico</h3>
@@ -137,7 +130,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                       onClick={() => handlePreview('technical-pdf')}
                       className="text-pink-700 hover:bg-pink-100"
                     >
-                      <Icon name="printer" size="sm" className="mr-1" />
                       Preview
                     </Button>
                     <Button 
@@ -145,7 +137,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                       onClick={() => handleDownload('technical-pdf')}
                       className="bg-pink-500 hover:bg-pink-600 text-white"
                     >
-                      <Icon name="download" size="sm" className="mr-1" />
                       PDF
                     </Button>
                   </div>
@@ -158,7 +149,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-pink-700 rounded-xl flex items-center justify-center">
-                    <Icon name="file-spreadsheet" size="lg" className="text-white" />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-pink-900">Planilha de Dados</h3>
@@ -185,7 +175,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                       onClick={() => handleDownload('data-excel')}
                       className="bg-green-500 hover:bg-green-600 text-white"
                     >
-                      <Icon name="download" size="sm" className="mr-1" />
                       Excel
                     </Button>
                     <Button 
@@ -193,7 +182,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                       onClick={() => handleDownload('data-csv')}
                       className="bg-blue-500 hover:bg-blue-600 text-white"
                     >
-                      <Icon name="download" size="sm" className="mr-1" />
                       CSV
                     </Button>
                   </div>
@@ -206,7 +194,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-pink-600 to-rose-600 rounded-xl flex items-center justify-center">
-                    <Icon name="mail" size="lg" className="text-white" />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-pink-900">Envio por Email</h3>
@@ -228,7 +215,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                     className="bg-pink-500 hover:bg-pink-600 text-white w-full"
                     disabled
                   >
-                    <Icon name="mail" size="sm" className="mr-2" />
                     Configurar Email (Em breve)
                   </Button>
                 </div>

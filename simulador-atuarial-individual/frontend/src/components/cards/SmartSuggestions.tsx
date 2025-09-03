@@ -138,10 +138,10 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-            <Icon name="loader" size="sm" color="primary" className="animate-spin" />
+          <div className="w-8 h-8 bg-[#eff8ff] rounded-lg flex items-center justify-center">
+            <Icon name="loader" size="sm" className="text-[#13a4ec] animate-spin" />
           </div>
           <h3 className="text-base font-semibold text-gray-900">Sugestões Inteligentes</h3>
         </div>
@@ -151,10 +151,10 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-6" role="region" aria-labelledby="smart-suggestions-title">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6" role="region" aria-labelledby="smart-suggestions-title">
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-          <Icon name="lightbulb" size="sm" color="primary" />
+        <div className="w-8 h-8 bg-[#eff8ff] rounded-lg flex items-center justify-center">
+          <Icon name="lightbulb" size="sm" className="text-[#13a4ec]" />
         </div>
         <h3 id="smart-suggestions-title" className="text-base font-semibold text-gray-900">Sugestões Inteligentes</h3>
       </div>
@@ -225,9 +225,39 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
         </div>
       ) : (
         <div className="text-center py-4">
-          <Icon name="trending-up" size="lg" className="text-gray-400 mx-auto mb-2" />
-          <p className="text-sm text-gray-700 mb-1">Seus parâmetros estão equilibrados!</p>
-          <p className="text-xs text-gray-500">Continue ajustando para ver novas sugestões.</p>
+          {(() => {
+            // Determinar se o plano está realmente equilibrado ou se apenas não há sugestões
+            const currentDeficit = context.current_deficit_surplus || 0;
+            const isActuallyBalanced = Math.abs(currentDeficit) <= 1000;
+            
+            if (isActuallyBalanced) {
+              // Realmente equilibrado
+              return (
+                <>
+                  <Icon name="check-circle" size="lg" className="text-green-500 mx-auto mb-2" />
+                  <p className="text-sm text-gray-700 mb-1">Seus parâmetros estão equilibrados!</p>
+                  <p className="text-xs text-gray-500">Continue ajustando para explorar outros cenários.</p>
+                </>
+              );
+            } else {
+              // Tem déficit/superávit mas sem sugestões disponíveis
+              const isDeficit = currentDeficit < 0;
+              const statusText = isDeficit ? 'Déficit' : 'Superávit';
+              const statusIcon = isDeficit ? 'alert-triangle' : 'trending-up';
+              const statusColor = isDeficit ? 'text-orange-500' : 'text-blue-500';
+              
+              return (
+                <>
+                  <Icon name={statusIcon} size="lg" className={`${statusColor} mx-auto mb-2`} />
+                  <p className="text-sm text-gray-700 mb-1">Não há sugestões disponíveis no momento.</p>
+                  <p className="text-xs text-gray-600 mb-2">
+                    {statusText}: {formatCurrencyBR(Math.abs(currentDeficit))}
+                  </p>
+                  <p className="text-xs text-gray-500">Continue ajustando os parâmetros manualmente.</p>
+                </>
+              );
+            }
+          })()}
         </div>
       )}
     </div>

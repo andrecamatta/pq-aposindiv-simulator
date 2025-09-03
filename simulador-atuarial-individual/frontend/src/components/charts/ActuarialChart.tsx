@@ -40,7 +40,7 @@ const ActuarialChart: React.FC<ActuarialChartProps> = ({ results, currentAge }) 
       {
         label: 'VPA Benefícios Futuros',
         data: vpaBenefits,
-        borderColor: '#DC2626',
+        borderColor: '#F87171', // red-400 - softer red
         backgroundColor: 'transparent',
         tension: 0.4,
         fill: false,
@@ -50,7 +50,7 @@ const ActuarialChart: React.FC<ActuarialChartProps> = ({ results, currentAge }) 
       {
         label: 'VPA Contribuições Futuras',
         data: vpaContributions,
-        borderColor: '#059669',
+        borderColor: '#34D399', // emerald-400 - softer green
         backgroundColor: 'transparent',
         tension: 0.4,
         fill: false,
@@ -60,8 +60,8 @@ const ActuarialChart: React.FC<ActuarialChartProps> = ({ results, currentAge }) 
       {
         label: 'RMBA (Reserva Matemática)',
         data: rmbaEvolution,
-        borderColor: '#7C3AED',
-        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+        borderColor: '#13a4ec', // primary color from inspiration
+        backgroundColor: 'rgba(19, 164, 236, 0.1)',
         tension: 0.4,
         fill: true,
         pointRadius: 3,

@@ -31,7 +31,7 @@ const ActuarialBasisCard: React.FC<ActuarialBasisCardProps> = ({
       </CardHeader>
       
       <CardContent className="pt-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         {/* Tábua de Mortalidade */}
         <div className="space-y-3">
           <label className="block text-base font-semibold text-slate-700 mb-2">

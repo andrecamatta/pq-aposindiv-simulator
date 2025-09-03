@@ -5,10 +5,20 @@ from datetime import datetime
 
 class SimulatorResults(BaseModel):
     """Resultados calculados da simulação"""
-    # Reservas Matemáticas
+    # Reservas Matemáticas (BD)
     rmba: float                # Reserva de Benefícios a Conceder
     rmbc: float                # Reserva de Benefícios Concedidos
     normal_cost: float         # Custo Normal anual
+    
+    # Campos específicos para CD (Contribuição Definida)
+    individual_balance: Optional[float] = None       # Saldo individual acumulado
+    net_accumulated_value: Optional[float] = None    # Valor líquido (saldo - custos admin)
+    accumulated_return: Optional[float] = None       # Rendimento acumulado total
+    effective_return_rate: Optional[float] = None    # Taxa de retorno efetiva (% a.a.)
+    monthly_income_cd: Optional[float] = None        # Renda mensal calculada para CD
+    conversion_factor: Optional[float] = None        # Fator de conversão utilizado
+    administrative_cost_total: Optional[float] = None  # Custos administrativos totais
+    benefit_duration_years: Optional[float] = None   # Duração dos benefícios em anos (CD)
     
     # Análise de Suficiência
     deficit_surplus: float     # Déficit(-) ou Superávit(+) em R$

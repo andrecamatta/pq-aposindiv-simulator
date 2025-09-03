@@ -29,7 +29,7 @@ const FinancialAssumptionsCard: React.FC<FinancialAssumptionsCardProps> = ({
       </CardHeader>
       
       <CardContent className="pt-6">
-        <div className="space-y-6">
+        <div className="space-y-12">
           <RangeSlider
             label="Benefício Desejado"
             value={state.target_benefit}

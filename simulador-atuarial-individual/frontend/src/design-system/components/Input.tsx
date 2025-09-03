@@ -4,11 +4,11 @@ import { cn } from '../../lib/utils';
 
 const inputVariants = cva(
   [
-    'flex w-full border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400',
-    'transition-all duration-150 ease-in-out',
-    'focus:border-primary-500 focus:ring-2 focus:ring-primary-500 focus:ring-opacity-20 focus:outline-none',
+    'flex w-full border border-[#dbe2e6] bg-white px-4 py-3 text-base text-[#111618] placeholder:text-[#9ca3af]',
+    'transition-all duration-150 ease-in-out rounded-md',
+    'focus:border-[#13a4ec] focus:ring-1 focus:ring-[#13a4ec] focus:ring-opacity-20 focus:outline-none',
     'disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-gray-50',
-    'aria-invalid:border-error-500 aria-invalid:ring-error-500 aria-invalid:ring-opacity-20',
+    'aria-invalid:border-red-500 aria-invalid:ring-red-500 aria-invalid:ring-opacity-20',
   ],
   {
     variants: {
@@ -72,7 +72,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="block text-sm font-medium text-gray-700"
+            className="block text-sm font-medium text-[#111618] mb-2"
           >
             {label}
           </label>
