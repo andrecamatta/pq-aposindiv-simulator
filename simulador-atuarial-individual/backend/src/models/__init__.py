@@ -1,4 +1,4 @@
-from .participant import SimulatorState, Gender, CalculationMethod, BenefitTargetMode, PaymentTiming
+from .participant import SimulatorState, Gender, CalculationMethod, BenefitTargetMode, PaymentTiming, PlanType, CDConversionMode
 from .results import SimulatorResults
 from .suggestions import (
     Suggestion, SuggestionType, SuggestionAction,
@@ -7,6 +7,7 @@ from .suggestions import (
 
 __all__ = [
     "SimulatorState", "SimulatorResults", "Gender", "CalculationMethod", 
-    "BenefitTargetMode", "PaymentTiming", "Suggestion", "SuggestionType", 
-    "SuggestionAction", "SuggestionsRequest", "SuggestionsResponse"
+    "BenefitTargetMode", "PaymentTiming", "PlanType", "CDConversionMode",
+    "Suggestion", "SuggestionType", "SuggestionAction", "SuggestionsRequest", 
+    "SuggestionsResponse"
 ]
