@@ -265,16 +265,33 @@ class ActuarialEngine:
         
         computation_time = (time.time() - start_time) * 1000
         
+        # Calcular métricas específicas CD
+        total_contributions_value = sum(projections["contributions"])
+        administrative_costs = total_contributions_value * state.loading_fee_rate + accumulated_balance * state.admin_fee_rate
+        net_balance = accumulated_balance - administrative_costs
+        accumulated_return_value = accumulated_balance - state.initial_balance - total_contributions_value
+        effective_return = (accumulated_return_value / total_contributions_value * 100) if total_contributions_value > 0 else 0.0
+        conversion_factor_value = monthly_income / accumulated_balance if accumulated_balance > 0 else 0.0
+        
         return SimulatorResults(
-            # Reservas Matemáticas (adaptadas para CD)
-            rmba=0.0,  # Não aplicável para CD
-            rmbc=accumulated_balance,  # Saldo acumulado
-            normal_cost=0.0,  # Não aplicável para CD
+            # Reservas Matemáticas (zeradas para CD)
+            rmba=0.0,
+            rmbc=0.0,  
+            normal_cost=0.0,
             
-            # Análise de Suficiência (adaptada)
-            deficit_surplus=accumulated_balance - (monthly_income * 12 * 20),  # Simplificado: 20 anos de renda
-            deficit_surplus_percentage=0.0,  # Recalcular se necessário
-            required_contribution_rate=0.0,  # CD não tem "taxa necessária" no mesmo sentido
+            # Campos específicos CD
+            individual_balance=accumulated_balance,
+            net_accumulated_value=net_balance,
+            accumulated_return=accumulated_return_value,
+            effective_return_rate=effective_return,
+            monthly_income_cd=monthly_income,
+            conversion_factor=conversion_factor_value,
+            administrative_cost_total=administrative_costs,
+            
+            # Análise de Suficiência (não aplicável a CD)
+            deficit_surplus=0.0,
+            deficit_surplus_percentage=0.0,
+            required_contribution_rate=0.0,
             
             # Projeções CD
             projection_years=projections["years"],
@@ -493,7 +510,7 @@ class ActuarialEngine:
             year_survival_prob = monthly_survival_probs[min(end_month-1, len(monthly_survival_probs)-1)]
             
             # Reserva no final do ano
-            year_reserve = monthly_reserves[min(end_month-1, len(monthly_reserves)-1)]
+            year_reserve = monthly_reserves[min(start_month, len(monthly_reserves)-1)]
             
             yearly_salaries.append(year_salary)
             yearly_benefits.append(year_benefit)
@@ -982,9 +999,36 @@ class ActuarialEngine:
             cumulative_survival = max(0.0, cumulative_survival)
             monthly_survival_probs.append(cumulative_survival)
         
+        # Calcular renda mensal base primeiro (estimativa inicial)
+        # Usaremos o saldo final estimado para calcular a renda mensal
+        temp_final_balance = state.initial_balance
+        for month in range(months_to_retirement):
+            temp_final_balance *= (1 + context.discount_rate_monthly)
+            temp_final_balance *= (1 - context.admin_fee_monthly)
+            monthly_contribution = monthly_contributions[month] if month < len(monthly_contributions) else 0
+            temp_final_balance += monthly_contribution
+        
+        monthly_income = self._calculate_cd_monthly_income_simple(state, context, temp_final_balance, mortality_table)
+        
         # EVOLUÇÃO DO SALDO CD - CORE LOGIC
         monthly_balances = []
         accumulated_balance = state.initial_balance
+        
+        # Determinar período de benefícios baseado na modalidade de conversão
+        conversion_mode = state.cd_conversion_mode or CDConversionMode.ACTUARIAL
+        benefit_period_months = None
+        
+        if conversion_mode in [CDConversionMode.CERTAIN_5Y, CDConversionMode.CERTAIN_10Y, 
+                               CDConversionMode.CERTAIN_15Y, CDConversionMode.CERTAIN_20Y]:
+            # Renda certa por N anos
+            years_map = {
+                CDConversionMode.CERTAIN_5Y: 5,
+                CDConversionMode.CERTAIN_10Y: 10,
+                CDConversionMode.CERTAIN_15Y: 15,
+                CDConversionMode.CERTAIN_20Y: 20
+            }
+            benefit_period_months = years_map[conversion_mode] * 12
+        # Para ACTUARIAL (vitalícia) e outros modos, benefit_period_months fica None (sem limite)
         
         for month in projection_months:
             # Durante acumulação: capitalizar com taxa de acumulação
@@ -997,36 +1041,73 @@ class ActuarialEngine:
                 
                 # Adicionar contribuição líquida
                 accumulated_balance += monthly_contributions[month]
+                
+                monthly_balances.append(max(0, accumulated_balance))
             else:
-                # Durante aposentadoria: não há mais acumulação nem contribuições
-                # Saldo vai sendo consumido pelos benefícios
-                pass
-            
-            monthly_balances.append(max(0, accumulated_balance))
+                # Durante aposentadoria: verificar se ainda está no período de benefícios
+                months_since_retirement = month - months_to_retirement
+                
+                # No primeiro mês da aposentadoria, registrar pico ANTES do primeiro saque
+                if months_since_retirement == 0:
+                    monthly_balances.append(max(0, accumulated_balance))  # Pico real aos 65 anos
+                
+                # Se há limite de tempo e já passou, não consumir mais saldo
+                if benefit_period_months is not None and months_since_retirement >= benefit_period_months:
+                    # Período de benefícios acabou, apenas capitalizar saldo restante
+                    accumulated_balance *= (1 + context.conversion_rate_monthly)
+                else:
+                    # Ainda no período de benefícios: saldo é consumido pelos benefícios
+                    current_month_in_year = month % 12
+                    monthly_benefit_payment = monthly_income
+                    
+                    # Aplicar pagamentos extras (13º, 14º, etc.)
+                    extra_payments = context.benefit_months_per_year - 12
+                    if extra_payments > 0:
+                        if current_month_in_year == 11:  # Dezembro
+                            if extra_payments >= 1:
+                                monthly_benefit_payment += monthly_income
+                        if current_month_in_year == 0:  # Janeiro
+                            if extra_payments >= 2:
+                                monthly_benefit_payment += monthly_income
+                    
+                    # Consumir o saldo com o pagamento do benefício
+                    accumulated_balance -= monthly_benefit_payment
+                    
+                    # Continuar capitalização do saldo restante com taxa de conversão
+                    accumulated_balance *= (1 + context.conversion_rate_monthly)
+                
+                # Para meses após o primeiro mês da aposentadoria
+                if months_since_retirement > 0:
+                    monthly_balances.append(max(0, accumulated_balance))
         
-        # Saldo final na aposentadoria (antes de começar a receber benefícios)
-        final_balance = monthly_balances[months_to_retirement - 1] if months_to_retirement > 0 else accumulated_balance
+        # Saldo final na aposentadoria (no momento exato da aposentadoria)
+        final_balance = monthly_balances[months_to_retirement] if months_to_retirement < len(monthly_balances) else accumulated_balance
         
-        # Calcular benefícios mensais CD (renda resultante da conversão)
+        # Recalcular array de benefícios mensais para os gráficos
         monthly_benefits = []
-        monthly_income = self._calculate_cd_monthly_income_simple(state, context, final_balance, mortality_table)
-        
         for month in projection_months:
             if month >= months_to_retirement:
-                # Aplicar mesmo padrão de pagamentos extras na aposentadoria
-                current_month_in_year = month % 12
-                monthly_benefit = monthly_income
+                # Verificar se ainda está no período de benefícios
+                months_since_retirement = month - months_to_retirement
                 
-                extra_payments = context.benefit_months_per_year - 12
-                if extra_payments > 0:
-                    if current_month_in_year == 11:  # Dezembro
-                        if extra_payments >= 1:
-                            monthly_benefit += monthly_income
-                    if current_month_in_year == 0:  # Janeiro
-                        if extra_payments >= 2:
-                            monthly_benefit += monthly_income
-                
-                monthly_benefits.append(monthly_benefit)
+                # Se há limite de tempo e já passou, benefício = 0
+                if benefit_period_months is not None and months_since_retirement >= benefit_period_months:
+                    monthly_benefits.append(0.0)
+                else:
+                    # Ainda no período de benefícios
+                    current_month_in_year = month % 12
+                    monthly_benefit = monthly_income
+                    
+                    extra_payments = context.benefit_months_per_year - 12
+                    if extra_payments > 0:
+                        if current_month_in_year == 11:  # Dezembro
+                            if extra_payments >= 1:
+                                monthly_benefit += monthly_income
+                        if current_month_in_year == 0:  # Janeiro
+                            if extra_payments >= 2:
+                                monthly_benefit += monthly_income
+                    
+                    monthly_benefits.append(monthly_benefit)
             else:
                 monthly_benefits.append(0.0)
         
@@ -1046,7 +1127,7 @@ class ActuarialEngine:
             year_benefit = sum(monthly_benefits[start_month:end_month])
             year_contribution = sum(monthly_contributions[start_month:end_month])
             year_survival_prob = monthly_survival_probs[min(end_month-1, len(monthly_survival_probs)-1)]
-            year_balance = monthly_balances[min(end_month-1, len(monthly_balances)-1)]
+            year_balance = monthly_balances[min(start_month, len(monthly_balances)-1)]
             
             yearly_salaries.append(year_salary)
             yearly_benefits.append(year_benefit)
@@ -1096,12 +1177,41 @@ class ActuarialEngine:
             months = years * 12
             monthly_rate = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
             
-            # Fórmula de anuidade temporária
+            # Considerar pagamentos extras (13º, 14º salário) no cálculo
+            benefit_months_per_year = context.benefit_months_per_year  # Normalmente 13
+            total_payments = years * benefit_months_per_year  # Ex: 20 anos × 13 pagamentos = 260 pagamentos
+            
+            # Fórmula de anuidade temporária ajustada para total de pagamentos reais
             if monthly_rate > 0:
-                pv_factor = (1 - (1 + monthly_rate) ** (-months)) / monthly_rate
-                return balance / pv_factor
+                # Calcular o valor presente dos pagamentos considerando que nem todos são mensais
+                # Usar uma abordagem mês a mês para considerar pagamentos extras em dezembro/janeiro
+                pv_total = 0.0
+                payment_count = 0
+                
+                for year in range(years):
+                    for month in range(12):
+                        months_from_start = year * 12 + month
+                        pv_factor = 1 / ((1 + monthly_rate) ** months_from_start)
+                        
+                        # Pagamento normal mensal
+                        pv_total += pv_factor
+                        payment_count += 1
+                        
+                        # Pagamentos extras
+                        extra_payments = benefit_months_per_year - 12
+                        if extra_payments > 0:
+                            if month == 11:  # Dezembro - 13º salário
+                                if extra_payments >= 1:
+                                    pv_total += pv_factor  # 13º salário
+                                    payment_count += 1
+                            if month == 0 and year > 0:  # Janeiro - 14º salário (se aplicável)
+                                if extra_payments >= 2:
+                                    pv_total += pv_factor  # 14º salário  
+                                    payment_count += 1
+                
+                return balance / pv_total if pv_total > 0 else 0
             else:
-                return balance / months
+                return balance / total_payments
         
         elif conversion_mode == CDConversionMode.PERCENTAGE:
             # Percentual do saldo por ano

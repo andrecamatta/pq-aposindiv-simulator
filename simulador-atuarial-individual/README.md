@@ -91,6 +91,8 @@ O frontend estará disponível em: http://localhost:5173
 - ✅ **Projeções Temporais**: Salários, benefícios, contribuições
 - ✅ **Matemática Financeira**: VPA, anuidades, duration, convexidade
 - ✅ **Tábuas de Mortalidade**: BR-EMS 2021 e AT-2000 oficiais
+- ✅ **Planos CD**: Modalidades de conversão (vitalícia, prazo determinado)
+- ✅ **Visualizações Precisas**: Picos visuais alinhados com idade de aposentadoria
 
 ### Interface Web
 
@@ -179,6 +181,27 @@ O frontend estará disponível em: http://localhost:5173
 - ✅ Terminologia técnica precisa
 - ✅ Validação de premissas
 
+## 🛠️ Correções Recentes
+
+### v1.1.0 - Correção de Picos Visuais (2025-01-09)
+
+**Problema Identificado:**
+- Picos visuais em gráficos de CD e BD apareciam em 64 anos em vez de 65 anos (idade de aposentadoria)
+- Inconsistência entre métricas (corretas) e visualização gráfica (incorreta)
+
+**Solução Implementada:**
+- **Backend (actuarial_engine.py)**:
+  - Linha 1130: Correção na agregação anual para CD: `year_balance = monthly_balances[min(start_month, len(monthly_balances)-1)]`
+  - Linha 513: Correção na agregação anual para BD: `year_reserve = monthly_reserves[min(start_month, len(monthly_reserves)-1)]`
+- **Abordagem**: Mudança de `end_month-1` para `start_month` captura dados no início de cada ano de idade
+- **Resultado**: Picos visuais agora aparecem exatamente aos 65 anos para ambos os tipos de plano
+
+**Gráficos Corrigidos:**
+- ✅ CD - Evolução do Saldo CD (Ciclo de Vida Completo)  
+- ✅ BD - Simulação Determinística (Evolução das Reservas)
+
+**Impacto**: Alinhamento perfeito entre métricas, pontos destacados e curvas visuais em todos os gráficos.
+
 ## 🧪 Desenvolvimento
 
 ### Estrutura de Comandos
@@ -222,6 +245,6 @@ Desenvolvido para análise atuarial profissional. Código disponível para audit
 
 ---
 
-**Versão**: 1.0.0  
-**Última Atualização**: 2024  
+**Versão**: 1.1.0  
+**Última Atualização**: Janeiro 2025  
 **Desenvolvido com**: Python 3.11, FastAPI, React 18, TypeScript
