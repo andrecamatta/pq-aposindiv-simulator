@@ -273,7 +273,7 @@ def _bisection_root_finding(
     max_iterations: int = 50
 ) -> float:
     """
-    Algoritmo de bissecção para encontrar raiz de função.
+    Algoritmo de bissecção melhorado para encontrar raiz de função.
     
     Args:
         objective_function: Função f(x) para encontrar x onde f(x) = 0
@@ -285,22 +285,73 @@ def _bisection_root_finding(
     Returns:
         Valor x onde f(x) ≈ 0
     """
-    for _ in range(max_iterations):
+    logger.debug(f"[BISSECÇÃO] Iniciando com bounds: [{low_bound:.2f}, {high_bound:.2f}], tolerância: {tolerance}")
+    
+    # Verificar condições iniciais
+    try:
+        f_low = objective_function(low_bound)
+        f_high = objective_function(high_bound)
+        
+        logger.debug(f"[BISSECÇÃO] Valores iniciais: f({low_bound:.2f})={f_low:.2f}, f({high_bound:.2f})={f_high:.2f}")
+        
+        # Verificar se já temos a resposta nos extremos
+        if abs(f_low) < tolerance:
+            logger.debug(f"[BISSECÇÃO] Resposta encontrada no lower bound")
+            return low_bound
+        if abs(f_high) < tolerance:
+            logger.debug(f"[BISSECÇÃO] Resposta encontrada no upper bound")
+            return high_bound
+            
+        # Verificar se temos sinais opostos
+        if (f_low * f_high) > 0:
+            logger.warning(f"[BISSECÇÃO] Bounds não têm sinais opostos: f_low={f_low:.2f}, f_high={f_high:.2f}")
+            # Retornar ponto médio como estimativa
+            return (low_bound + high_bound) / 2.0
+            
+    except Exception as e:
+        logger.error(f"[BISSECÇÃO] Erro na verificação inicial: {e}")
+        return (low_bound + high_bound) / 2.0
+    
+    # Algoritmo de bissecção
+    iteration = 0
+    while iteration < max_iterations:
         mid_point = (low_bound + high_bound) / 2.0
         
-        f_mid = objective_function(mid_point)
-        
-        if abs(f_mid) < tolerance:
+        try:
+            f_mid = objective_function(mid_point)
+            
+            if iteration < 5 or iteration % 10 == 0:  # Log detalhado só para primeiras iterações
+                logger.debug(f"[BISSECÇÃO] Iter {iteration}: x={mid_point:.2f}, f(x)={f_mid:.2f}")
+            
+            # Verificar convergência
+            if abs(f_mid) < tolerance:
+                logger.debug(f"[BISSECÇÃO] Convergiu em {iteration} iterações: x={mid_point:.2f}")
+                return mid_point
+                
+            # Verificar se o intervalo ficou muito pequeno
+            if abs(high_bound - low_bound) < tolerance / 10.0:
+                logger.debug(f"[BISSECÇÃO] Intervalo muito pequeno, convergindo: x={mid_point:.2f}")
+                return mid_point
+            
+            # Atualizar bounds
+            if (f_low * f_mid) < 0:
+                high_bound = mid_point
+                # f_high não precisa ser recalculado pois não será usado diretamente
+            else:
+                low_bound = mid_point
+                f_low = f_mid  # Atualizar f_low para a próxima iteração
+                
+        except Exception as e:
+            logger.error(f"[BISSECÇÃO] Erro na iteração {iteration}: {e}")
+            # Em caso de erro, retornar ponto médio atual
             return mid_point
             
-        f_low = objective_function(low_bound)
-        
-        if (f_low * f_mid) < 0:
-            high_bound = mid_point
-        else:
-            low_bound = mid_point
+        iteration += 1
     
-    return (low_bound + high_bound) / 2.0
+    # Se não convergiu, retornar melhor estimativa
+    final_result = (low_bound + high_bound) / 2.0
+    logger.warning(f"[BISSECÇÃO] Não convergiu em {max_iterations} iterações, retornando: {final_result:.2f}")
+    return final_result
 
 
 def calculate_sustainable_benefit_with_engine(
@@ -336,51 +387,87 @@ def calculate_sustainable_benefit_with_engine(
         # Calcular usando engine atuarial existente
         try:
             results = engine.calculate_individual_simulation(test_state)
+            logger.debug(f"[SUSTENTÁVEL] Benefício: R$ {benefit_value:.2f} → Déficit: R$ {results.deficit_surplus:.2f}")
             return results.deficit_surplus
         except Exception as e:
+            logger.error(f"[SUSTENTÁVEL] Erro no cálculo para benefício {benefit_value}: {e}")
             # Em caso de erro, retornar valor alto para evitar essa região
             return float('inf')
     
     # Determinar bounds inteligentes baseados no salário
     salary_monthly = state.salary / 12.0 if hasattr(state, 'salary') else 8000.0
+    logger.debug(f"[SUSTENTÁVEL] Salário mensal base: R$ {salary_monthly:.2f}")
     
-    # Bounds: 10% a 300% do salário mensal (inicial)
-    low_bound = salary_monthly * 0.1
-    high_bound = salary_monthly * 3.0
+    # Bounds iniciais: 5% a 500% do salário mensal (mais amplos)
+    low_bound = salary_monthly * 0.05
+    high_bound = salary_monthly * 5.0
+    
+    logger.debug(f"[SUSTENTÁVEL] Bounds iniciais: R$ {low_bound:.2f} - R$ {high_bound:.2f}")
     
     # Ajustar bounds se necessário para garantir que tenham sinais opostos
-    try:
-        f_low = objective_function(low_bound)
-        f_high = objective_function(high_bound)
-        # Bounds iniciais verificados
-        
-        # Se ambos têm mesmo sinal, expandir bounds agressivamente
-        if (f_low * f_high) > 0:
-            if f_low > 0:  # Ambos positivos (superávit), aumentar benefício muito mais
-                # Expandir progressivamente até encontrar sinal oposto
-                for multiplier in [5.0, 10.0, 20.0, 50.0, 100.0]:
-                    high_bound = salary_monthly * multiplier
-                    f_high = objective_function(high_bound)
-                    pass  # Testando novos bounds
-                    if f_high <= 0:  # Encontrou déficit
-                        break
-                else:
-                    # Se ainda não encontrou, usar o último valor testado
-                    pass  # Usando limite superior expandido
-                    
-            else:  # Ambos negativos (déficit), diminuir benefício  
-                low_bound = salary_monthly * 0.05
-    except:
-        pass
+    max_attempts = 10
+    attempt = 0
     
-    # Encontrar benefício sustentável
-    return _bisection_root_finding(
+    while attempt < max_attempts:
+        try:
+            f_low = objective_function(low_bound)
+            f_high = objective_function(high_bound)
+            
+            logger.debug(f"[SUSTENTÁVEL] Tentativa {attempt + 1}: f({low_bound:.2f})={f_low:.2f}, f({high_bound:.2f})={f_high:.2f}")
+            
+            # Verificar se temos sinais opostos (condição para bissecção)
+            if (f_low * f_high) <= 0:
+                logger.debug(f"[SUSTENTÁVEL] Bounds válidos encontrados")
+                break
+                
+            # Se ambos têm mesmo sinal, expandir bounds dinamicamente
+            if f_low > 0 and f_high > 0:  # Ambos superávit - aumentar benefício
+                logger.debug(f"[SUSTENTÁVEL] Ambos superávit - expandindo upper bound")
+                low_bound = high_bound  # O que era high vira low
+                high_bound = high_bound * 2.0  # Dobrar upper bound
+                
+            elif f_low < 0 and f_high < 0:  # Ambos déficit - diminuir benefício
+                logger.debug(f"[SUSTENTÁVEL] Ambos déficit - expandindo lower bound")
+                high_bound = low_bound  # O que era low vira high
+                low_bound = max(low_bound * 0.5, salary_monthly * 0.01)  # Reduzir lower bound
+                
+            # Evitar bounds extremos
+            if high_bound > salary_monthly * 1000:  # Máximo 1000x o salário
+                logger.warning(f"[SUSTENTÁVEL] Upper bound extremo, limitando")
+                high_bound = salary_monthly * 1000
+                break
+            if low_bound < salary_monthly * 0.001:  # Mínimo 0.1% do salário
+                logger.warning(f"[SUSTENTÁVEL] Lower bound extremo, limitando")
+                low_bound = salary_monthly * 0.001
+                break
+                
+        except Exception as e:
+            logger.error(f"[SUSTENTÁVEL] Erro ao ajustar bounds: {e}")
+            break
+            
+        attempt += 1
+    
+    # Se não conseguiu encontrar bounds válidos, usar fallback
+    if attempt >= max_attempts:
+        logger.warning(f"[SUSTENTÁVEL] Não foi possível encontrar bounds válidos, usando fallback")
+        # Fallback: usar benefício baseado no salário atual
+        fallback_benefit = salary_monthly * 0.7  # 70% do salário como estimativa
+        logger.debug(f"[SUSTENTÁVEL] Fallback: R$ {fallback_benefit:.2f}")
+        return fallback_benefit
+    
+    # Encontrar benefício sustentável com bissecção melhorada
+    logger.debug(f"[SUSTENTÁVEL] Iniciando bissecção com bounds: R$ {low_bound:.2f} - R$ {high_bound:.2f}")
+    
+    result = _bisection_root_finding(
         objective_function,
         low_bound,
         high_bound,
-        tolerance=1.0,  # Tolerância de R$ 1,00
-        max_iterations=30
+        tolerance=10.0,  # Tolerância aumentada para R$ 10,00
+        max_iterations=50  # Mais iterações para melhor precisão
     )
+    
+    logger.debug(f"[SUSTENTÁVEL] Resultado final: R$ {result:.2f}")
+    return result
 
 
 def calculate_sustainable_benefit(

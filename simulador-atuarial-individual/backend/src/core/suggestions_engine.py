@@ -236,12 +236,53 @@ class SuggestionsEngine:
         """Sugere benefício sustentável usando root finding com ActuarialEngine"""
         try:
             from ..utils.vpa import calculate_sustainable_benefit_with_engine
+            import logging
+            
+            logger = logging.getLogger(__name__)
+            logger.debug(f"[SUGESTÕES] Calculando benefício sustentável para déficit: R$ {results.deficit_surplus:.2f}")
             
             # Calcular benefício sustentável usando root finding
             sustainable_benefit = calculate_sustainable_benefit_with_engine(
                 state, 
                 self.actuarial_engine
             )
+            
+            logger.debug(f"[SUGESTÕES] Benefício sustentável calculado: R$ {sustainable_benefit:.2f}")
+            
+            # VALIDAÇÃO CRÍTICA: Verificar se o benefício realmente zera o déficit
+            validation_state = state.model_copy()
+            if state.benefit_target_mode == "REPLACEMENT_RATE":
+                # Se estamos em modo taxa de reposição, validar usando a mesma taxa que será aplicada
+                years_to_retirement = state.retirement_age - state.age
+                salary_at_retirement = state.salary * ((1 + state.salary_growth_real) ** years_to_retirement)
+                sustainable_ratio = (sustainable_benefit / salary_at_retirement) * 100
+                validation_state.target_replacement_rate = sustainable_ratio
+                validation_state.benefit_target_mode = "REPLACEMENT_RATE"
+            else:
+                # Modo VALUE - validar com o benefício direto
+                validation_state.target_benefit = sustainable_benefit
+                validation_state.benefit_target_mode = "VALUE"
+            
+            try:
+                validation_results = self.actuarial_engine.calculate_individual_simulation(validation_state)
+                actual_deficit = validation_results.deficit_surplus
+                
+                # Tolerância inteligente: proporcional ao déficit original, com limites sensatos
+                original_deficit_abs = abs(results.deficit_surplus)
+                tolerance = min(max(original_deficit_abs * 0.10, 5000), 75000)  # 10% do déficit, min R$ 5.000, max R$ 75.000
+                
+                logger.debug(f"[SUGESTÕES] Validação - Déficit original: R$ {results.deficit_surplus:.2f}")
+                logger.debug(f"[SUGESTÕES] Validação - Déficit residual: R$ {actual_deficit:.2f}")
+                logger.debug(f"[SUGESTÕES] Validação - Tolerância aplicada: R$ {tolerance:.2f}")
+                
+                # Se o déficit não foi zerado adequadamente (tolerância inteligente), rejeitar sugestão
+                if abs(actual_deficit) > tolerance:
+                    logger.warning(f"[SUGESTÕES] Benefício sustentável não zerou déficit adequadamente: R$ {actual_deficit:.2f} (tolerância: R$ {tolerance:.2f})")
+                    return None
+                    
+            except Exception as validation_error:
+                logger.error(f"[SUGESTÕES] Erro na validação do benefício sustentável: {validation_error}")
+                return None
             
             if state.benefit_target_mode == "VALUE":
                 current_benefit = state.target_benefit or 0
@@ -263,8 +304,8 @@ class SuggestionsEngine:
                         action_label=f"Aplicar R$ {sustainable_benefit:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         priority=1,
                         impact_description=f"Benefício atual: R$ {current_benefit:,.2f} • Taxa reposição: {replacement_ratio:.2f}%".replace(',', 'X').replace('.', ',').replace('X', '.').replace(f'{replacement_ratio:.2f}%', f'{replacement_ratio:.2f}%'.replace('.', ',')),
-                        confidence=0.99,  # Altíssima confiança pois usa cálculos atuariais precisos
-                        trade_off_info=f"Benefício calculado para equilíbrio atuarial perfeito (déficit/superávit = 0)"
+                        confidence=0.95,  # Confiança alta, mas não máxima devido à complexidade
+                        trade_off_info=f"Benefício calculado para equilíbrio atuarial perfeito (déficit real: R$ {actual_deficit:.2f})".replace(',', 'X').replace('.', ',').replace('X', '.')
                     )
             else:  # REPLACEMENT_RATE mode
                 # Para modo taxa de reposição, converter benefício para taxa correta (com salário projetado)
@@ -273,7 +314,9 @@ class SuggestionsEngine:
                 sustainable_ratio = (sustainable_benefit / salary_at_retirement) * 100
                 current_ratio = state.target_replacement_rate or 70.0
                 
-                if abs(sustainable_ratio - current_ratio) > 5.0:  # Diferença de 5%+ 
+                logger.debug(f"[SUGESTÕES] Taxa sustentável calculada: {sustainable_ratio:.2f}% (atual: {current_ratio:.2f}%)")
+                
+                if abs(sustainable_ratio - current_ratio) > 2.0:  # Diferença de 2%+ (reduzido para ser mais sensível)
                     return Suggestion(
                         id=str(uuid.uuid4()),
                         type=SuggestionType.SUSTAINABLE_BENEFIT,
@@ -283,13 +326,15 @@ class SuggestionsEngine:
                         action_value=sustainable_ratio,
                         action_label=f"Aplicar {sustainable_ratio:.2f}%".replace('.', ','),
                         priority=1,
-                        impact_description=f"Taxa atual: {current_ratio:.2f}% • Zera déficit/superávit".replace('.', ','),
-                        confidence=0.99,
+                        impact_description=f"Taxa atual: {current_ratio:.2f}% • Déficit resultante: R$ {actual_deficit:.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        confidence=0.95,
                         trade_off_info="Esta taxa equilibra perfeitamente contribuições e benefícios"
                     )
         except Exception as e:
-            # Log do erro para debug (opcional)
-            print(f"Erro ao calcular benefício sustentável: {e}")
+            # Log do erro para debug
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[SUGESTÕES] Erro ao calcular benefício sustentável: {e}")
             pass
         return None
     

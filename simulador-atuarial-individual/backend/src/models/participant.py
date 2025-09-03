@@ -24,12 +24,30 @@ class PaymentTiming(str, Enum):
     ANTECIPADO = "antecipado"    # Pagamento no início do período
 
 
+class PlanType(str, Enum):
+    BD = "BD"  # Benefício Definido
+    CD = "CD"  # Contribuição Definida
+
+
+class CDConversionMode(str, Enum):
+    ACTUARIAL = "ACTUARIAL"        # Anuidade vitalícia atuarial
+    CERTAIN_5Y = "CERTAIN_5Y"      # Renda certa por 5 anos
+    CERTAIN_10Y = "CERTAIN_10Y"    # Renda certa por 10 anos
+    CERTAIN_15Y = "CERTAIN_15Y"    # Renda certa por 15 anos
+    CERTAIN_20Y = "CERTAIN_20Y"    # Renda certa por 20 anos
+    PERCENTAGE = "PERCENTAGE"      # Percentual do saldo por ano
+    PROGRAMMED = "PROGRAMMED"      # Saque programado
+
+
 class SimulatorState(BaseModel):
     """Estado reativo do simulador"""
     # Dados do participante (editáveis)
     age: int
     gender: Gender
     salary: float
+    
+    # Tipo de plano
+    plan_type: PlanType = PlanType.BD  # Padrão BD para compatibilidade
     
     # Parâmetros do plano (editáveis)
     initial_balance: float     # Saldo inicial acumulado
@@ -39,6 +57,12 @@ class SimulatorState(BaseModel):
     accrual_rate: float        # Taxa de acumulação (%)
     retirement_age: int        # Idade de aposentadoria
     contribution_rate: float   # Taxa de contribuição (%)
+    
+    # Parâmetros específicos para CD
+    cd_conversion_mode: Optional[CDConversionMode] = None
+    cd_withdrawal_percentage: Optional[float] = None  # Para modo PERCENTAGE
+    accumulation_rate: Optional[float] = None         # Taxa durante acumulação (CD)
+    conversion_rate: Optional[float] = None           # Taxa para conversão em renda (CD)
     
     # Base atuarial (pré-definida + editável)
     mortality_table: str       # "BR_EMS_2021", "AT_2000", "SOA_2017", "CUSTOM"

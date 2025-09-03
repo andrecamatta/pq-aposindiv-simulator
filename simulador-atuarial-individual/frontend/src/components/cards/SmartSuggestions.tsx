@@ -30,7 +30,7 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
     if (!loading && state) {
       fetchSuggestions();
     }
-  }, [state.deficit_surplus, state.contribution_rate, state.retirement_age, state.target_benefit]);
+  }, [state.deficit_surplus, state.contribution_rate, state.retirement_age, state.target_benefit, state.target_replacement_rate, state.benefit_target_mode]);
 
   const fetchSuggestions = async () => {
     try {

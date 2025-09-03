@@ -1,11 +1,16 @@
 export type BenefitTargetMode = "VALUE" | "REPLACEMENT_RATE";
 export type PaymentTiming = "postecipado" | "antecipado";
+export type PlanType = "BD" | "CD";
+export type CDConversionMode = "ACTUARIAL" | "CERTAIN_5Y" | "CERTAIN_10Y" | "CERTAIN_15Y" | "CERTAIN_20Y" | "PERCENTAGE" | "PROGRAMMED";
 
 export interface SimulatorState {
   // Dados do participante
   age: number;
   gender: "M" | "F";
   salary: number;
+  
+  // Tipo de plano
+  plan_type: PlanType;
   
   // Parâmetros do plano
   initial_balance: number;
@@ -15,6 +20,12 @@ export interface SimulatorState {
   accrual_rate: number;
   retirement_age: number;
   contribution_rate: number;
+  
+  // Parâmetros específicos para CD
+  cd_conversion_mode?: CDConversionMode;
+  cd_withdrawal_percentage?: number;  // Para modo PERCENTAGE
+  accumulation_rate?: number;         // Taxa durante acumulação (CD)
+  conversion_rate?: number;           // Taxa para conversão em renda (CD)
   
   // Base atuarial
   mortality_table: string;
