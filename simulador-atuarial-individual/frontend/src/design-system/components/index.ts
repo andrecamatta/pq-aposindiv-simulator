@@ -27,7 +27,7 @@ export type { SelectProps, SelectOption } from './Select';
 export { Textarea, textareaVariants } from './Textarea';
 export type { TextareaProps } from './Textarea';
 
-export { RangeSlider, sliderVariants } from './RangeSlider';
+export { RangeSlider } from './RangeSlider';
 export type { RangeSliderProps } from './RangeSlider';
 
 export { 

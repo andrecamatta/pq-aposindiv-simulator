@@ -1,0 +1,35 @@
+.tab-navigation ul {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+}
+
+.tab-navigation a {
+  display: flex;
+  align-items: center;
+  padding: 0.625rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 0.375rem;
+  text-decoration: none;
+  color: #4b5563;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.tab-navigation a:hover {
+  background-color: #f3f4f6;
+}
+
+.tab-navigation a.active {
+  color: white;
+  background-color: #2563eb;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  font-weight: 800;
+}
+
+.tab-navigation .material-icons {
+  margin-right: 0.5rem;
+  font-size: 1.25rem;
+}

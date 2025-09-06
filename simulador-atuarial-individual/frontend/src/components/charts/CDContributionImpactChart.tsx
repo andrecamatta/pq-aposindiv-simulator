@@ -117,23 +117,6 @@ const CDContributionImpactChart: React.FC<CDContributionImpactChartProps> = ({ r
     labels,
     datasets: [
       {
-        label: 'Saldo Acumulado',
-        data: projectionsData.map(p => p.finalBalance),
-        borderColor: '#93C5FD',
-        backgroundColor: 'rgba(147, 197, 253, 0.1)',
-        tension: 0.4,
-        fill: true,
-        pointRadius: (context: any) => {
-          const rate = contributionRates[context.dataIndex];
-          return Math.abs(rate - currentRate) < 0.001 ? 8 : 4;
-        },
-        pointBackgroundColor: (context: any) => {
-          const rate = contributionRates[context.dataIndex];
-          return Math.abs(rate - currentRate) < 0.001 ? '#60A5FA' : '#93C5FD';
-        },
-        yAxisID: 'y',
-      },
-      {
         label: 'Renda Mensal CD',
         data: projectionsData.map(p => p.monthlyIncome),
         borderColor: '#6EE7B7',
@@ -148,7 +131,7 @@ const CDContributionImpactChart: React.FC<CDContributionImpactChartProps> = ({ r
           const rate = contributionRates[context.dataIndex];
           return Math.abs(rate - currentRate) < 0.001 ? '#34D399' : '#6EE7B7';
         },
-        yAxisID: 'y1',
+        yAxisID: 'y',
       },
       {
         label: 'Meta de Benefício',
@@ -159,7 +142,7 @@ const CDContributionImpactChart: React.FC<CDContributionImpactChartProps> = ({ r
         tension: 0,
         fill: false,
         pointRadius: 0,
-        yAxisID: 'y1',
+        yAxisID: 'y',
       }
     ],
   };
@@ -235,29 +218,6 @@ const CDContributionImpactChart: React.FC<CDContributionImpactChartProps> = ({ r
         position: 'left' as const,
         title: {
           display: true,
-          text: 'Saldo Acumulado (R$)',
-          color: '#93C5FD',
-        },
-        ticks: {
-          font: {
-            size: 11,
-          },
-          color: '#93C5FD',
-          callback: function(value: any) {
-            return formatCurrencyBR(value, 0);
-          },
-        },
-        grid: {
-          display: true,
-          color: 'rgba(59, 130, 246, 0.1)',
-        },
-      },
-      y1: {
-        type: 'linear' as const,
-        display: true,
-        position: 'right' as const,
-        title: {
-          display: true,
           text: 'Renda Mensal (R$)',
           color: '#6EE7B7',
         },
@@ -271,7 +231,8 @@ const CDContributionImpactChart: React.FC<CDContributionImpactChartProps> = ({ r
           },
         },
         grid: {
-          drawOnChartArea: false,
+          display: true,
+          color: 'rgba(110, 231, 183, 0.1)',
         },
       },
     },

@@ -1,5 +1,6 @@
 import numpy as np
-from typing import Dict, List, Tuple
+import math
+from typing import Dict, List, Tuple, Any
 from datetime import datetime
 from dataclasses import dataclass
 import time
@@ -118,11 +119,55 @@ class ActuarialContext:
         )
 
 
+def sanitize_float_for_json(value: Any) -> Any:
+    """
+    Sanitiza valores float para serem compatíveis com JSON
+    Converte inf, -inf e nan para valores seguros
+    """
+    if isinstance(value, (int, float)):
+        if math.isinf(value):
+            if value > 0:
+                return 1e6  # 1 milhão para +inf
+            else:
+                return -1e6  # -1 milhão para -inf
+        elif math.isnan(value):
+            return 0.0  # Zero para NaN
+        return value
+    elif isinstance(value, list):
+        return [sanitize_float_for_json(item) for item in value]
+    elif isinstance(value, dict):
+        return {key: sanitize_float_for_json(val) for key, val in value.items()}
+    return value
+
+
 class ActuarialEngine:
     """Motor de cálculos atuariais para simulação individual"""
     
     def __init__(self):
         self.cache = {}
+        
+    def _calculate_cd_deficit_surplus(self, state: SimulatorState, monthly_income: float) -> float:
+        """
+        Calcula déficit/superávit para planos CD comparando:
+        - Benefício mensal real resultante da conversão atuarial
+        - Benefício mensal desejado pelo participante
+        
+        Retorna:
+        - Valor positivo = Superávit (renda real > desejada)  
+        - Valor negativo = Déficit (renda real < desejada)
+        """
+        target_monthly_benefit = state.target_benefit if state.target_benefit else 0.0
+        
+        # Déficit/Superávit = Renda Real - Renda Desejada
+        # Se positivo: sistema consegue gerar mais que o desejado (superávit)
+        # Se negativo: sistema não consegue gerar o desejado (déficit)
+        deficit_surplus = monthly_income - target_monthly_benefit
+        
+        print(f"[CD_DEFICIT_DEBUG] Renda real: R$ {monthly_income:.2f}")
+        print(f"[CD_DEFICIT_DEBUG] Renda desejada: R$ {target_monthly_benefit:.2f}")  
+        print(f"[CD_DEFICIT_DEBUG] Déficit/Superávit: R$ {deficit_surplus:.2f}")
+        
+        return deficit_surplus
         
     def calculate_individual_simulation(self, state: SimulatorState) -> SimulatorResults:
         """Calcula simulação atuarial individual completa - BD ou CD"""
@@ -177,15 +222,15 @@ class ActuarialEngine:
         computation_time = (time.time() - start_time) * 1000
         
         return SimulatorResults(
-            # Reservas Matemáticas
-            rmba=rmba,
-            rmbc=rmbc,
-            normal_cost=normal_cost,
+            # Reservas Matemáticas (sanitizadas)
+            rmba=sanitize_float_for_json(rmba),
+            rmbc=sanitize_float_for_json(rmbc),
+            normal_cost=sanitize_float_for_json(normal_cost),
             
-            # Análise de Suficiência
-            deficit_surplus=sufficiency["deficit_surplus"],
-            deficit_surplus_percentage=sufficiency["deficit_surplus_percentage"],
-            required_contribution_rate=sufficiency["required_contribution_rate"],
+            # Análise de Suficiência (sanitizada)
+            deficit_surplus=sanitize_float_for_json(sufficiency["deficit_surplus"]),
+            deficit_surplus_percentage=sanitize_float_for_json(sufficiency["deficit_surplus_percentage"]),
+            required_contribution_rate=sanitize_float_for_json(sufficiency["required_contribution_rate"]),
             
             # Projeções
             projection_years=projections["years"],
@@ -200,12 +245,12 @@ class ActuarialEngine:
             projected_vpa_contributions=actuarial_projections["vpa_contributions"],
             projected_rmba_evolution=actuarial_projections["rmba_evolution"],
             
-            # Métricas
-            total_contributions=metrics["total_contributions"],
-            total_benefits=metrics["total_benefits"],
-            replacement_ratio=metrics["replacement_ratio"],
-            target_replacement_ratio=metrics["target_replacement_ratio"],
-            sustainable_replacement_ratio=metrics["sustainable_replacement_ratio"],
+            # Métricas (sanitizadas)
+            total_contributions=sanitize_float_for_json(metrics["total_contributions"]),
+            total_benefits=sanitize_float_for_json(metrics["total_benefits"]),
+            replacement_ratio=sanitize_float_for_json(metrics["replacement_ratio"]),
+            target_replacement_ratio=sanitize_float_for_json(metrics["target_replacement_ratio"]),
+            sustainable_replacement_ratio=sanitize_float_for_json(metrics["sustainable_replacement_ratio"]),
             funding_ratio=None,
             
             # Sensibilidade
@@ -276,6 +321,9 @@ class ActuarialEngine:
         effective_return = (accumulated_return_value / total_contributions_value * 100) if total_contributions_value > 0 else 0.0
         conversion_factor_value = monthly_income / accumulated_balance if accumulated_balance > 0 else 0.0
         
+        # Sanitizar valores que podem conter inf/nan
+        benefit_duration_years = sanitize_float_for_json(benefit_duration_years)
+        
         return SimulatorResults(
             # Reservas Matemáticas (zeradas para CD)
             rmba=0.0,
@@ -292,10 +340,10 @@ class ActuarialEngine:
             administrative_cost_total=administrative_costs,
             benefit_duration_years=benefit_duration_years,
             
-            # Análise de Suficiência (não aplicável a CD)
-            deficit_surplus=0.0,
-            deficit_surplus_percentage=0.0,
-            required_contribution_rate=0.0,
+            # Análise de Suficiência para CD
+            deficit_surplus=self._calculate_cd_deficit_surplus(state, monthly_income),
+            deficit_surplus_percentage=0.0,  # Por enquanto não calculado para CD
+            required_contribution_rate=0.0,  # Por enquanto não calculado para CD
             
             # Projeções CD
             projection_years=projections["years"],
@@ -1407,7 +1455,7 @@ class ActuarialEngine:
         
         # Se chegou ao limite de 50 anos ou sobrevivência muito baixa, considerar vitalício
         if months_count >= max_months or (conversion_mode == CDConversionMode.ACTUARIAL and cumulative_survival <= 0.01):
-            return float('inf')  # Indicar que é vitalício
+            return 50.0  # Máximo de 50 anos para benefícios vitalícios (JSON-safe)
         
         return months_count / 12.0  # Converter para anos
 

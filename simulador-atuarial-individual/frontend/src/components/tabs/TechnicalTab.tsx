@@ -2,6 +2,7 @@ import React, { useMemo, useCallback } from 'react';
 import { Settings } from 'lucide-react';
 import type { SimulatorState, MortalityTable, PaymentTiming, PlanType, CDConversionMode } from '../../types';
 import { Card, CardHeader, CardTitle, CardContent, Select, RangeSlider } from '../../design-system/components';
+import { formatSimplePercentageBR } from '../../utils/formatBR';
 import { useFormHandler } from '../../hooks';
 
 interface TechnicalTabProps {
@@ -72,9 +73,6 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
     handleInputChange('loading_fee_rate', value / 100);
   }, [handleInputChange]);
 
-  const handleWithdrawalPercentageChange = useCallback((value: number) => {
-    handleInputChange('cd_withdrawal_percentage', value);
-  }, [handleInputChange]);
 
   return (
     <Card className="border-gray-200">
@@ -135,26 +133,6 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
               />
             </div>
 
-            {/* Campo condicional para modalidade PERCENTAGE em CD */}
-            {state.plan_type === 'CD' && state.cd_conversion_mode === 'PERCENTAGE' && (
-              <div className="grid md:grid-cols-1 gap-8 mt-8">
-                <RangeSlider
-                  label={
-                    <span title="Percentual do saldo que será sacado anualmente na aposentadoria.">
-                      Percentual de Saque Anual
-                    </span>
-                  }
-                  value={state.cd_withdrawal_percentage || 5}
-                  min={2}
-                  max={15}
-                  step={0.5}
-                  onChange={handleWithdrawalPercentageChange}
-                  formatDisplay={(v) => v.toFixed(1).replace('.', ',')}
-                  suffix="% a.a."
-                  disabled={loading}
-                />
-              </div>
-            )}
             
             <div className="mt-6">
               <RangeSlider
@@ -168,8 +146,7 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                 max={20}
                 step={1}
                 onChange={(value) => handleInputChange('mortality_aggravation', value)}
-                formatDisplay={(v) => v > 0 ? `+${v.toFixed(0)}` : `${v.toFixed(0)}`}
-                suffix="%"
+                formatDisplay={(v) => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`}
                 disabled={loading}
               />
             </div>
@@ -190,8 +167,7 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                 max={3}
                 step={0.1}
                 onChange={handleAdminFeeChange}
-                formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-                suffix="%"
+                formatDisplay={(v) => formatSimplePercentageBR(v, 2)}
                 disabled={loading}
               />
               
@@ -206,8 +182,7 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                 max={15}
                 step={0.5}
                 onChange={handleLoadingFeeChange}
-                formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-                suffix="%"
+                formatDisplay={(v) => formatSimplePercentageBR(v, 2)}
                 disabled={loading}
               />
             </div>

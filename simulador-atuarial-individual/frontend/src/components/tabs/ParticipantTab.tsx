@@ -1,7 +1,7 @@
 import React from 'react';
 import type { SimulatorState } from '../../types';
 import { Input, Select, CurrencyInput, RangeSlider } from '../../design-system/components';
-import { formatCurrencyBR } from '../../utils/formatBR';
+import { formatCurrencyBR, formatSimplePercentageBR } from '../../utils/formatBR';
 import { useFormHandler } from '../../hooks';
 
 interface ParticipantTabProps {
@@ -23,99 +23,65 @@ const ParticipantTab: React.FC<ParticipantTabProps> = ({
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="lg:col-span-2 bg-white p-8 rounded-lg shadow-md">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Dados do Participante
-        </h1>
-        <p className="text-gray-600">Configure as informações pessoais e financeiras do participante.</p>
+        <h2 className="text-2xl font-bold text-gray-900">Dados do Participante</h2>
+        <p className="text-gray-600 mt-1">Configure as informações pessoais e financeiras do participante.</p>
       </div>
-      
-      <div className="bg-white rounded-xl shadow-sm p-8">
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Coluna 1: Dados Pessoais */}
-          <div className="space-y-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">
-              Informações Pessoais
-            </h3>
-            
+      <div className="space-y-8">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Informações Pessoais</h3>
+          <div>
             <Select
-              label={
-                <span title="Afeta as probabilidades de sobrevivência conforme tábuas atuariais.">
-                  Gênero
-                </span>
-              }
+              label="Gênero"
               value={state.gender}
               onChange={(value) => handleInputChange('gender', value)}
               options={genderOptions}
               disabled={loading}
             />
-            
             <RangeSlider
-              label={
-                <span title="Sua idade atual. A simulação projeta até os 100 anos.">
-                  Idade Atual
-                </span>
-              }
+              label="Idade Atual"
               value={state.age || 30}
               min={18}
-              max={80}
+              max={100}
               step={1}
               onChange={(value) => handleInputChange('age', value)}
               suffix=" anos"
               disabled={loading}
             />
           </div>
-
-          {/* Coluna 2: Dados Financeiros */}
-          <div className="space-y-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">
-              Informações Financeiras
-            </h3>
-            
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Informações Financeiras</h3>
+          <div>
             <RangeSlider
-              label={
-                <span title="Base para cálculo de contribuições e benefícios futuros.">
-                  Salário Mensal
-                </span>
-              }
-              value={state.salary || 10000}
-              min={0}
-              max={100000}
-              step={1000}
+              label="Salário Mensal"
+              value={state.salary || 8000}
+              min={1000}
+              max={60000}
+              step={100}
               onChange={(value) => handleInputChange('salary', value)}
-              formatDisplay={(v) => formatCurrencyBR(v, 2)}
+              formatDisplay={formatCurrencyBR}
               disabled={loading}
             />
-            
             <RangeSlider
-              label={
-                <span title="Valor já acumulado no plano de previdência.">
-                  Saldo Inicial
-                </span>
-              }
+              label="Saldo Inicial"
               value={state.initial_balance || 0}
               min={0}
-              max={2000000}
-              step={10000}
+              max={1000000}
+              step={100}
               onChange={(value) => handleInputChange('initial_balance', value)}
-              formatDisplay={(v) => formatCurrencyBR(v, 2)}
+              formatDisplay={formatCurrencyBR}
               disabled={loading}
             />
-            
             <RangeSlider
-              label={
-                <span title="Crescimento real anual esperado do seu salário (já descontada a inflação).">
-                  Crescimento Salarial Real
-                </span>
-              }
+              label="Crescimento Salarial Real"
               value={state.salary_growth_real || 0.02}
               min={0}
-              max={0.10}
+              max={0.05}
               step={0.001}
               onChange={(value) => handleInputChange('salary_growth_real', value)}
-              formatDisplay={(v) => (v * 100).toFixed(2).replace('.', ',')}
-              suffix="%"
+              formatDisplay={(v) => formatSimplePercentageBR(v * 100, 2)}
               disabled={loading}
             />
           </div>

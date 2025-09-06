@@ -137,6 +137,48 @@ export const formatDecimalToPercentageBR = (value: number, decimals: number = 1)
 };
 
 /**
+ * Traduz valores de indexação para português
+ * @param indexation - Valor da indexação em inglês
+ * @returns String traduzida para português
+ */
+export const formatIndexationBR = (indexation: string): string => {
+  const indexationMap: { [key: string]: string } = {
+    'none': 'Nenhuma',
+    'salary': 'Salário',
+    'custom': 'Customizada'
+  };
+  
+  return indexationMap[indexation] || indexation;
+};
+
+/**
+ * Traduz modalidades de benefício/conversão para português
+ * @param mode - Modalidade em inglês
+ * @param planType - Tipo de plano (BD ou CD)
+ * @returns String traduzida para português
+ */
+export const formatBenefitModalityBR = (mode: string, planType: string): string => {
+  if (planType === 'CD') {
+    const cdModalityMap: { [key: string]: string } = {
+      'ACTUARIAL': 'Atuarial',
+      'CERTAIN_5Y': 'Certa 5 anos',
+      'CERTAIN_10Y': 'Certa 10 anos',
+      'CERTAIN_15Y': 'Certa 15 anos',
+      'CERTAIN_20Y': 'Certa 20 anos',
+      'PERCENTAGE': 'Percentual',
+      'PROGRAMMED': 'Programada'
+    };
+    return cdModalityMap[mode] || mode;
+  } else {
+    const bdModalityMap: { [key: string]: string } = {
+      'VALUE': 'Valor Fixo',
+      'REPLACEMENT_RATE': 'Taxa de Reposição'
+    };
+    return bdModalityMap[mode] || mode;
+  }
+};
+
+/**
  * Formata duração em anos com decimais brasileiros
  * @param duration - Duração em anos
  * @param decimals - Casas decimais (padrão: 1)

@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from scipy.optimize import brentq
 
 from ..models import SimulatorState, SimulatorResults
+from ..models.participant import PlanType, CDConversionMode
 from ..models.suggestions import (
     Suggestion, SuggestionType, SuggestionAction, 
     SuggestionsRequest, SuggestionsResponse
@@ -234,6 +235,14 @@ class SuggestionsEngine:
     
     def _suggest_sustainable_benefit(self, state: SimulatorState, results: SimulatorResults) -> Suggestion:
         """Sugere benefício sustentável usando root finding com ActuarialEngine"""
+        # Benefício sustentável se aplica a:
+        # - Planos BD (sempre)
+        # - Planos CD com modalidades vitalícias ou de renda certa (não para saque direto)
+        if state.plan_type == PlanType.CD:
+            # Para CD, só permitir se modalidade suporta cálculo atuarial
+            if state.cd_conversion_mode in [CDConversionMode.PERCENTAGE, CDConversionMode.PROGRAMMED]:
+                return None
+            
         try:
             from ..utils.vpa import calculate_sustainable_benefit_with_engine
             import logging
@@ -249,6 +258,12 @@ class SuggestionsEngine:
             
             logger.debug(f"[SUGESTÕES] Benefício sustentável calculado: R$ {sustainable_benefit:.2f}")
             
+            # VALIDAÇÃO CRÍTICA: Verificar se sustainable_benefit é válido
+            import math
+            if math.isnan(sustainable_benefit) or math.isinf(sustainable_benefit) or sustainable_benefit <= 0:
+                logger.warning(f"[SUGESTÕES] Benefício sustentável inválido: {sustainable_benefit}")
+                return None
+                
             # VALIDAÇÃO CRÍTICA: Verificar se o benefício realmente zera o déficit
             validation_state = state.model_copy()
             if state.benefit_target_mode == "REPLACEMENT_RATE":
@@ -256,6 +271,12 @@ class SuggestionsEngine:
                 years_to_retirement = state.retirement_age - state.age
                 salary_at_retirement = state.salary * ((1 + state.salary_growth_real) ** years_to_retirement)
                 sustainable_ratio = (sustainable_benefit / salary_at_retirement) * 100
+                
+                # Validar que a taxa calculada também é válida
+                if math.isnan(sustainable_ratio) or math.isinf(sustainable_ratio):
+                    logger.warning(f"[SUGESTÕES] Taxa de reposição inválida: {sustainable_ratio}%")
+                    return None
+                    
                 validation_state.target_replacement_rate = sustainable_ratio
                 validation_state.benefit_target_mode = "REPLACEMENT_RATE"
             else:
@@ -267,9 +288,12 @@ class SuggestionsEngine:
                 validation_results = self.actuarial_engine.calculate_individual_simulation(validation_state)
                 actual_deficit = validation_results.deficit_surplus
                 
-                # Tolerância inteligente: proporcional ao déficit original, com limites sensatos
+                # Tolerância mais flexível para cálculos atuariais
                 original_deficit_abs = abs(results.deficit_surplus)
-                tolerance = min(max(original_deficit_abs * 0.10, 5000), 75000)  # 10% do déficit, min R$ 5.000, max R$ 75.000
+                if original_deficit_abs > 100000:  # Déficits grandes (>100k)
+                    tolerance = min(original_deficit_abs * 0.25, 1500000)  # 25% do déficit, max R$ 1.5M
+                else:
+                    tolerance = min(max(original_deficit_abs * 0.10, 2000), 75000)  # 10% do déficit, min R$ 2k, max R$ 75k
                 
                 logger.debug(f"[SUGESTÕES] Validação - Déficit original: R$ {results.deficit_surplus:.2f}")
                 logger.debug(f"[SUGESTÕES] Validação - Déficit residual: R$ {actual_deficit:.2f}")

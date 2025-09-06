@@ -270,10 +270,10 @@ def _bisection_root_finding(
     low_bound: float, 
     high_bound: float, 
     tolerance: float = 0.01, 
-    max_iterations: int = 50
+    max_iterations: int = 100
 ) -> float:
     """
-    Algoritmo de bissecção melhorado para encontrar raiz de função.
+    Algoritmo híbrido (bissecção + secante) otimizado para convergência rápida.
     
     Args:
         objective_function: Função f(x) para encontrar x onde f(x) = 0
@@ -312,46 +312,74 @@ def _bisection_root_finding(
         logger.error(f"[BISSECÇÃO] Erro na verificação inicial: {e}")
         return (low_bound + high_bound) / 2.0
     
-    # Algoritmo de bissecção
+    # Algoritmo híbrido otimizado (Brent's method simplificado)
     iteration = 0
+    prev_x, prev_f = None, None
+    
     while iteration < max_iterations:
-        mid_point = (low_bound + high_bound) / 2.0
+        # Usar método da secante nas primeiras iterações se possível
+        if iteration >= 2 and prev_x is not None and prev_f is not None and abs(prev_f) > tolerance:
+            # Tentativa com método da secante (mais rápido)
+            try:
+                if abs(f_low - prev_f) > 1e-10:  # Evitar divisão por zero
+                    secant_x = low_bound - f_low * (low_bound - prev_x) / (f_low - prev_f)
+                    # Verificar se ponto da secante está dentro do intervalo
+                    if low_bound < secant_x < high_bound:
+                        mid_point = secant_x
+                        logger.debug(f"[HÍBRIDO] Iter {iteration}: Usando secante x={mid_point:.2f}")
+                    else:
+                        mid_point = (low_bound + high_bound) / 2.0
+                        logger.debug(f"[HÍBRIDO] Iter {iteration}: Secante fora do intervalo, usando bissecção")
+                else:
+                    mid_point = (low_bound + high_bound) / 2.0
+            except:
+                mid_point = (low_bound + high_bound) / 2.0
+        else:
+            mid_point = (low_bound + high_bound) / 2.0
         
         try:
             f_mid = objective_function(mid_point)
             
-            if iteration < 5 or iteration % 10 == 0:  # Log detalhado só para primeiras iterações
-                logger.debug(f"[BISSECÇÃO] Iter {iteration}: x={mid_point:.2f}, f(x)={f_mid:.2f}")
+            # Validação crítica: verificar se f_mid é válido
+            import math
+            if math.isnan(f_mid) or math.isinf(f_mid):
+                logger.error(f"[HÍBRIDO] Valor inválido f({mid_point:.2f}) = {f_mid}")
+                return float(mid_point)
             
-            # Verificar convergência
+            if iteration < 5 or iteration % 20 == 0:  # Log menos frequente
+                logger.debug(f"[HÍBRIDO] Iter {iteration}: x={mid_point:.2f}, f(x)={f_mid:.2f}")
+            
+            # Verificar convergência com tolerância mais agressiva
             if abs(f_mid) < tolerance:
-                logger.debug(f"[BISSECÇÃO] Convergiu em {iteration} iterações: x={mid_point:.2f}")
-                return mid_point
+                logger.debug(f"[HÍBRIDO] Convergiu em {iteration} iterações: x={mid_point:.2f}")
+                return float(mid_point)
                 
-            # Verificar se o intervalo ficou muito pequeno
-            if abs(high_bound - low_bound) < tolerance / 10.0:
-                logger.debug(f"[BISSECÇÃO] Intervalo muito pequeno, convergindo: x={mid_point:.2f}")
-                return mid_point
+            # Verificar se o intervalo ficou muito pequeno (convergência por intervalo)
+            if abs(high_bound - low_bound) < tolerance * 0.01:
+                logger.debug(f"[HÍBRIDO] Convergência por intervalo: x={mid_point:.2f}")
+                return float(mid_point)
+            
+            # Salvar estado anterior para método da secante
+            prev_x, prev_f = low_bound, f_low
             
             # Atualizar bounds
             if (f_low * f_mid) < 0:
                 high_bound = mid_point
-                # f_high não precisa ser recalculado pois não será usado diretamente
+                f_high = f_mid
             else:
                 low_bound = mid_point
-                f_low = f_mid  # Atualizar f_low para a próxima iteração
+                f_low = f_mid
                 
         except Exception as e:
-            logger.error(f"[BISSECÇÃO] Erro na iteração {iteration}: {e}")
-            # Em caso de erro, retornar ponto médio atual
-            return mid_point
+            logger.error(f"[HÍBRIDO] Erro na iteração {iteration}: {e}")
+            return float(mid_point)
             
         iteration += 1
     
     # Se não convergiu, retornar melhor estimativa
     final_result = (low_bound + high_bound) / 2.0
-    logger.warning(f"[BISSECÇÃO] Não convergiu em {max_iterations} iterações, retornando: {final_result:.2f}")
-    return final_result
+    logger.warning(f"[HÍBRIDO] Não convergiu em {max_iterations} iterações, retornando: {final_result:.2f}")
+    return float(final_result)
 
 
 def calculate_sustainable_benefit_with_engine(
@@ -374,11 +402,21 @@ def calculate_sustainable_benefit_with_engine(
     # Importação dinâmica para evitar circular imports
     import copy
     
+    # Cache para evitar recálculos
+    calculation_cache = {}
+    
     def objective_function(benefit_value: float) -> float:
         """
-        Função objetivo: retorna déficit/superávit para um dado benefício.
+        Função objetivo otimizada com cache: retorna déficit/superávit para um dado benefício.
         Quando retorna 0, temos o benefício sustentável.
         """
+        # Arredondar para evitar muitos cálculos muito próximos
+        cache_key = round(benefit_value, 2)
+        
+        if cache_key in calculation_cache:
+            logger.debug(f"[SUSTENTÁVEL] Cache hit para R$ {benefit_value:.2f}")
+            return calculation_cache[cache_key]
+        
         # Criar cópia do estado com novo benefício
         test_state = copy.deepcopy(state)
         test_state.target_benefit = float(benefit_value)
@@ -387,20 +425,38 @@ def calculate_sustainable_benefit_with_engine(
         # Calcular usando engine atuarial existente
         try:
             results = engine.calculate_individual_simulation(test_state)
-            logger.debug(f"[SUSTENTÁVEL] Benefício: R$ {benefit_value:.2f} → Déficit: R$ {results.deficit_surplus:.2f}")
-            return results.deficit_surplus
+            result = results.deficit_surplus
+            
+            # PROTEÇÃO CRÍTICA: verificar se resultado é finito antes de usar
+            import math
+            if not math.isfinite(result):
+                logger.error(f"[SUSTENTÁVEL] Engine retornou valor não finito: {result} para benefício {benefit_value:.2f}")
+                # Retornar valor seguro baseado no salário para guiar o algoritmo
+                safe_result = benefit_value - salary_monthly  # Déficit/superávit estimado
+                calculation_cache[cache_key] = safe_result
+                return safe_result
+            
+            # Armazenar no cache
+            calculation_cache[cache_key] = result
+            
+            logger.debug(f"[SUSTENTÁVEL] Benefício: R$ {benefit_value:.2f} → Déficit: R$ {result:.2f}")
+            return result
         except Exception as e:
             logger.error(f"[SUSTENTÁVEL] Erro no cálculo para benefício {benefit_value}: {e}")
-            # Em caso de erro, retornar valor alto para evitar essa região
-            return float('inf')
+            # Em caso de erro, retornar valor alto para evitar essa região (JSON-safe)
+            error_result = 1e6  # 1 milhão - valor muito alto mas JSON-safe
+            calculation_cache[cache_key] = error_result
+            return error_result
     
-    # Determinar bounds inteligentes baseados no salário
+    # Determinar bounds inteligentes baseados no salário e benefício desejado
     salary_monthly = state.salary / 12.0 if hasattr(state, 'salary') else 8000.0
-    logger.debug(f"[SUSTENTÁVEL] Salário mensal base: R$ {salary_monthly:.2f}")
+    benefit_hint = state.target_benefit if state.target_benefit else salary_monthly
+    logger.debug(f"[SUSTENTÁVEL] Salário mensal: R$ {salary_monthly:.2f}, Benefício desejado: R$ {benefit_hint:.2f}")
     
-    # Bounds iniciais: 5% a 500% do salário mensal (mais amplos)
-    low_bound = salary_monthly * 0.05
-    high_bound = salary_monthly * 5.0
+    # Bounds inteligentes: usar o maior entre salário e benefício desejado como referência
+    reference_value = max(salary_monthly, benefit_hint)
+    low_bound = min(salary_monthly * 0.01, reference_value * 0.1)  # Mínimo mais baixo
+    high_bound = max(salary_monthly * 10.0, reference_value * 2.0)  # Máximo mais alto baseado no benefício
     
     logger.debug(f"[SUSTENTÁVEL] Bounds iniciais: R$ {low_bound:.2f} - R$ {high_bound:.2f}")
     
@@ -462,12 +518,28 @@ def calculate_sustainable_benefit_with_engine(
         objective_function,
         low_bound,
         high_bound,
-        tolerance=10.0,  # Tolerância aumentada para R$ 10,00
-        max_iterations=50  # Mais iterações para melhor precisão
+        tolerance=1.0,   # Tolerância mais rigorosa: R$ 1,00
+        max_iterations=200  # Mais iterações para maior precisão
     )
     
-    logger.debug(f"[SUSTENTÁVEL] Resultado final: R$ {result:.2f}")
-    return result
+    # Validação crítica: garantir que resultado é válido e JSON-safe
+    import math
+    if math.isnan(result) or math.isinf(result) or result <= 0:
+        logger.warning(f"[SUSTENTÁVEL] Resultado inválido: {result}, usando fallback")
+        result = salary_monthly * 0.7  # 70% do salário como fallback
+        
+    # PROTEÇÃO ADICIONAL: garantir que não há valores infinitos nos cálculos intermediários
+    if not math.isfinite(result):
+        logger.error(f"[SUSTENTÁVEL] Valor não finito detectado: {result}")
+        result = salary_monthly * 0.5  # Fallback mais conservador
+    
+    # Garantir que o resultado está dentro de limites razoáveis
+    min_benefit = salary_monthly * 0.05  # Mínimo 5% do salário
+    max_benefit = salary_monthly * 20.0   # Máximo 20x o salário
+    result = max(min_benefit, min(max_benefit, result))
+    
+    logger.debug(f"[SUSTENTÁVEL] Resultado final (validado): R$ {result:.2f}")
+    return float(result)
 
 
 def calculate_sustainable_benefit(

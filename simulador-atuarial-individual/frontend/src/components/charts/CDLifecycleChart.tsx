@@ -196,7 +196,9 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
       }
     },
     {
-      label: alternativeProjection ? 'Cenário Atuarial' : 'Fase de Aposentadoria',
+      label: alternativeProjection ? 
+        `Cenário Atuarial (${formatCurrencyBR(results.monthly_income_cd || 0, 0)})` : 
+        `Fase de Aposentadoria (${formatCurrencyBR(results.monthly_income_cd || 0, 0)})`,
       data: new Array(retirementIndex).fill(null).concat(retirementBalances),
       borderColor: '#FCD34D',
       backgroundColor: 'rgba(252, 211, 77, 0.1)',
@@ -222,7 +224,7 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
   // Adicionar dataset de comparação se disponível
   if (alternativeProjection) {
     datasets.push({
-      label: `Cenário Desejado (R$ ${formatCurrencyBR(alternativeProjection.targetBenefit, 0)})`,
+      label: `Cenário Desejado (${formatCurrencyBR(alternativeProjection.targetBenefit, 0)})`,
       data: alternativeProjection.balances,
       borderColor: '#F87171',
       backgroundColor: 'rgba(248, 113, 113, 0.1)',
@@ -290,7 +292,35 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
         },
       },
       tooltip: {
-        enabled: false,
+        callbacks: {
+          title: function(context: any) {
+            const age = context[0].label;
+            return `Idade: ${age} anos`;
+          },
+          label: function(context: any) {
+            const value = context.parsed.y;
+            if (value === null || value === undefined) return null;
+            return `${context.dataset.label}: ${formatCurrencyBR(value, 0)}`;
+          },
+          afterLabel: function(context: any) {
+            const age = parseInt(context.label);
+            const retirementAge = state.retirement_age || 65;
+            
+            if (age === retirementAge) {
+              return '🎯 Idade de aposentadoria';
+            }
+            if (age === peakAge && age === retirementAge) {
+              return '📈 Pico do saldo';
+            }
+            if (age === exhaustionAge) {
+              return '⚠️ Exaustão estimada do saldo';
+            }
+            if (alternativeProjection && age === alternativeProjection.exhaustionAge) {
+              return '🔴 Exaustão no cenário desejado';
+            }
+            return '';
+          }
+        },
       },
       datalabels: {
         display: false,

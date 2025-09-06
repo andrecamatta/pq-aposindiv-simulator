@@ -2,6 +2,7 @@ import React from 'react';
 import { DollarSign } from 'lucide-react';
 import type { SimulatorState } from '../../types';
 import { Card, CardHeader, CardTitle, CardContent, RangeSlider } from '../../design-system/components';
+import { formatCurrencyBR, formatSimplePercentageBR } from '../../utils/formatBR';
 import { useFormHandler } from '../../hooks';
 
 interface FinancialAssumptionsCardProps {
@@ -50,8 +51,7 @@ const FinancialAssumptionsCard: React.FC<FinancialAssumptionsCardProps> = ({
             max={25}
             step={0.5}
             onChange={(value) => handleInputChange('contribution_rate', value)}
-            formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-            suffix="%"
+            formatDisplay={(v) => formatSimplePercentageBR(v, 2)}
             tooltip="Percentual do salário destinado à contribuição mensal"
             disabled={loading}
           />
@@ -63,8 +63,7 @@ const FinancialAssumptionsCard: React.FC<FinancialAssumptionsCardProps> = ({
             max={12}
             step={0.1}
             onChange={(value) => handleInputChange('accrual_rate', value)}
-            formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-            suffix="%"
+            formatDisplay={(v) => formatSimplePercentageBR(v, 2)}
             tooltip="Rentabilidade real anual esperada dos investimentos (já descontada a inflação)"
             disabled={loading}
           />
@@ -76,9 +75,8 @@ const FinancialAssumptionsCard: React.FC<FinancialAssumptionsCardProps> = ({
             max={0.15}
             step={0.001}
             onChange={(value) => handleInputChange('discount_rate', value)}
-            suffix="%"
             tooltip="Taxa real usada para calcular o valor presente das obrigações"
-            formatDisplay={(v) => (v * 100).toFixed(2).replace('.', ',')}
+            formatDisplay={(v) => formatSimplePercentageBR(v * 100, 2)}
             disabled={loading}
           />
           
@@ -89,9 +87,8 @@ const FinancialAssumptionsCard: React.FC<FinancialAssumptionsCardProps> = ({
             max={0.10}
             step={0.001}
             onChange={(value) => handleInputChange('salary_growth_real', value)}
-            suffix="%"
             tooltip="Crescimento real anual dos salários (em termos reais, já descontada a inflação)"
-            formatDisplay={(v) => (v * 100).toFixed(2).replace('.', ',')}
+            formatDisplay={(v) => formatSimplePercentageBR(v * 100, 2)}
             disabled={loading}
           />
         </div>

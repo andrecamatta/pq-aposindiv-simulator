@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import type { SimulatorState } from '../../types';
 import { RangeSlider, Select } from '../../design-system/components';
+import { formatSimplePercentageBR } from '../../utils/formatBR';
 import { useFormHandler } from '../../hooks';
 
 interface AssumptionsTabProps {
@@ -42,35 +43,58 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
               Benefícios & Contribuições
             </h3>
             
-            {state.benefit_target_mode === 'VALUE' ? (
+            {/* Campo de benefício desejado - não mostra para modalidade PERCENTAGE em CD */}
+            {!(state.plan_type === 'CD' && state.cd_conversion_mode === 'PERCENTAGE') && (
+              <>
+                {state.benefit_target_mode === 'VALUE' ? (
+                  <RangeSlider
+                    label={
+                      <span title="Valor mensal desejado de aposentadoria em reais.">
+                        Benefício Mensal Desejado
+                      </span>
+                    }
+                    value={state.target_benefit || 5000}
+                    min={1000}
+                    max={100000}
+                    step={1000}
+                    onChange={(value) => handleInputChange('target_benefit', value)}
+                    formatDisplay={(v) => `R$ ${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)}`}
+                    disabled={loading}
+                  />
+                ) : (
+                  <RangeSlider
+                    label={
+                      <span title="Percentual do salário final que deseja receber como benefício.">
+                        Taxa de Reposição Desejada
+                      </span>
+                    }
+                    value={state.target_replacement_rate || 70}
+                    min={30}
+                    max={100}
+                    step={5}
+                    onChange={(value) => handleInputChange('target_replacement_rate', value)}
+                    formatDisplay={(v) => formatSimplePercentageBR(v, 2)}
+                    disabled={loading}
+                  />
+                )}
+              </>
+            )}
+
+            {/* Campo condicional para modalidade PERCENTAGE em CD */}
+            {state.plan_type === 'CD' && state.cd_conversion_mode === 'PERCENTAGE' && (
               <RangeSlider
                 label={
-                  <span title="Valor mensal desejado de aposentadoria em reais.">
-                    Benefício Mensal Desejado
+                  <span title="Percentual do saldo que será sacado anualmente na aposentadoria.">
+                    Percentual de Saque Anual
                   </span>
                 }
-                value={state.target_benefit || 5000}
-                min={1000}
-                max={100000}
-                step={1000}
-                onChange={(value) => handleInputChange('target_benefit', value)}
-                formatDisplay={(v) => `R$ ${new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)}`}
-                disabled={loading}
-              />
-            ) : (
-              <RangeSlider
-                label={
-                  <span title="Percentual do salário final que deseja receber como benefício.">
-                    Taxa de Reposição Desejada
-                  </span>
-                }
-                value={state.target_replacement_rate || 70}
-                min={30}
-                max={100}
-                step={5}
-                onChange={(value) => handleInputChange('target_replacement_rate', value)}
-                formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-                suffix="%"
+                value={state.cd_withdrawal_percentage || 5}
+                min={2}
+                max={15}
+                step={0.5}
+                onChange={(value) => handleInputChange('cd_withdrawal_percentage', value)}
+                formatDisplay={(v) => formatSimplePercentageBR(v, 1)}
+                suffix=" a.a."
                 disabled={loading}
               />
             )}
@@ -101,8 +125,7 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
               max={25}
               step={0.5}
               onChange={(value) => handleInputChange('contribution_rate', value)}
-              formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-              suffix="%"
+              formatDisplay={(v) => formatSimplePercentageBR(v, 2)}
               disabled={loading}
             />
           </div>
@@ -127,8 +150,7 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
                   max={15}
                   step={0.1}
                   onChange={handleAccumulationRateChange}
-                  formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-                  suffix="% a.a."
+                  formatDisplay={(v) => `${formatSimplePercentageBR(v, 2)} a.a.`}
                   disabled={loading}
                 />
                 
@@ -143,8 +165,7 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
                   max={10}
                   step={0.1}
                   onChange={handleConversionRateChange}
-                  formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-                  suffix="% a.a."
+                  formatDisplay={(v) => `${formatSimplePercentageBR(v, 2)} a.a.`}
                   disabled={loading}
                 />
               </>
@@ -162,9 +183,8 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
                   max={12}
                   step={0.1}
                   onChange={(value) => handleInputChange('accrual_rate', value)}
-                  formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-                  suffix="%"
-                  disabled={loading}
+                  formatDisplay={(v) => formatSimplePercentageBR(v, 2)}
+                    disabled={loading}
                 />
                 
                 <RangeSlider
@@ -178,9 +198,8 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
                   max={12}
                   step={0.1}
                   onChange={(value) => handleInputChange('discount_rate', value / 100)}
-                  formatDisplay={(v) => v.toFixed(2).replace('.', ',')}
-                  suffix="%"
-                  disabled={loading}
+                  formatDisplay={(v) => formatSimplePercentageBR(v, 2)}
+                    disabled={loading}
                 />
               </>
             )}
