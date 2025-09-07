@@ -135,14 +135,14 @@ class StateValidator:
         errors = []
         
         # Validação baseada no modo de benefício alvo
-        if state.benefit_target_mode.value == "VALUE":
+        if state.benefit_target_mode == "VALUE":
             if state.target_benefit is not None:
                 if state.target_benefit <= 0:
                     errors.append("Benefício alvo deve ser positivo")
                 elif state.target_benefit > 100_000:  # R$ 100.000 por mês
                     errors.append("Benefício alvo muito elevado (máximo R$ 100.000)")
         
-        elif state.benefit_target_mode.value == "REPLACEMENT_RATE":
+        elif state.benefit_target_mode == "REPLACEMENT_RATE":
             if state.target_replacement_rate is not None:
                 if state.target_replacement_rate <= 0 or state.target_replacement_rate > 300:
                     errors.append("Taxa de reposição deve estar entre 0% e 300%")
@@ -205,7 +205,7 @@ class StateValidator:
             errors.append("Tábua de mortalidade deve ser especificada")
         
         # Gênero
-        if state.gender.value not in ['M', 'F']:
+        if state.gender not in ['M', 'F']:
             errors.append("Gênero deve ser M (masculino) ou F (feminino)")
         
         if errors:
@@ -233,7 +233,7 @@ class StateValidator:
         ]
         
         # Para CD, adicionar validações específicas
-        if hasattr(state, 'plan_type') and state.plan_type.value == "CD":
+        if hasattr(state, 'plan_type') and state.plan_type == "CD":
             validation_methods.append(StateValidator.validate_cd_parameters)
         
         for validation_method in validation_methods:

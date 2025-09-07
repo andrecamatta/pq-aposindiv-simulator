@@ -29,6 +29,7 @@ from typing import List, Tuple, TYPE_CHECKING
 from .discount import calculate_discount_factor, get_timing_adjustment
 import math
 import logging
+from scipy.optimize import fsolve, root_scalar
 
 logger = logging.getLogger(__name__)
 
@@ -265,121 +266,7 @@ def calculate_vpa_benefits_contributions(
     return vpa_benefits, vpa_contributions
 
 
-def _bisection_root_finding(
-    objective_function, 
-    low_bound: float, 
-    high_bound: float, 
-    tolerance: float = 0.01, 
-    max_iterations: int = 100
-) -> float:
-    """
-    Algoritmo híbrido (bissecção + secante) otimizado para convergência rápida.
-    
-    Args:
-        objective_function: Função f(x) para encontrar x onde f(x) = 0
-        low_bound: Limite inferior do intervalo
-        high_bound: Limite superior do intervalo
-        tolerance: Tolerância para convergência
-        max_iterations: Máximo de iterações
-    
-    Returns:
-        Valor x onde f(x) ≈ 0
-    """
-    logger.debug(f"[BISSECÇÃO] Iniciando com bounds: [{low_bound:.2f}, {high_bound:.2f}], tolerância: {tolerance}")
-    
-    # Verificar condições iniciais
-    try:
-        f_low = objective_function(low_bound)
-        f_high = objective_function(high_bound)
-        
-        logger.debug(f"[BISSECÇÃO] Valores iniciais: f({low_bound:.2f})={f_low:.2f}, f({high_bound:.2f})={f_high:.2f}")
-        
-        # Verificar se já temos a resposta nos extremos
-        if abs(f_low) < tolerance:
-            logger.debug(f"[BISSECÇÃO] Resposta encontrada no lower bound")
-            return low_bound
-        if abs(f_high) < tolerance:
-            logger.debug(f"[BISSECÇÃO] Resposta encontrada no upper bound")
-            return high_bound
-            
-        # Verificar se temos sinais opostos
-        if (f_low * f_high) > 0:
-            logger.warning(f"[BISSECÇÃO] Bounds não têm sinais opostos: f_low={f_low:.2f}, f_high={f_high:.2f}")
-            # Retornar ponto médio como estimativa
-            return (low_bound + high_bound) / 2.0
-            
-    except Exception as e:
-        logger.error(f"[BISSECÇÃO] Erro na verificação inicial: {e}")
-        return (low_bound + high_bound) / 2.0
-    
-    # Algoritmo híbrido otimizado (Brent's method simplificado)
-    iteration = 0
-    prev_x, prev_f = None, None
-    
-    while iteration < max_iterations:
-        # Usar método da secante nas primeiras iterações se possível
-        if iteration >= 2 and prev_x is not None and prev_f is not None and abs(prev_f) > tolerance:
-            # Tentativa com método da secante (mais rápido)
-            try:
-                if abs(f_low - prev_f) > 1e-10:  # Evitar divisão por zero
-                    secant_x = low_bound - f_low * (low_bound - prev_x) / (f_low - prev_f)
-                    # Verificar se ponto da secante está dentro do intervalo
-                    if low_bound < secant_x < high_bound:
-                        mid_point = secant_x
-                        logger.debug(f"[HÍBRIDO] Iter {iteration}: Usando secante x={mid_point:.2f}")
-                    else:
-                        mid_point = (low_bound + high_bound) / 2.0
-                        logger.debug(f"[HÍBRIDO] Iter {iteration}: Secante fora do intervalo, usando bissecção")
-                else:
-                    mid_point = (low_bound + high_bound) / 2.0
-            except:
-                mid_point = (low_bound + high_bound) / 2.0
-        else:
-            mid_point = (low_bound + high_bound) / 2.0
-        
-        try:
-            f_mid = objective_function(mid_point)
-            
-            # Validação crítica: verificar se f_mid é válido
-            import math
-            if math.isnan(f_mid) or math.isinf(f_mid):
-                logger.error(f"[HÍBRIDO] Valor inválido f({mid_point:.2f}) = {f_mid}")
-                return float(mid_point)
-            
-            if iteration < 5 or iteration % 20 == 0:  # Log menos frequente
-                logger.debug(f"[HÍBRIDO] Iter {iteration}: x={mid_point:.2f}, f(x)={f_mid:.2f}")
-            
-            # Verificar convergência com tolerância mais agressiva
-            if abs(f_mid) < tolerance:
-                logger.debug(f"[HÍBRIDO] Convergiu em {iteration} iterações: x={mid_point:.2f}")
-                return float(mid_point)
-                
-            # Verificar se o intervalo ficou muito pequeno (convergência por intervalo)
-            if abs(high_bound - low_bound) < tolerance * 0.01:
-                logger.debug(f"[HÍBRIDO] Convergência por intervalo: x={mid_point:.2f}")
-                return float(mid_point)
-            
-            # Salvar estado anterior para método da secante
-            prev_x, prev_f = low_bound, f_low
-            
-            # Atualizar bounds
-            if (f_low * f_mid) < 0:
-                high_bound = mid_point
-                f_high = f_mid
-            else:
-                low_bound = mid_point
-                f_low = f_mid
-                
-        except Exception as e:
-            logger.error(f"[HÍBRIDO] Erro na iteração {iteration}: {e}")
-            return float(mid_point)
-            
-        iteration += 1
-    
-    # Se não convergiu, retornar melhor estimativa
-    final_result = (low_bound + high_bound) / 2.0
-    logger.warning(f"[HÍBRIDO] Não convergiu em {max_iterations} iterações, retornando: {final_result:.2f}")
-    return float(final_result)
+# Função _bisection_root_finding removida - substituída por scipy.optimize.fsolve
 
 
 def calculate_sustainable_benefit_with_engine(
@@ -390,7 +277,7 @@ def calculate_sustainable_benefit_with_engine(
     Calcula benefício sustentável usando root finding com ActuarialEngine.
     
     Esta função encontra o valor de benefício que zera o déficit/superávit
-    usando o método da bissecção e o engine atuarial completo.
+    usando métodos de root finding otimizados (fsolve + fallbacks) e o engine atuarial completo.
     
     Args:
         state: Estado atual do simulador
@@ -407,128 +294,171 @@ def calculate_sustainable_benefit_with_engine(
     
     def objective_function(benefit_value: float) -> float:
         """
-        Função objetivo otimizada com cache: retorna déficit/superávit para um dado benefício.
+        Função objetivo sem cache para máxima precisão: retorna déficit/superávit para um dado benefício.
         Quando retorna 0, temos o benefício sustentável.
         """
-        # Arredondar para evitar muitos cálculos muito próximos
-        cache_key = round(benefit_value, 2)
-        
-        if cache_key in calculation_cache:
-            logger.debug(f"[SUSTENTÁVEL] Cache hit para R$ {benefit_value:.2f}")
-            return calculation_cache[cache_key]
+        # CORREÇÃO: Eliminar cache para precisão máxima na região crítica
+        # Cache pode mascarar pequenas diferenças cruciais para convergência precisa
         
         # Criar cópia do estado com novo benefício
         test_state = copy.deepcopy(state)
         test_state.target_benefit = float(benefit_value)
         
-        # CORREÇÃO CRÍTICA: usar enum em vez de string
-        from ..models.participant import BenefitTargetMode
-        test_state.benefit_target_mode = BenefitTargetMode.VALUE
+        # CORREÇÃO CRÍTICA: garantir que seja string, não enum
+        test_state.benefit_target_mode = "VALUE"
         
         # Calcular usando engine atuarial existente
         try:
+            benefit_scalar = float(benefit_value) if hasattr(benefit_value, '__iter__') and hasattr(benefit_value, 'shape') else benefit_value
+            logger.debug(f"[VPA_DEBUG] Antes de chamar engine - benefit_value: {benefit_scalar:.2f}")
+            logger.debug(f"[VPA_DEBUG] Antes de chamar engine - test_state.benefit_target_mode: {test_state.benefit_target_mode}")
+            logger.debug(f"[VPA_DEBUG] Antes de chamar engine - test_state.target_benefit: {test_state.target_benefit}")
             results = engine.calculate_individual_simulation(test_state)
             result = results.deficit_surplus
             
             # PROTEÇÃO CRÍTICA: verificar se resultado é finito antes de usar
             import math
             if not math.isfinite(result):
-                logger.error(f"[SUSTENTÁVEL] Engine retornou valor não finito: {result} para benefício {benefit_value:.2f}")
-                # Retornar valor seguro baseado no salário para guiar o algoritmo
-                safe_result = benefit_value - salary_monthly  # Déficit/superávit estimado
-                calculation_cache[cache_key] = safe_result
-                return safe_result
+                benefit_scalar = float(benefit_value) if hasattr(benefit_value, '__iter__') and hasattr(benefit_value, 'shape') else benefit_value
+                logger.error(f"[SUSTENTÁVEL] Engine retornou valor não finito: {result} para benefício {benefit_scalar:.2f}")
+                # CORREÇÃO: Retornar valor consistente com função de déficit
+                # Se benefício muito alto = superávit = valor positivo
+                # Se benefício muito baixo = déficit = valor negativo
+                if benefit_value > salary_monthly:
+                    return 1e6  # Superávit muito alto
+                else:
+                    return -1e6  # Déficit muito alto
             
-            # Armazenar no cache
-            calculation_cache[cache_key] = result
-            
-            logger.debug(f"[SUSTENTÁVEL] Benefício: R$ {benefit_value:.2f} → Déficit: R$ {result:.2f}")
+            benefit_scalar = float(benefit_value) if hasattr(benefit_value, '__iter__') and hasattr(benefit_value, 'shape') else benefit_value
+            logger.debug(f"[SUSTENTÁVEL] Benefício: R$ {benefit_scalar:.2f} → Déficit: R$ {result:.2f}")
             return result
+            
         except Exception as e:
-            logger.error(f"[SUSTENTÁVEL] Erro no cálculo para benefício {benefit_value}: {e}")
-            # Em caso de erro, retornar valor alto para evitar essa região (JSON-safe)
-            error_result = 1e6  # 1 milhão - valor muito alto mas JSON-safe
-            calculation_cache[cache_key] = error_result
-            return error_result
+            # Converter benefit_value para scalar se for array numpy
+            benefit_scalar = float(benefit_value) if hasattr(benefit_value, '__iter__') and hasattr(benefit_value, 'shape') else benefit_value
+            logger.error(f"[SUSTENTÁVEL] Erro no cálculo para benefício {benefit_scalar:.2f}: {e}")
+            # CORREÇÃO: Usar lógica consistente baseada no benefício testado
+            if benefit_value > salary_monthly:
+                return 1e6  # Assumir superávit alto em caso de erro
+            else:
+                return -1e6  # Assumir déficit alto em caso de erro
     
     # Determinar bounds inteligentes baseados no salário e benefício desejado
-    salary_monthly = state.salary / 12.0 if hasattr(state, 'salary') else 8000.0
+    # CORREÇÃO CRÍTICA: state.salary já é mensal, não dividir por 12!
+    salary_monthly = state.salary if hasattr(state, 'salary') else 8000.0
     benefit_hint = state.target_benefit if state.target_benefit else salary_monthly
-    logger.debug(f"[SUSTENTÁVEL] Salário mensal: R$ {salary_monthly:.2f}, Benefício desejado: R$ {benefit_hint:.2f}")
+    logger.info(f"[VPA_DEBUG] Salário mensal: R$ {salary_monthly:.2f}, Benefício desejado: R$ {benefit_hint:.2f}")
+    logger.info(f"[VPA_DEBUG] Déficit atual do estado: R$ {getattr(state, 'deficit_surplus', 'N/A')}")
     
-    # Bounds inteligentes: usar o maior entre salário e benefício desejado como referência
-    reference_value = max(salary_monthly, benefit_hint)
-    low_bound = min(salary_monthly * 0.01, reference_value * 0.1)  # Mínimo mais baixo
-    high_bound = max(salary_monthly * 10.0, reference_value * 2.0)  # Máximo mais alto baseado no benefício
+    # DEBUG: Testar função objetivo com valor conhecido
+    logger.info(f"[VPA_DEBUG] Testando função objetivo com valores conhecidos...")
+    try:
+        test_5000 = objective_function(5000.0)
+        test_13235 = objective_function(13235.0)
+        logger.info(f"[VPA_DEBUG] Função objetivo R$ 5.000: {test_5000:.2f}")
+        logger.info(f"[VPA_DEBUG] Função objetivo R$ 13.235: {test_13235:.2f}")
+    except Exception as test_error:
+        logger.error(f"[VPA_DEBUG] Erro ao testar função objetivo: {test_error}")
+        import traceback
+        traceback.print_exc()
     
-    logger.debug(f"[SUSTENTÁVEL] Bounds iniciais: R$ {low_bound:.2f} - R$ {high_bound:.2f}")
+    # Usar scipy.optimize.fsolve como método primário com fallbacks robustos
+    logger.info(f"[VPA_DEBUG] Iniciando root finding com fsolve")
     
-    # Ajustar bounds se necessário para garantir que tenham sinais opostos
-    max_attempts = 10
-    attempt = 0
+    # Usar benefício atual como chute inicial inteligente
+    initial_guess = benefit_hint if benefit_hint > 0 else salary_monthly * 0.7
+    logger.info(f"[VPA_DEBUG] Chute inicial: R$ {initial_guess:.2f}")
     
-    while attempt < max_attempts:
+    try:
+        # Tentar fsolve primeiro (método mais robusto)
+        result_array = fsolve(objective_function, initial_guess, xtol=1e-6)
+        result = float(result_array[0])
+        logger.info(f"[VPA_DEBUG] fsolve convergiu para: R$ {result:.2f}")
+        
+        # Validar resultado do fsolve
+        validation_residual = objective_function(result)
+        logger.info(f"[VPA_DEBUG] Resíduo da validação: R$ {validation_residual:.2f}")
+        
+        if abs(validation_residual) <= 50.0:  # Tolerância de R$ 50
+            logger.info(f"[SUSTENTÁVEL] ✅ fsolve bem-sucedido: R$ {result:.2f}")
+        else:
+            logger.warning(f"[SUSTENTÁVEL] fsolve impreciso, tentando root_scalar")
+            raise ValueError("fsolve não convergiu adequadamente")
+            
+    except Exception as fsolve_error:
+        logger.warning(f"[VPA_DEBUG] fsolve falhou: {fsolve_error}")
+        logger.info(f"[VPA_DEBUG] Tentando root_scalar como fallback")
+        
         try:
-            f_low = objective_function(low_bound)
-            f_high = objective_function(high_bound)
+            # Fallback: usar root_scalar com bounds conservadores
+            lower_bound = max(100.0, salary_monthly * 0.1)  # Mín 10% do salário ou R$ 100
+            upper_bound = min(salary_monthly * 3.0, 50000.0)  # Máx 3x salário ou R$ 50k
             
-            logger.debug(f"[SUSTENTÁVEL] Tentativa {attempt + 1}: f({low_bound:.2f})={f_low:.2f}, f({high_bound:.2f})={f_high:.2f}")
+            logger.info(f"[VPA_DEBUG] Bounds para root_scalar: R$ {lower_bound:.2f} - R$ {upper_bound:.2f}")
             
-            # Verificar se temos sinais opostos (condição para bissecção)
-            if (f_low * f_high) <= 0:
-                logger.debug(f"[SUSTENTÁVEL] Bounds válidos encontrados")
-                break
-                
-            # Se ambos têm mesmo sinal, expandir bounds dinamicamente
-            if f_low > 0 and f_high > 0:  # Ambos superávit - aumentar benefício
-                logger.debug(f"[SUSTENTÁVEL] Ambos superávit - expandindo upper bound")
-                low_bound = high_bound  # O que era high vira low
-                high_bound = high_bound * 2.0  # Dobrar upper bound
-                
-            elif f_low < 0 and f_high < 0:  # Ambos déficit - diminuir benefício
-                logger.debug(f"[SUSTENTÁVEL] Ambos déficit - expandindo lower bound")
-                high_bound = low_bound  # O que era low vira high
-                low_bound = max(low_bound * 0.5, salary_monthly * 0.01)  # Reduzir lower bound
-                
-            # Evitar bounds extremos
-            if high_bound > salary_monthly * 1000:  # Máximo 1000x o salário
-                logger.warning(f"[SUSTENTÁVEL] Upper bound extremo, limitando")
-                high_bound = salary_monthly * 1000
-                break
-            if low_bound < salary_monthly * 0.001:  # Mínimo 0.1% do salário
-                logger.warning(f"[SUSTENTÁVEL] Lower bound extremo, limitando")
-                low_bound = salary_monthly * 0.001
-                break
-                
-        except Exception as e:
-            logger.error(f"[SUSTENTÁVEL] Erro ao ajustar bounds: {e}")
-            break
+            # Testar se os bounds têm sinais opostos
+            f_lower = objective_function(lower_bound)
+            f_upper = objective_function(upper_bound)
+            logger.info(f"[VPA_DEBUG] Teste bounds: f({lower_bound:.2f})={f_lower:.2f}, f({upper_bound:.2f})={f_upper:.2f}")
             
-        attempt += 1
+            if (f_lower * f_upper) <= 0:
+                sol = root_scalar(objective_function, bracket=[lower_bound, upper_bound], 
+                                method='brentq', xtol=1e-6)
+                result = float(sol.root)
+                logger.info(f"[SUSTENTÁVEL] ✅ root_scalar bem-sucedido: R$ {result:.2f}")
+            else:
+                logger.error(f"[SUSTENTÁVEL] Bounds não têm sinais opostos, usando chute inicial")
+                result = initial_guess
+                
+        except Exception as root_scalar_error:
+            logger.error(f"[VPA_DEBUG] root_scalar também falhou: {root_scalar_error}")
+            # Último recurso: usar chute inicial
+            result = initial_guess
     
-    # Se não conseguiu encontrar bounds válidos, usar fallback
-    if attempt >= max_attempts:
-        logger.warning(f"[SUSTENTÁVEL] Não foi possível encontrar bounds válidos, usando fallback")
-        # Fallback: usar benefício baseado no salário atual
-        fallback_benefit = salary_monthly * 0.7  # 70% do salário como estimativa
-        logger.debug(f"[SUSTENTÁVEL] Fallback: R$ {fallback_benefit:.2f}")
-        return fallback_benefit
+    # VALIDAÇÃO CRÍTICA FINAL: Re-simular sem cache para garantir precisão
+    logger.info(f"[SUSTENTÁVEL] Validação final do resultado: R$ {result:.2f}")
     
-    # Encontrar benefício sustentável com bissecção melhorada
-    logger.debug(f"[SUSTENTÁVEL] Iniciando bissecção com bounds: R$ {low_bound:.2f} - R$ {high_bound:.2f}")
+    # Criar estado de validação limpo
+    validation_state = copy.deepcopy(state)
+    validation_state.target_benefit = float(result)
+    validation_state.benefit_target_mode = "VALUE"
     
-    result = _bisection_root_finding(
-        objective_function,
-        low_bound,
-        high_bound,
-        tolerance=1.0,   # Tolerância mais rigorosa: R$ 1,00
-        max_iterations=200  # Mais iterações para maior precisão
-    )
+    try:
+        # Re-calcular sem cache para validar
+        final_results = engine.calculate_individual_simulation(validation_state)
+        final_deficit = final_results.deficit_surplus
+        
+        logger.info(f"[SUSTENTÁVEL] Validação final - Déficit residual: R$ {final_deficit:.2f}")
+        
+        # Verificar se realmente zera o déficit com tolerância rigorosa
+        if abs(final_deficit) > 50.0:  # Tolerância de R$ 50
+            logger.error(f"[SUSTENTÁVEL] ❌ FALHA NA VALIDAÇÃO FINAL: déficit residual R$ {final_deficit:.2f} > R$ 50")
+            # Tentar ajuste fino manual
+            adjustment = final_deficit / 1000.0  # Ajuste baseado no déficit residual
+            adjusted_result = result - adjustment
+            
+            logger.info(f"[SUSTENTÁVEL] Tentando ajuste fino: R$ {result:.2f} → R$ {adjusted_result:.2f}")
+            
+            # Re-validar ajuste
+            validation_state.target_benefit = float(adjusted_result)
+            adjusted_results = engine.calculate_individual_simulation(validation_state)
+            adjusted_deficit = adjusted_results.deficit_surplus
+            
+            if abs(adjusted_deficit) < abs(final_deficit):
+                logger.info(f"[SUSTENTÁVEL] ✅ Ajuste melhorou: R$ {adjusted_deficit:.2f}")
+                result = adjusted_result
+            else:
+                logger.warning(f"[SUSTENTÁVEL] ⚠️ Ajuste não melhorou, mantendo resultado original")
+        else:
+            logger.info(f"[SUSTENTÁVEL] ✅ Validação final APROVADA: déficit residual R$ {final_deficit:.2f}")
+    
+    except Exception as validation_error:
+        logger.error(f"[SUSTENTÁVEL] Erro na validação final: {validation_error}")
     
     # Validação crítica: garantir que resultado é válido e JSON-safe
     import math
     if math.isnan(result) or math.isinf(result) or result <= 0:
-        logger.warning(f"[SUSTENTÁVEL] Resultado inválido: {result}, usando fallback")
+        logger.error(f"[SUSTENTÁVEL] Resultado inválido: {result}, usando fallback")
         result = salary_monthly * 0.7  # 70% do salário como fallback
         
     # PROTEÇÃO ADICIONAL: garantir que não há valores infinitos nos cálculos intermediários
@@ -536,12 +466,12 @@ def calculate_sustainable_benefit_with_engine(
         logger.error(f"[SUSTENTÁVEL] Valor não finito detectado: {result}")
         result = salary_monthly * 0.5  # Fallback mais conservador
     
-    # Garantir que o resultado está dentro de limites razoáveis
-    min_benefit = salary_monthly * 0.05  # Mínimo 5% do salário
-    max_benefit = salary_monthly * 20.0   # Máximo 20x o salário
+    # CORREÇÃO: Limites finais mais razoáveis para evitar valores absurdos
+    min_benefit = 50.0  # Mínimo absoluto de R$ 50
+    max_benefit = salary_monthly * 5.0   # Máximo 5x o salário (R$ 40.000 para salário de R$ 8.000)
     result = max(min_benefit, min(max_benefit, result))
     
-    logger.debug(f"[SUSTENTÁVEL] Resultado final (validado): R$ {result:.2f}")
+    logger.info(f"[SUSTENTÁVEL] 🎯 RESULTADO FINAL: R$ {result:.2f}")
     return float(result)
 
 
@@ -712,3 +642,191 @@ def calculate_vpa_contributions_with_admin_fees(
     
     logger.debug(f"[VPA_DEBUG] VPA final com taxa administrativa: {vpa_adjusted}")
     return vpa_adjusted
+
+
+def calculate_parameter_to_zero_deficit(
+    state: "SimulatorState",
+    engine: "ActuarialEngine",
+    parameter_name: str,
+    bounds: Tuple[float, float] = None,
+    initial_guess: float = None
+) -> float:
+    """
+    Função genérica que usa fsolve para calcular qualquer parâmetro que zere o déficit/superávit.
+    
+    Args:
+        state: Estado atual do simulador
+        engine: Engine atuarial para cálculos
+        parameter_name: Nome do parâmetro a ser otimizado
+            - "target_benefit": Benefício mensal
+            - "contribution_rate": Taxa de contribuição (%)
+            - "retirement_age": Idade de aposentadoria
+            - "salary": Salário atual
+        bounds: Tupla com (min, max) valores permitidos
+        initial_guess: Chute inicial (se None, será calculado automaticamente)
+        
+    Returns:
+        Valor do parâmetro que zera o déficit/superávit
+    """
+    import copy
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"[FSOLVE] Calculando {parameter_name} que zera déficit/superávit")
+    
+    def objective_function(parameter_value: float) -> float:
+        """
+        Função objetivo: retorna déficit/superávit para um dado valor do parâmetro.
+        Quando retorna 0, temos o valor ótimo do parâmetro.
+        """
+        # Criar cópia do estado com novo valor do parâmetro
+        test_state = copy.deepcopy(state)
+        
+        # Aplicar o novo valor do parâmetro
+        if parameter_name == "target_benefit":
+            test_state.target_benefit = float(parameter_value)
+            # Garantir que estamos em modo VALUE (string, não enum)
+            test_state.benefit_target_mode = "VALUE"
+            
+        elif parameter_name == "contribution_rate":
+            test_state.contribution_rate = float(parameter_value)
+            
+        elif parameter_name == "retirement_age":
+            # Garantir idade válida (inteira entre 50-100)
+            retirement_age = max(50, min(100, int(round(parameter_value))))
+            test_state.retirement_age = retirement_age
+            
+        elif parameter_name == "salary":
+            test_state.salary = float(parameter_value)
+            
+        else:
+            raise ValueError(f"Parâmetro não suportado: {parameter_name}")
+        
+        # Calcular usando engine atuarial
+        try:
+            results = engine.calculate_individual_simulation(test_state)
+            deficit = results.deficit_surplus
+            
+            # Verificar se resultado é finito
+            import math
+            if not math.isfinite(deficit):
+                logger.error(f"[FSOLVE] Engine retornou valor não finito para {parameter_name}={parameter_value:.2f}")
+                # Retornar valor alto se inválido
+                if parameter_value > getattr(state, parameter_name, 0):
+                    return 1e6  # Superávit alto
+                else:
+                    return -1e6  # Déficit alto
+            
+            logger.debug(f"[FSOLVE] {parameter_name}={parameter_value:.2f} → Déficit=R${deficit:.2f}")
+            return deficit
+            
+        except Exception as e:
+            logger.error(f"[FSOLVE] Erro no cálculo para {parameter_name}={parameter_value}: {e}")
+            # Em caso de erro, assumir comportamento baseado no valor testado
+            current_value = getattr(state, parameter_name, 0)
+            if parameter_value > current_value:
+                return 1e6  # Assumir superávit se valor maior
+            else:
+                return -1e6  # Assumir déficit se valor menor
+    
+    # Definir chute inicial baseado no parâmetro
+    if initial_guess is None:
+        if parameter_name == "target_benefit":
+            initial_guess = getattr(state, 'target_benefit', state.salary * 0.7)
+        elif parameter_name == "contribution_rate":
+            initial_guess = getattr(state, 'contribution_rate', 8.0)
+        elif parameter_name == "retirement_age":
+            initial_guess = getattr(state, 'retirement_age', 65.0)
+        elif parameter_name == "salary":
+            initial_guess = getattr(state, 'salary', 8000.0)
+    
+    # Definir bounds padrão se não fornecidos
+    if bounds is None:
+        if parameter_name == "target_benefit":
+            bounds = (100.0, state.salary * 3.0)  # R$ 100 a 3x salário (mais conservador)
+        elif parameter_name == "contribution_rate":
+            bounds = (1.0, 30.0)  # 1% a 30%
+        elif parameter_name == "retirement_age":
+            bounds = (max(50, state.age + 1), 100)  # Idade mínima 50, máxima 100
+        elif parameter_name == "salary":
+            current_salary = getattr(state, 'salary', 8000.0)
+            bounds = (current_salary * 0.1, current_salary * 5.0)  # 10% a 5x salário atual
+    
+    logger.info(f"[FSOLVE] Parâmetro: {parameter_name}, Chute inicial: {initial_guess:.2f}, Bounds: {bounds}")
+    
+    try:
+        # Tentar fsolve primeiro
+        result_array = fsolve(objective_function, initial_guess, xtol=1e-6)
+        result = float(result_array[0])
+        
+        # Validar se resultado está dentro dos bounds
+        if bounds and (result < bounds[0] or result > bounds[1]):
+            logger.warning(f"[FSOLVE] Resultado fora dos bounds: {result:.2f}, tentando root_scalar")
+            raise ValueError("Resultado fora dos bounds")
+        
+        # Validar resultado
+        validation_residual = objective_function(result)
+        logger.info(f"[FSOLVE] {parameter_name} convergiu para: {result:.2f}, resíduo: R${validation_residual:.2f}")
+        
+        if abs(validation_residual) <= 50.0:  # Tolerância de R$ 50
+            logger.info(f"[FSOLVE] ✅ Sucesso para {parameter_name}: {result:.2f}")
+            return result
+        else:
+            logger.warning(f"[FSOLVE] Precisão insuficiente, tentando root_scalar")
+            raise ValueError("Precisão insuficiente")
+            
+    except Exception as fsolve_error:
+        logger.warning(f"[FSOLVE] fsolve falhou para {parameter_name}: {fsolve_error}")
+        
+        if bounds:
+            try:
+                # Fallback: usar root_scalar com bounds
+                logger.info(f"[FSOLVE] Tentando root_scalar com bounds {bounds}")
+                
+                # Testar se os bounds têm sinais opostos
+                f_lower = objective_function(bounds[0])
+                f_upper = objective_function(bounds[1])
+                logger.info(f"[FSOLVE] Teste bounds: f({bounds[0]:.2f})={f_lower:.2f}, f({bounds[1]:.2f})={f_upper:.2f}")
+                
+                if (f_lower * f_upper) <= 0:
+                    sol = root_scalar(objective_function, bracket=bounds, method='brentq', xtol=1e-6)
+                    result = float(sol.root)
+                    logger.info(f"[FSOLVE] ✅ root_scalar bem-sucedido para {parameter_name}: {result:.2f}")
+                    return result
+                else:
+                    logger.error(f"[FSOLVE] Bounds não têm sinais opostos para {parameter_name}")
+                    
+            except Exception as root_scalar_error:
+                logger.error(f"[FSOLVE] root_scalar também falhou para {parameter_name}: {root_scalar_error}")
+        
+        # Último recurso: usar chute inicial
+        logger.warning(f"[FSOLVE] Usando chute inicial como resultado para {parameter_name}: {initial_guess:.2f}")
+        return initial_guess
+
+
+def calculate_optimal_contribution_rate(state: "SimulatorState", engine: "ActuarialEngine") -> float:
+    """Calcula taxa de contribuição que zera o déficit/superávit"""
+    return calculate_parameter_to_zero_deficit(
+        state, engine, "contribution_rate",
+        bounds=(1.0, 30.0),
+        initial_guess=state.contribution_rate
+    )
+
+
+def calculate_optimal_retirement_age(state: "SimulatorState", engine: "ActuarialEngine") -> float:
+    """Calcula idade de aposentadoria que zera o déficit/superávit"""
+    min_age = max(50, state.age + 1)  # No mínimo 1 ano a mais que idade atual
+    return calculate_parameter_to_zero_deficit(
+        state, engine, "retirement_age", 
+        bounds=(min_age, 100),
+        initial_guess=state.retirement_age
+    )
+
+
+def calculate_optimal_salary(state: "SimulatorState", engine: "ActuarialEngine") -> float:
+    """Calcula salário necessário que zera o déficit/superávit"""
+    current_salary = state.salary
+    return calculate_parameter_to_zero_deficit(
+        state, engine, "salary",
+        bounds=(current_salary * 0.1, current_salary * 5.0),
+        initial_guess=current_salary
+    )

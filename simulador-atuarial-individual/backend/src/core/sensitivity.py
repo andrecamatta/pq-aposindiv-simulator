@@ -213,7 +213,7 @@ def create_rmba_sensitivity_calculator() -> SensitivityCalculator:
         context = ActuarialContext.from_state(state)
         mortality_table = get_mortality_table(
             state.mortality_table, 
-            state.gender.value, 
+            state.gender, 
             state.mortality_aggravation
         )
         
@@ -239,7 +239,7 @@ def create_deficit_sensitivity_calculator() -> SensitivityCalculator:
         context = ActuarialContext.from_state(state)
         mortality_table = get_mortality_table(
             state.mortality_table,
-            state.gender.value,
+            state.gender,
             state.mortality_aggravation
         )
         
@@ -268,7 +268,7 @@ def create_cd_sensitivity_calculator() -> SensitivityCalculator:
         context = engine._create_cd_context(state)
         mortality_table = get_mortality_table(
             state.mortality_table,
-            state.gender.value,
+            state.gender,
             state.mortality_aggravation
         )
         

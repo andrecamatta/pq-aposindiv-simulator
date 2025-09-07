@@ -171,7 +171,7 @@ class CDCalculator:
         replacement_ratio = (monthly_income / final_monthly_salary_base * 100) if final_monthly_salary_base > 0 else 0
         
         # Taxa de reposição alvo
-        if state.benefit_target_mode.value == "REPLACEMENT_RATE":
+        if state.benefit_target_mode == "REPLACEMENT_RATE":
             target_replacement_ratio = state.target_replacement_rate or 70.0
         else:
             target_replacement_ratio = replacement_ratio
@@ -277,7 +277,7 @@ class CDCalculator:
             temp_state.cd_conversion_mode = mode
             
             monthly_income = self.calculate_monthly_income(temp_state, context, balance, mortality_table)
-            modes_analysis[mode.value] = {
+            modes_analysis[mode] = {
                 "monthly_income": monthly_income,
                 "annual_income": monthly_income * 12,
                 "description": self._get_conversion_mode_description(mode)

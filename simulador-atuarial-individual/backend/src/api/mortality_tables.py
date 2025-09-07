@@ -670,29 +670,71 @@ async def search_pymort_tables(
         raise HTTPException(status_code=400, detail="pymort não está disponível")
     
     try:
-        # Por enquanto, retornar uma lista simulada já que pymort não tem busca direta por termo
-        # Em uma implementação completa, seria necessário ter uma base de IDs conhecidos
-        suggested_tables = [
-            {"id": 825, "name": "Annuity Table 1983 (AT-83)", "description": "AT-83 mortality table"},
-            {"id": 3262, "name": "Individual Annuity Mortality 2012 (IAM 2012)", "description": "2012 Individual Annuity Mortality Table"},
-            {"id": 809, "name": "Group Annuity Mortality 1971 (GAM-71)", "description": "1971 Group Annuity Mortality Table"},
-            {"id": 900, "name": "Unisex Pension 1984 (UP-84)", "description": "1984 Unisex Pension Table"}
+        # Base expandida de tábuas SOA conhecidas e funcionais
+        # Incluindo tábuas populares de anuidades, seguros de vida e outras
+        known_soa_tables = [
+            # Tábuas de Anuidades
+            {"id": 825, "name": "1983 GAM Female", "description": "1983 Group Annuity Mortality Table – Female", "category": "Annuitant Mortality"},
+            {"id": 826, "name": "1983 GAM Male", "description": "1983 Group Annuity Mortality Table – Male", "category": "Annuitant Mortality"},
+            {"id": 3262, "name": "2015 VBT Male Smoker", "description": "2015 Valuation Basic Table - Male 100%, Smoker", "category": "Insured Lives Mortality"},
+            {"id": 809, "name": "1951 GAM Male", "description": "1951 Group Annuity Mortality (GAM) Table – Male", "category": "Annuitant Mortality"},
+            {"id": 810, "name": "1951 GAM Female", "description": "1951 Group Annuity Mortality (GAM) Table – Female", "category": "Annuitant Mortality"},
+            
+            # Tábuas CSO
+            {"id": 1, "name": "1941 CSO Basic ANB", "description": "1941 Commissioners Standard Ordinary Basic Table", "category": "CSO/CET"},
+            {"id": 2, "name": "1941 CSO Experience ANB", "description": "1941 Commissioners Standard Ordinary Experience Table", "category": "CSO/CET"},
+            {"id": 3, "name": "1941 CSO Standard ANB", "description": "1941 Commissioners Standard Ordinary Table", "category": "CSO/CET"},
+            {"id": 17, "name": "1958 CSO ANB", "description": "1958 Commissioners Standard Ordinary Table", "category": "CSO/CET"},
+            {"id": 20, "name": "1980 CSO Basic Male ANB", "description": "1980 Commissioners Standard Ordinary Basic Table - Male", "category": "CSO/CET"},
+            {"id": 21, "name": "1980 CSO Basic Female ANB", "description": "1980 Commissioners Standard Ordinary Basic Table - Female", "category": "CSO/CET"},
+            
+            # Tábuas de População
+            {"id": 500, "name": "US Life Tables 1959-61", "description": "United States Life Tables 1959-61 – Total Population", "category": "Population Mortality"},
+            {"id": 501, "name": "US Life Tables 1959-61 Male", "description": "United States Life Tables 1959-61 – Male", "category": "Population Mortality"},
+            {"id": 502, "name": "US Life Tables 1959-61 Female", "description": "United States Life Tables 1959-61 – Female", "category": "Population Mortality"},
+            
+            # Escalas de Projeção
+            {"id": 900, "name": "Projection Scale A", "description": "Mortality Improvement Projection Scale A", "category": "Projection Scale"},
+            {"id": 901, "name": "Projection Scale B", "description": "Mortality Improvement Projection Scale B", "category": "Projection Scale"},
+            
+            # Tábuas de Pensão e Anuidades Modernas
+            {"id": 1426, "name": "UP-94 Male", "description": "1994 Unisex Pension Table - Male", "category": "Pension"},
+            {"id": 1427, "name": "UP-94 Female", "description": "1994 Unisex Pension Table - Female", "category": "Pension"},
+            {"id": 1613, "name": "RP-2000 Combined Healthy", "description": "RP-2000 Combined Healthy Mortality Table", "category": "Pension"},
+            {"id": 1614, "name": "RP-2000 Employee", "description": "RP-2000 Employee Mortality Table", "category": "Pension"},
+            {"id": 1615, "name": "RP-2000 Healthy Annuitant", "description": "RP-2000 Healthy Annuitant Mortality Table", "category": "Annuitant Mortality"},
+            
+            # Tábuas VBT 2015
+            {"id": 3260, "name": "2015 VBT Male Non-Smoker", "description": "2015 Valuation Basic Table - Male 100%, Non-Smoker", "category": "Insured Lives Mortality"},
+            {"id": 3261, "name": "2015 VBT Female Non-Smoker", "description": "2015 Valuation Basic Table - Female 100%, Non-Smoker", "category": "Insured Lives Mortality"},
+            {"id": 3263, "name": "2015 VBT Female Smoker", "description": "2015 Valuation Basic Table - Female 100%, Smoker", "category": "Insured Lives Mortality"},
         ]
         
-        # Filtrar por query
+        # Filtrar por query se fornecida
         if query:
-            filtered_tables = [
-                t for t in suggested_tables 
-                if query.lower() in t["name"].lower() or query.lower() in t["description"].lower()
-            ]
+            query_lower = query.lower()
+            filtered_tables = []
+            
+            for table in known_soa_tables:
+                # Buscar em nome, descrição e categoria
+                search_text = f"{table['name']} {table['description']} {table['category']}".lower()
+                
+                # Busca por termos individuais para melhor flexibilidade
+                query_terms = query_lower.split()
+                if any(term in search_text for term in query_terms):
+                    filtered_tables.append(table)
         else:
-            filtered_tables = suggested_tables
+            filtered_tables = known_soa_tables
+        
+        # Ordenar por relevância (tábuas mais modernas primeiro)
+        filtered_tables.sort(key=lambda x: x["id"], reverse=True)
         
         return {
             "success": True,
             "query": query,
             "results": filtered_tables[:limit],
-            "total_found": len(filtered_tables)
+            "total_found": len(filtered_tables),
+            "note": "Tábuas disponíveis na base SOA conhecida. Para tábuas específicas, use o ID diretamente."
         }
         
     except Exception as e:

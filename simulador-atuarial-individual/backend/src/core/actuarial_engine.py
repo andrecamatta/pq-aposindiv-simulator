@@ -93,7 +93,7 @@ class ActuarialContext:
                 total_months = state.projection_years * 12
         
         # Configurações técnicas
-        payment_timing = state.payment_timing.value
+        payment_timing = state.payment_timing
         salary_months_per_year = state.salary_months_per_year
         benefit_months_per_year = state.benefit_months_per_year
         
@@ -243,7 +243,7 @@ class ActuarialEngine:
         print(f"[ENGINE_DEBUG] Taxa administrativa mensal: {context.admin_fee_monthly}")
         
         # Obter tábua de mortalidade com agravamento
-        mortality_table = get_mortality_table(state.mortality_table, state.gender.value, state.mortality_aggravation)
+        mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
         
         # Calcular projeções temporais
         projections = self._calculate_projections(state, context, mortality_table)
@@ -341,7 +341,7 @@ class ActuarialEngine:
             # Metadados
             calculation_timestamp=datetime.now(),
             computation_time_ms=computation_time,
-            actuarial_method_details={"method": state.calculation_method.value},
+            actuarial_method_details={"method": state.calculation_method},
             assumptions_validation={"valid": True}
         )
 
@@ -354,7 +354,7 @@ class ActuarialEngine:
         print(f"[CD_ENGINE_DEBUG] Taxa conversão: {state.conversion_rate}")
         
         # Obter tábua de mortalidade com agravamento
-        mortality_table = get_mortality_table(state.mortality_table, state.gender.value, state.mortality_aggravation)
+        mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
         
         # Calcular projeções CD - foco na evolução do saldo
         projections = self._calculate_cd_projections(state, context, mortality_table)
@@ -426,6 +426,7 @@ class ActuarialEngine:
             projected_vpa_benefits=[],  # Não aplicável
             projected_vpa_contributions=[],  # Não aplicável
             projected_rmba_evolution=projections["balances"],  # Usar evolução do saldo
+            projected_rmbc_evolution=[],  # Não aplicável para CD
             
             # Métricas CD
             total_contributions=cd_metrics["total_contributions"],
@@ -436,11 +437,18 @@ class ActuarialEngine:
             funding_ratio=None,  # Não aplicável
             
             # Sensibilidade CD
-            sensitivity_discount_rate=sanitize_float_for_json(cd_sensitivity["accumulation_rate"]),
-            sensitivity_mortality=sanitize_float_for_json(cd_sensitivity["mortality"]),
-            sensitivity_retirement_age=sanitize_float_for_json(cd_sensitivity["retirement_age"]),
-            sensitivity_salary_growth=sanitize_float_for_json(cd_sensitivity["salary_growth"]),
+            sensitivity_discount_rate=sanitize_float_for_json(cd_sensitivity.get("accumulation_rate", cd_sensitivity.get("discount_rate", {}))),
+            sensitivity_mortality=sanitize_float_for_json(cd_sensitivity.get("mortality", {})),
+            sensitivity_retirement_age=sanitize_float_for_json(cd_sensitivity.get("retirement_age", {})),
+            sensitivity_salary_growth=sanitize_float_for_json(cd_sensitivity.get("salary_growth", {})),
             sensitivity_inflation={},
+            
+            # Sensibilidade déficit para CD (usar mesmos valores por simplicidade)
+            sensitivity_deficit_discount_rate=sanitize_float_for_json(cd_sensitivity.get("accumulation_rate", cd_sensitivity.get("discount_rate", {}))),
+            sensitivity_deficit_mortality=sanitize_float_for_json(cd_sensitivity.get("mortality", {})),
+            sensitivity_deficit_retirement_age=sanitize_float_for_json(cd_sensitivity.get("retirement_age", {})),
+            sensitivity_deficit_salary_growth=sanitize_float_for_json(cd_sensitivity.get("salary_growth", {})),
+            sensitivity_deficit_inflation={},
             
             # Decomposição (simplificada para CD)
             actuarial_present_value_benefits=sanitize_float_for_json(monthly_income * 12 * 15),  # Estimativa
@@ -457,7 +465,7 @@ class ActuarialEngine:
             # Metadados
             calculation_timestamp=datetime.now(),
             computation_time_ms=computation_time,
-            actuarial_method_details={"method": "CD", "conversion_mode": state.cd_conversion_mode.value if state.cd_conversion_mode else "ACTUARIAL"},
+            actuarial_method_details={"method": "CD", "conversion_mode": state.cd_conversion_mode if state.cd_conversion_mode else "ACTUARIAL"},
             assumptions_validation={"valid": True}
         )
     
@@ -953,7 +961,7 @@ class ActuarialEngine:
         # Calcular VPA do benefício alvo para cálculo de percentuais
         monthly_data = projections["monthly_data"]
         months_to_retirement = context.months_to_retirement
-        mortality_table = get_mortality_table(state.mortality_table, state.gender.value, state.mortality_aggravation)
+        mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
         
         # Obter o benefício alvo mensal correto baseado no modo
         if state.benefit_target_mode == BenefitTargetMode.REPLACEMENT_RATE:
@@ -1522,7 +1530,7 @@ class ActuarialEngine:
             temp_state.cd_conversion_mode = mode
             
             monthly_income = self._calculate_cd_monthly_income_simple(temp_state, context, balance, mortality_table)
-            modes_analysis[mode.value] = {
+            modes_analysis[mode] = {
                 "monthly_income": monthly_income,
                 "annual_income": monthly_income * 12,
                 "description": self._get_conversion_mode_description(mode)
