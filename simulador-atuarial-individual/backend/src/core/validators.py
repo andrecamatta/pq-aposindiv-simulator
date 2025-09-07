@@ -134,15 +134,16 @@ class StateValidator:
         """
         errors = []
         
-        # Validação baseada no modo de benefício alvo
-        if state.benefit_target_mode == "VALUE":
+        # Validação baseada no modo de benefício alvo - compatível com string ou enum
+        benefit_mode = str(state.benefit_target_mode)  # Converte enum para string se necessário
+        if benefit_mode == "VALUE":
             if state.target_benefit is not None:
                 if state.target_benefit <= 0:
                     errors.append("Benefício alvo deve ser positivo")
                 elif state.target_benefit > 100_000:  # R$ 100.000 por mês
                     errors.append("Benefício alvo muito elevado (máximo R$ 100.000)")
         
-        elif state.benefit_target_mode == "REPLACEMENT_RATE":
+        elif benefit_mode == "REPLACEMENT_RATE":
             if state.target_replacement_rate is not None:
                 if state.target_replacement_rate <= 0 or state.target_replacement_rate > 300:
                     errors.append("Taxa de reposição deve estar entre 0% e 300%")

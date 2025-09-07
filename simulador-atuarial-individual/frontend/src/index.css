@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Força fundo cinza escuro nos tooltips */
+[role="tooltip"] {
+  background-color: #111827 !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
 /* Força fundo branco nas opções dos dropdowns */
 [role="listbox"] {
   background-color: #ffffff !important;

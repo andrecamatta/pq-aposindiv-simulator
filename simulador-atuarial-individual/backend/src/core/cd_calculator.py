@@ -170,8 +170,8 @@ class CDCalculator:
         # Taxa de reposição baseada na renda CD calculada
         replacement_ratio = (monthly_income / final_monthly_salary_base * 100) if final_monthly_salary_base > 0 else 0
         
-        # Taxa de reposição alvo
-        if state.benefit_target_mode == "REPLACEMENT_RATE":
+        # Taxa de reposição alvo - compatível com string ou enum
+        if str(state.benefit_target_mode) == "REPLACEMENT_RATE":
             target_replacement_ratio = state.target_replacement_rate or 70.0
         else:
             target_replacement_ratio = replacement_ratio

@@ -232,8 +232,8 @@ class BDCalculator:
         else:
             final_salary_monthly_base = context.monthly_salary
         
-        # Benefício mensal base para comparação consistente
-        if state.benefit_target_mode == "REPLACEMENT_RATE":
+        # Benefício mensal base para comparação consistente - compatível com string ou enum
+        if str(state.benefit_target_mode) == "REPLACEMENT_RATE":
             replacement_rate = state.target_replacement_rate if state.target_replacement_rate is not None else 70.0
             benefit_monthly_base = final_salary_monthly_base * (replacement_rate / 100)
         else:  # VALUE mode
@@ -242,8 +242,8 @@ class BDCalculator:
         # Taxa de reposição real
         replacement_ratio = (benefit_monthly_base / final_salary_monthly_base * 100) if final_salary_monthly_base > 0 else 0
         
-        # Taxa de reposição alvo
-        if state.benefit_target_mode == "REPLACEMENT_RATE":
+        # Taxa de reposição alvo - compatível com string ou enum
+        if str(state.benefit_target_mode) == "REPLACEMENT_RATE":
             target_replacement_ratio = state.target_replacement_rate if state.target_replacement_rate is not None else 70.0
         else:
             target_replacement_ratio = (benefit_monthly_base / final_salary_monthly_base * 100) if final_salary_monthly_base > 0 else 0
@@ -311,8 +311,8 @@ class BDCalculator:
         months_to_retirement = context.months_to_retirement
         mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
         
-        # Obter benefício alvo mensal
-        if state.benefit_target_mode == "REPLACEMENT_RATE":
+        # Obter benefício alvo mensal - compatível com string ou enum
+        if str(state.benefit_target_mode) == "REPLACEMENT_RATE":
             replacement_rate = state.target_replacement_rate if state.target_replacement_rate is not None else 70.0
             active_monthly_salaries = [s for s in monthly_data["salaries"] if s > 0]
             final_monthly_salary = active_monthly_salaries[-1] if active_monthly_salaries else context.monthly_salary

@@ -334,14 +334,27 @@ def calculate_sustainable_benefit_with_engine(
             return result
             
         except Exception as e:
-            # Converter benefit_value para scalar se for array numpy
-            benefit_scalar = float(benefit_value) if hasattr(benefit_value, '__iter__') and hasattr(benefit_value, 'shape') else benefit_value
+            # Converter benefit_value para scalar se for array numpy - PROTEÇÃO ROBUSTA
+            try:
+                if hasattr(benefit_value, '__iter__') and hasattr(benefit_value, 'shape'):
+                    # É um array numpy
+                    benefit_scalar = float(benefit_value.item() if benefit_value.size == 1 else benefit_value[0])
+                else:
+                    benefit_scalar = float(benefit_value)
+            except:
+                benefit_scalar = 0.0  # Fallback seguro
+                
             logger.error(f"[SUSTENTÁVEL] Erro no cálculo para benefício {benefit_scalar:.2f}: {e}")
+            
             # CORREÇÃO: Usar lógica consistente baseada no benefício testado
-            if benefit_value > salary_monthly:
-                return 1e6  # Assumir superávit alto em caso de erro
-            else:
-                return -1e6  # Assumir déficit alto em caso de erro
+            try:
+                benefit_check = float(benefit_value.item() if hasattr(benefit_value, 'item') else benefit_value)
+                if benefit_check > salary_monthly:
+                    return 1e6  # Assumir superávit alto em caso de erro
+                else:
+                    return -1e6  # Assumir déficit alto em caso de erro
+            except:
+                return -1e6  # Fallback para déficit
     
     # Determinar bounds inteligentes baseados no salário e benefício desejado
     # CORREÇÃO CRÍTICA: state.salary já é mensal, não dividir por 12!
@@ -709,21 +722,28 @@ def calculate_parameter_to_zero_deficit(
             # Verificar se resultado é finito
             import math
             if not math.isfinite(deficit):
-                logger.error(f"[FSOLVE] Engine retornou valor não finito para {parameter_name}={parameter_value:.2f}")
+                # Converter parameter_value para scalar para log seguro
+                param_scalar = float(parameter_value.item() if hasattr(parameter_value, 'item') else parameter_value)
+                logger.error(f"[FSOLVE] Engine retornou valor não finito para {parameter_name}={param_scalar:.2f}")
                 # Retornar valor alto se inválido
-                if parameter_value > getattr(state, parameter_name, 0):
+                current_value = getattr(state, parameter_name, 0)
+                if param_scalar > current_value:
                     return 1e6  # Superávit alto
                 else:
                     return -1e6  # Déficit alto
             
-            logger.debug(f"[FSOLVE] {parameter_name}={parameter_value:.2f} → Déficit=R${deficit:.2f}")
+            # Converter parameter_value para scalar para log seguro
+            param_scalar = float(parameter_value.item() if hasattr(parameter_value, 'item') else parameter_value)
+            logger.debug(f"[FSOLVE] {parameter_name}={param_scalar:.2f} → Déficit=R${deficit:.2f}")
             return deficit
             
         except Exception as e:
-            logger.error(f"[FSOLVE] Erro no cálculo para {parameter_name}={parameter_value}: {e}")
+            # Converter parameter_value para scalar para log seguro
+            param_scalar = float(parameter_value.item() if hasattr(parameter_value, 'item') else parameter_value)
+            logger.error(f"[FSOLVE] Erro no cálculo para {parameter_name}={param_scalar:.2f}: {e}")
             # Em caso de erro, assumir comportamento baseado no valor testado
             current_value = getattr(state, parameter_name, 0)
-            if parameter_value > current_value:
+            if param_scalar > current_value:
                 return 1e6  # Assumir superávit se valor maior
             else:
                 return -1e6  # Assumir déficit se valor menor

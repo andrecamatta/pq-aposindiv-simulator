@@ -14,12 +14,14 @@ import {
   TrendingUp,
   GitCompare,
   X,
-  MoreHorizontal
+  MoreHorizontal,
+  Menu
 } from 'lucide-react';
 import { useMortalityTables } from './hooks/useMortalityTables';
 import type { MortalityTableAdmin, TableStatistics } from './hooks/useMortalityTables';
 import { MortalityMainChart, StatisticsPanel, MortalityComparisonChart } from './charts';
 import { Tooltip } from '../../design-system/components/Tooltip';
+import { cn } from '../../lib/utils';
 import UploadCSVForm from './UploadCSVForm';
 
 interface MortalityTablesManagerProps {
@@ -62,8 +64,9 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
   const [chartType, setChartType] = useState<'mortality' | 'survival'>('mortality');
   const [comparisonChartType, setComparisonChartType] = useState<'mortality' | 'survival'>('mortality');
   
-  // Estado para dropdown de ações
+  // Estado para dropdown de ações e drawer mobile
   const [openDropdown, setOpenDropdown] = useState<number | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // useEffect para limpar dados quando não há tábuas selecionadas
   useEffect(() => {
@@ -72,19 +75,75 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
     }
   }, [comparisonTables, analysisView]);
 
-  // Fechar modal com Escape
+  // Atalhos de teclado
   useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
+    const handleKeydown = (event: KeyboardEvent) => {
+      // Ignore se estiver digitando em um input ou textarea
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (event.key) {
+        case 'Escape':
+          if (sidebarOpen) {
+            setSidebarOpen(false);
+          } else {
+            onClose();
+          }
+          break;
+          
+        case '/':
+          event.preventDefault();
+          if (activeView === 'dashboard') {
+            // Foca na busca do dashboard
+            const searchInput = document.querySelector('input[placeholder*="Buscar por nome"]') as HTMLInputElement;
+            searchInput?.focus();
+          } else if (activeView === 'search') {
+            // Foca na busca do SOA
+            const soaInput = document.querySelector('input[placeholder*="Digite termos"]') as HTMLInputElement;
+            soaInput?.focus();
+          }
+          break;
+          
+        case '1':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            setActiveView('dashboard');
+            setSidebarOpen(false);
+          }
+          break;
+          
+        case '2':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            setActiveView('search');
+            setSidebarOpen(false);
+          }
+          break;
+          
+        case '3':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            setActiveView('upload');
+            setSidebarOpen(false);
+          }
+          break;
+          
+        case '4':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            setActiveView('analysis');
+            setSidebarOpen(false);
+          }
+          break;
       }
     };
 
-    document.addEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', handleKeydown);
     return () => {
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleKeydown);
     };
-  }, [onClose]);
+  }, [onClose, sidebarOpen, activeView]);
 
   // Filtrar tábuas
   const filteredTables = tables.filter(table =>
@@ -283,6 +342,116 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
     }
   };
 
+  // Navigation Component
+  const NavigationMenu = () => {
+    const navItems = [
+      { 
+        id: 'dashboard', 
+        label: 'Dashboard', 
+        icon: Database, 
+        disabled: false, 
+        shortcut: 'Ctrl+1',
+        badge: stats.total ? stats.total.toString() : null
+      },
+      { 
+        id: 'search', 
+        label: 'Buscar SOA', 
+        icon: Search, 
+        disabled: false, 
+        shortcut: 'Ctrl+2',
+        badge: null
+      },
+      { 
+        id: 'upload', 
+        label: 'Upload CSV', 
+        icon: Upload, 
+        disabled: false, 
+        shortcut: 'Ctrl+3',
+        badge: null
+      },
+      { 
+        id: 'analysis', 
+        label: 'Análises', 
+        icon: BarChart3, 
+        disabled: false, 
+        shortcut: 'Ctrl+4',
+        badge: selectedTable || comparisonTables.length > 0 ? '●' : null
+      },
+    ] as const;
+
+    const handleNavClick = (viewId: typeof activeView) => {
+      setActiveView(viewId);
+      setSidebarOpen(false); // Close mobile drawer
+    };
+
+    return (
+      <nav className="space-y-2">
+        {navItems.map((item, index) => {
+          const Icon = item.icon;
+          const isActive = activeView === item.id;
+          
+          return (
+            <button
+              key={item.id}
+              onClick={() => !item.disabled && handleNavClick(item.id)}
+              disabled={item.disabled}
+              title={`${item.label} (${item.shortcut})`}
+              className={cn(
+                "w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-150",
+                isActive 
+                  ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600 ring-offset-2 ring-offset-gray-50' 
+                  : item.disabled
+                    ? 'text-gray-400 cursor-not-allowed'
+                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 hover:shadow-sm'
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <Icon className="h-4 w-4 flex-shrink-0" />
+                <span className="font-medium text-sm">{item.label}</span>
+              </div>
+              
+              {/* Badge ou atalho */}
+              <div className="flex items-center gap-2">
+                {item.badge && (
+                  <span className={cn(
+                    "text-xs px-2 py-0.5 rounded-full font-medium",
+                    isActive 
+                      ? "bg-blue-500 text-blue-100" 
+                      : "bg-blue-100 text-blue-700"
+                  )}>
+                    {item.badge}
+                  </span>
+                )}
+                
+                {/* Atalho - só mostra no desktop */}
+                <span className={cn(
+                  "hidden lg:block text-xs opacity-60 font-mono",
+                  isActive ? "text-blue-200" : "text-gray-500"
+                )}>
+                  {index + 1}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+        
+        {/* Dicas de atalhos */}
+        <div className="pt-4 mt-4 border-t border-gray-200">
+          <div className="text-xs text-gray-500 space-y-1">
+            <div className="flex justify-between">
+              <span>Buscar:</span>
+              <kbd className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono">/</kbd>
+            </div>
+            <div className="flex justify-between">
+              <span>Fechar:</span>
+              <kbd className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono">Esc</kbd>
+            </div>
+          </div>
+        </div>
+      </nav>
+    );
+  };
+
   const renderDashboard = () => (
     <div className="space-y-6">
       {/* Busca e Filtros */}
@@ -299,7 +468,7 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
       </div>
 
       {/* Lista de Tábuas */}
-      <div className="max-h-96 overflow-y-auto">
+      <div className="max-h-96 overflow-y-auto overflow-x-visible relative">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
@@ -340,27 +509,27 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
                         <td className="px-3 py-2">
                           <Tooltip
                             content={
-                              <div className="space-y-2 text-xs">
+                              <div className="space-y-2">
                                 <div>
-                                  <span className="font-semibold">Código:</span>
-                                  <span className="ml-2 font-mono">{table.code}</span>
+                                  <span className="font-semibold text-gray-300">Código:</span>
+                                  <span className="ml-2 font-mono text-white">{table.code}</span>
                                 </div>
                                 <div>
-                                  <span className="font-semibold">Fonte:</span>
-                                  <span className="ml-2">{table.source}</span>
+                                  <span className="font-semibold text-gray-300">Fonte:</span>
+                                  <span className="ml-2 text-white">{table.source}</span>
                                 </div>
                                 <div>
-                                  <span className="font-semibold">Gênero:</span>
-                                  <span className="ml-2">{table.gender}</span>
+                                  <span className="font-semibold text-gray-300">Gênero:</span>
+                                  <span className="ml-2 text-white">{table.gender}</span>
                                 </div>
                                 <div>
-                                  <span className="font-semibold">País:</span>
-                                  <span className="ml-2">{table.country || 'N/A'}</span>
+                                  <span className="font-semibold text-gray-300">País:</span>
+                                  <span className="ml-2 text-white">{table.country || 'N/A'}</span>
                                 </div>
                                 {table.description && (
                                   <div>
-                                    <span className="font-semibold">Descrição:</span>
-                                    <div className="mt-1">{table.description}</div>
+                                    <span className="font-semibold text-gray-300">Descrição:</span>
+                                    <div className="mt-1 text-white">{table.description}</div>
                                   </div>
                                 )}
                                 {table.is_official && (
@@ -373,7 +542,7 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
                               </div>
                             }
                             side="top"
-                            className="max-w-sm"
+                            className="!max-w-sm"
                           >
                             <div className="font-medium text-sm text-gray-900 truncate cursor-help">
                               {table.name}
@@ -402,7 +571,7 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
                         </td>
 
                         {/* Ações - Menu Dropdown */}
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-3 py-2 text-center relative">
                           <div className="relative inline-block">
                             <button
                               onClick={(e) => {
@@ -416,7 +585,7 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
                             </button>
                             
                             {openDropdown === table.id && (
-                              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                              <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[60]">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -724,23 +893,35 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
     <>
       {/* Backdrop + Modal Container */}
       <div
-        className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-[9998] transition-opacity duration-200 flex items-center justify-center p-4"
+        className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-[9998] transition-opacity duration-200 flex items-center justify-center p-8"
         onClick={onClose}
         aria-hidden="true"
       >
         <div
-          className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-200 ease-out"
+          className="bg-white rounded-xl shadow-2xl max-w-7xl w-full max-h-[85vh] overflow-hidden flex flex-col transform transition-all duration-200 ease-out"
           onClick={(e) => e.stopPropagation()}
           style={{
             backgroundColor: 'rgb(255, 255, 255)',
           }}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white rounded-t-xl shadow-sm">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Gerenciamento de Tábuas de Mortalidade</h2>
-              <p className="text-sm text-gray-600 mt-1">Upload, análise e configuração de tábuas</p>
+          {/* Header - Sticky */}
+          <div className="sticky top-0 z-20 flex items-center justify-between p-6 border-b border-gray-200 bg-white rounded-t-xl shadow-sm">
+            <div className="flex items-center gap-4">
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Abrir menu"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Gerenciamento de Tábuas de Mortalidade</h2>
+                <p className="text-sm text-gray-600 mt-1">Upload, análise e configuração de tábuas</p>
+              </div>
             </div>
+            
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-2 transition-colors duration-150"
@@ -752,71 +933,58 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
           </div>
 
           <div className="flex flex-1 overflow-hidden">
-            {/* Sidebar */}
-            <div className="w-64 bg-gray-50 border-r border-gray-200 p-4">
-              <nav className="space-y-2">
-                <button
-                  onClick={() => setActiveView('dashboard')}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors duration-150 ${
-                    activeView === 'dashboard' 
-                      ? 'bg-blue-100 text-blue-700 shadow-sm' 
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
-                >
-                  <Database className="h-4 w-4" />
-                  <span className="font-medium">Dashboard</span>
-                </button>
-                
-                <button
-                  onClick={() => setActiveView('search')}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors duration-150 ${
-                    activeView === 'search' 
-                      ? 'bg-blue-100 text-blue-700 shadow-sm' 
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
-                >
-                  <Search className="h-4 w-4" />
-                  <span className="font-medium">Buscar SOA</span>
-                </button>
-                
-                <button
-                  onClick={() => setActiveView('upload')}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors duration-150 ${
-                    activeView === 'upload' 
-                      ? 'bg-blue-100 text-blue-700 shadow-sm' 
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
-                >
-                  <Upload className="h-4 w-4" />
-                  <span className="font-medium">Upload CSV</span>
-                </button>
-                
-                <button
-                  onClick={() => setActiveView('analysis')}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors duration-150 ${
-                    activeView === 'analysis' 
-                      ? 'bg-blue-100 text-blue-700 shadow-sm' 
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
-                >
-                  <BarChart3 className="h-4 w-4" />
-                  <span className="font-medium">Análises</span>
-                </button>
-              </nav>
-            </div>
+            {/* Desktop Sidebar - Hidden on mobile */}
+            <aside className="hidden md:block w-64 shrink-0 border-r border-gray-200 bg-gray-50">
+              <div className="sticky top-0 h-[calc(100vh-120px)] overflow-y-auto p-4">
+                <NavigationMenu />
+              </div>
+            </aside>
 
             {/* Main Content */}
-            <div className="flex-1 p-6 overflow-y-auto bg-white">
-              {activeView === 'dashboard' && renderDashboard()}
-              {activeView === 'search' && renderSearch()}
-              {activeView === 'upload' && (
-                <UploadCSVForm onUpload={handleUpload} loading={uploadLoading} />
-              )}
-              {activeView === 'analysis' && renderAnalysis()}
+            <div className="flex-1 overflow-y-auto bg-white">
+              <div className="p-6">
+                {activeView === 'dashboard' && renderDashboard()}
+                {activeView === 'search' && renderSearch()}
+                {activeView === 'upload' && (
+                  <UploadCSVForm onUpload={handleUpload} loading={uploadLoading} />
+                )}
+                {activeView === 'analysis' && renderAnalysis()}
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Mobile Drawer */}
+      {sidebarOpen && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/40 z-[9999] md:hidden" 
+            onClick={() => setSidebarOpen(false)}
+          />
+          
+          {/* Drawer Panel */}
+          <div className={cn(
+            "fixed inset-y-0 left-0 w-64 bg-white z-[10000] transform transition-transform duration-300 ease-out md:hidden shadow-xl",
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          )}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="font-medium text-gray-900">Navegação</h3>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            
+            <div className="p-4">
+              <NavigationMenu />
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 };

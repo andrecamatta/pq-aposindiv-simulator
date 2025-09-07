@@ -126,14 +126,21 @@ const Tooltip: React.FC<TooltipProps> = ({
         <div
           ref={tooltipRef}
           className={cn(
-            'fixed z-50 px-3 py-2 text-xs text-white bg-gray-900 rounded-md shadow-lg',
+            'fixed z-50 px-3 py-2 text-xs rounded-md shadow-lg',
             'animate-in fade-in-0 zoom-in-95',
-            'max-w-xs break-words',
-            className
+            'break-words',
+            // Estilos base que nunca devem ser sobrescritos
+            '!bg-gray-900 !text-white',
+            // Classes customizáveis (max-width, etc)
+            className || 'max-w-xs'
           )}
           style={{
             left: position.x,
             top: position.y,
+            // Forçar estilos inline para garantir que sejam aplicados
+            backgroundColor: '#111827 !important', // gray-900
+            color: '#ffffff !important',
+            zIndex: 9999,
           }}
           role="tooltip"
         >
@@ -142,7 +149,8 @@ const Tooltip: React.FC<TooltipProps> = ({
           {/* Arrow */}
           <div
             className={cn(
-              'absolute w-2 h-2 bg-gray-900 rotate-45',
+              'absolute w-2 h-2 rotate-45',
+              '!bg-gray-900', // Garantir que a seta também tenha o fundo correto
               {
                 'bottom-[-4px] left-1/2 -translate-x-1/2': side === 'top',
                 'top-[-4px] left-1/2 -translate-x-1/2': side === 'bottom',
@@ -150,6 +158,9 @@ const Tooltip: React.FC<TooltipProps> = ({
                 'left-[-4px] top-1/2 -translate-y-1/2': side === 'right',
               }
             )}
+            style={{
+              backgroundColor: '#111827', // gray-900 - forçar inline também
+            }}
           />
         </div>
       )}

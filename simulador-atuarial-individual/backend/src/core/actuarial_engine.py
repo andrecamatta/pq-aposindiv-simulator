@@ -17,6 +17,7 @@ from ..utils import (
     calculate_sustainable_benefit
 )
 from ..utils.vpa import calculate_vpa_contributions_with_admin_fees
+from ..utils.formatters import format_currency_safe, format_audit_benefit_section
 
 
 @dataclass
@@ -713,7 +714,8 @@ class ActuarialEngine:
         print(f"[AUDITORIA]   - Idade: {state.age} → {state.retirement_age} anos ({state.retirement_age - state.age} anos contribuição)")
         print(f"[AUDITORIA]   - Salário mensal: R$ {state.salary:,.2f} ({state.salary_months_per_year}x/ano)")
         print(f"[AUDITORIA]   - Contribuição: {state.contribution_rate}% = R$ {state.salary * state.contribution_rate / 100:,.2f}/mês")
-        print(f"[AUDITORIA]   - Benefício alvo: R$ {state.target_benefit:,.2f}/mês ({state.benefit_months_per_year}x/ano)")
+        benefit_display = format_currency_safe(state.target_benefit, "Taxa de Reposição")
+        print(f"[AUDITORIA]   - Benefício alvo: {benefit_display}/mês ({state.benefit_months_per_year}x/ano)")
         print(f"[AUDITORIA]   - Taxa desconto: {state.discount_rate:.1%} a.a. = {context.discount_rate_monthly:.4%}/mês")
         print(f"[AUDITORIA]   - Crescimento salarial: {state.salary_growth_real:.1%} a.a.")
         print(f"[AUDITORIA]   - Taxa administrativa: {state.admin_fee_rate:.1%} a.a. = {context.admin_fee_monthly:.4%}/mês")
@@ -724,23 +726,23 @@ class ActuarialEngine:
         total_months_contrib = context.months_to_retirement
         contrib_inicial_liquida = state.salary * (state.contribution_rate/100) * (1 - context.admin_fee_monthly)
         print(f"[AUDITORIA] Contribuições:")
-        print(f"[AUDITORIA]   - Contribuição inicial líquida: R$ {contrib_inicial_liquida:,.2f}/mês")
+        print(f"[AUDITORIA]   - Contribuição inicial líquida: {format_currency_safe(contrib_inicial_liquida)}/mês")
         print(f"[AUDITORIA]   - Total meses de contribuição: {total_months_contrib}")
         
-        # Análise dos benefícios projetados  
-        annual_benefit = state.target_benefit * state.benefit_months_per_year
-        print(f"[AUDITORIA] Benefícios:")
-        print(f"[AUDITORIA]   - Benefício mensal: R$ {state.target_benefit:,.2f}")
-        print(f"[AUDITORIA]   - Benefício anual: R$ {annual_benefit:,.2f}")
+        # Análise dos benefícios projetados usando formatador seguro
+        benefit_title, benefit_lines = format_audit_benefit_section(state)
+        print(f"[AUDITORIA] {benefit_title}")
+        for line in benefit_lines:
+            print(f"[AUDITORIA]{line}")
         
         # RMBA = VPA(Benefícios) - VPA(Contribuições)
         rmba = vpa_benefits - vpa_contributions
         
         print(f"[AUDITORIA] Resultado final:")
-        print(f"[AUDITORIA]   - VPA Contribuições: R$ {vpa_contributions:,.2f}")
-        print(f"[AUDITORIA]   - VPA Benefícios: R$ {vpa_benefits:,.2f}")  
-        print(f"[AUDITORIA]   - RMBA: R$ {rmba:,.2f}")
-        print(f"[AUDITORIA]   - Superávit: R$ {state.initial_balance - rmba:,.2f}")
+        print(f"[AUDITORIA]   - VPA Contribuições: {format_currency_safe(vpa_contributions)}")
+        print(f"[AUDITORIA]   - VPA Benefícios: {format_currency_safe(vpa_benefits)}")
+        print(f"[AUDITORIA]   - RMBA: {format_currency_safe(rmba)}")
+        print(f"[AUDITORIA]   - Superávit: {format_currency_safe(state.initial_balance - rmba)}")
         print(f"[AUDITORIA] ================================")
         
         # VERIFICAÇÃO DE SANIDADE ECONÔMICA

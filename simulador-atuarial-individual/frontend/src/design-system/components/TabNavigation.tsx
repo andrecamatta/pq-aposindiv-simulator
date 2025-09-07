@@ -12,8 +12,8 @@ export interface Tab {
 export const tabs: Tab[] = [
   {
     id: 'technical',
-    label: 'Técnico',
-    icon: 'engineering',
+    label: 'Plano',
+    icon: 'account_balance',
   },
   {
     id: 'participant',
