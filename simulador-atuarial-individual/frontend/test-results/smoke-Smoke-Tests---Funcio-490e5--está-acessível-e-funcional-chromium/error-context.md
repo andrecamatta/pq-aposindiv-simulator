@@ -1,0 +1,151 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e7]:
+      - img "ActuarialSim Logo" [ref=e9]
+      - navigation [ref=e10]:
+        - list [ref=e11]:
+          - listitem [ref=e12]:
+            - link "engineering Técnico" [ref=e13] [cursor=pointer]:
+              - /url: "#"
+              - generic: engineering
+              - text: Técnico
+          - listitem [ref=e14]:
+            - link "person Participante" [ref=e15] [cursor=pointer]:
+              - /url: "#"
+              - generic: person
+              - text: Participante
+          - listitem [ref=e16]:
+            - link "list_alt Premissas" [ref=e17] [cursor=pointer]:
+              - /url: "#"
+              - generic: list_alt
+              - text: Premissas
+          - listitem [ref=e18]:
+            - link "analytics Resultados" [ref=e19] [cursor=pointer]:
+              - /url: "#"
+              - generic: analytics
+              - text: Resultados
+          - listitem [ref=e20]:
+            - link "settings Sensibilidade" [active] [ref=e21] [cursor=pointer]:
+              - /url: "#"
+              - generic: settings
+              - text: Sensibilidade
+          - listitem [ref=e22]:
+            - link "description Relatórios" [ref=e23] [cursor=pointer]:
+              - /url: "#"
+              - generic: description
+              - text: Relatórios
+  - main [ref=e24]:
+    - generic [ref=e25]:
+      - generic [ref=e27]:
+        - generic [ref=e29]:
+          - img [ref=e30]
+          - generic:
+            - heading "Análise de Sensibilidade" [level=2]
+            - paragraph: Impacto de variações nas premissas atuais sobre as métricas-chave
+            - paragraph: Cenários centrados nos seus parâmetros configurados com variações de ±1-2%
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - generic [ref=e35]:
+              - generic [ref=e36]:
+                - generic [ref=e37]:
+                  - img [ref=e38]
+                  - heading "Impacto na Renda Mensal" [level=3]
+                - generic [ref=e40]:
+                  - generic [ref=e41] [cursor=pointer]:
+                    - checkbox "Valores absolutos" [checked] [ref=e42]
+                    - generic: Valores absolutos
+                  - generic [ref=e43] [cursor=pointer]:
+                    - checkbox "Painel de cenários" [checked] [ref=e44]
+                    - generic: Painel de cenários
+              - generic:
+                - generic: "Valor Base:"
+                - generic: 0.0%
+              - paragraph: Análise de sensibilidade das principais variáveis atuariais
+            - generic [ref=e45]:
+              - img [ref=e47]
+              - generic:
+                - paragraph:
+                  - generic: "Vermelho:"
+                  - text: reduz a métrica |
+                  - generic: "Verde:"
+                  - text: aumenta a métrica
+                - paragraph: As barras mostram como cada variável impacta a métrica quando alterada para seus valores extremos
+          - generic [ref=e48]:
+            - generic [ref=e49]:
+              - heading "Análise Detalhada" [level=4]
+              - generic [ref=e51]:
+                - generic: "Selecionar Variável:"
+                - combobox [ref=e52]:
+                  - option "Escolha uma variável..." [selected]
+                  - option "Taxa de Desconto (a.a.)"
+                  - option "Tábua de Mortalidade"
+                  - option "Idade de Aposentadoria"
+                  - option "Crescimento Salarial (a.a.)"
+            - generic [ref=e53]:
+              - generic [ref=e54]:
+                - heading "Cenários Testados" [level=4]
+                - generic [ref=e55]:
+                  - img [ref=e56]
+                  - generic: Centrado nos valores atuais
+              - paragraph [ref=e61]:
+                - img [ref=e62]
+                - text: Os cenários testam variações de
+                - strong: ±1-2%
+                - text: em torno dos seus valores atuais, permitindo análise realista da sensibilidade dos resultados.
+              - generic [ref=e64]:
+                - generic [ref=e65]:
+                  - generic:
+                    - generic:
+                      - generic: Taxa de Acumulação
+                      - generic: "Atual: N/A"
+                    - generic:
+                      - generic: "Testado: 3.0% → 7.0%"
+                  - generic:
+                    - generic: "Impacto máx: 63268 R$"
+                - generic [ref=e66]:
+                  - generic:
+                    - generic:
+                      - generic: Idade de Aposentadoria
+                      - generic: "Atual: 65 anos"
+                    - generic:
+                      - generic: "Testado: 61 → 69"
+                  - generic:
+                    - generic: "Impacto máx: 69169 R$"
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic: Crescimento Salarial
+                      - generic: "Atual: 2.0%"
+                    - generic:
+                      - generic: "Testado: 0.0% → 4.0%"
+                  - generic:
+                    - generic: "Impacto máx: 85218 R$"
+            - generic [ref=e67]:
+              - heading "Resumo da Análise" [level=4]
+              - generic [ref=e68]:
+                - generic:
+                  - generic: "Métrica Base:"
+                  - generic: Renda Mensal
+                - generic:
+                  - generic: "Valor Baseline:"
+                  - generic: 0.0%
+                - generic:
+                  - generic: "Variáveis Analisadas:"
+                  - generic: "3"
+                - generic [ref=e69]:
+                  - generic:
+                    - generic: "Maior Impacto:"
+                    - generic: Taxa de Acumulação (3.0% → 7.0%)
+      - generic [ref=e70]:
+        - generic:
+          - heading "Análise de Sensibilidade" [level=3]
+          - generic:
+            - generic:
+              - heading "Sobre a Análise" [level=4]
+              - generic:
+                - paragraph: A análise de sensibilidade mostra como mudanças nas premissas atuariais impactam as métricas principais.
+                - paragraph: Gráficos tornado facilitam a identificação dos fatores de maior impacto no resultado.
+```

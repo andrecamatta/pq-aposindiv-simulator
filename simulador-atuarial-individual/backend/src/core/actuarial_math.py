@@ -247,7 +247,7 @@ def interpolate_mortality_table(
     
     Args:
         age: Idade (pode ser decimal)
-        mortality_probs: Probabilidades de mortalidade por idade
+        mortality_probs: Probabilidades de mortalidade por idade (lista ou numpy array)
         min_age: Idade mínima da tábua
     
     Returns:
@@ -259,17 +259,17 @@ def interpolate_mortality_table(
     age_index = age - min_age
     
     if age_index >= len(mortality_probs) - 1:
-        return mortality_probs[-1] if mortality_probs else 1.0
+        return float(mortality_probs[-1]) if len(mortality_probs) > 0 else 1.0
     
     # Interpolação linear
     lower_index = int(age_index)
     upper_index = lower_index + 1
     
     if upper_index >= len(mortality_probs):
-        return mortality_probs[lower_index]
+        return float(mortality_probs[lower_index])
     
     weight = age_index - lower_index
-    interpolated = mortality_probs[lower_index] * (1 - weight) + mortality_probs[upper_index] * weight
+    interpolated = float(mortality_probs[lower_index]) * (1 - weight) + float(mortality_probs[upper_index]) * weight
     
     return interpolated
 
@@ -384,3 +384,68 @@ def solve_target_benefit(
         return target_vpa / effective_annuity_factor
     else:
         return 0.0
+
+
+def calculate_life_expectancy(
+    age: int,
+    gender: str,
+    mortality_table: List[float],
+    aggravation_factor: float = 1.0,
+    max_age: int = 120
+) -> float:
+    """
+    Calcula a expectativa de vida condicionada à idade atual
+    
+    Fórmula: E(x) = Σ(i=1 to ∞) [i * p(x,i)]
+    onde p(x,i) é a probabilidade de sobreviver i anos a partir da idade x
+    
+    Args:
+        age: Idade atual
+        gender: Gênero ('M' ou 'F')
+        mortality_table: Lista de probabilidades de mortalidade por idade
+        aggravation_factor: Fator de agravamento da tábua (1.0 = sem agravamento)
+        max_age: Idade máxima para cálculo (default 120)
+    
+    Returns:
+        Expectativa de vida em anos (float)
+    """
+    if age >= len(mortality_table) or age >= max_age:
+        return 0.0
+    
+    life_expectancy = 0.0
+    survival_prob = 1.0  # Probabilidade cumulativa de sobrevivência
+    
+    for years_ahead in range(1, max_age - age + 1):
+        current_age = age + years_ahead - 1
+        
+        # Verificar se ainda temos dados da tábua
+        if current_age >= len(mortality_table):
+            break
+        
+        # Obter probabilidade de mortalidade com interpolação se necessário
+        mortality_prob = interpolate_mortality_table(current_age, mortality_table)
+        
+        # Validar probabilidade de mortalidade
+        if mortality_prob is None or not (0 <= mortality_prob <= 1):
+            break
+        
+        # Aplicar agravamento
+        adjusted_mortality = min(mortality_prob * aggravation_factor, 1.0)
+        
+        # Calcular probabilidade de sobreviver mais um ano
+        annual_survival = 1.0 - adjusted_mortality
+        survival_prob *= annual_survival
+        
+        # Validar probabilidade de sobrevivência
+        if not (0 <= survival_prob <= 1) or survival_prob < 1e-10:
+            break
+        
+        # Adicionar à expectativa de vida
+        life_expectancy += survival_prob
+        
+        # Proteger contra valores inválidos
+        if life_expectancy > 200 or not isinstance(life_expectancy, (int, float)):
+            break
+    
+    # Garantir que o resultado é válido
+    return max(0.0, min(life_expectancy, 200.0))

@@ -2,7 +2,7 @@ import React from 'react';
 import type { SimulatorState } from '../../types';
 import { Input, Select, CurrencyInput, RangeSlider } from '../../design-system/components';
 import { formatCurrencyBR, formatSimplePercentageBR } from '../../utils/formatBR';
-import { useFormHandler } from '../../hooks';
+import { useFormHandler, useLifeExpectancy } from '../../hooks';
 
 interface ParticipantTabProps {
   state: SimulatorState;
@@ -16,6 +16,14 @@ const ParticipantTab: React.FC<ParticipantTabProps> = ({
   loading 
 }) => {
   const { handleInputChange } = useFormHandler({ onStateChange });
+
+  // Hook para buscar expectativa de vida
+  const lifeExpectancyData = useLifeExpectancy({
+    age: state.age || 30,
+    gender: state.gender || 'M',
+    mortalityTable: state.mortality_table || 'BR_EMS_2021',
+    aggravation: state.mortality_aggravation || 0
+  });
 
   const genderOptions = [
     { value: 'M', label: 'Masculino' },
@@ -49,6 +57,24 @@ const ParticipantTab: React.FC<ParticipantTabProps> = ({
               suffix=" anos"
               disabled={loading}
             />
+            
+            {/* Exibição compacta da Expectativa de Vida */}
+            <div className="mt-2 text-sm text-gray-600">
+              {lifeExpectancyData.loading ? (
+                <span className="flex items-center space-x-1">
+                  <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Calculando expectativa...</span>
+                </span>
+              ) : lifeExpectancyData.data ? (
+                <span>
+                  Expectativa de vida: <strong>{lifeExpectancyData.data.life_expectancy.toFixed(1)} anos</strong> (até {lifeExpectancyData.data.expected_death_age.toFixed(0)} anos)
+                </span>
+              ) : lifeExpectancyData.error ? (
+                <span className="text-red-500">
+                  Expectativa de vida: erro no cálculo
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
         <div>

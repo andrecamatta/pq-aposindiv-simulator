@@ -1,2 +1,2 @@
-export * from './currency';
+export * from './formatBR';
 export * from './validation';

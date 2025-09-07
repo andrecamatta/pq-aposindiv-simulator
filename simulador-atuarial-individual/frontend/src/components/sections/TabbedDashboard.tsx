@@ -4,6 +4,7 @@ import { TabNavigation, tabs, type Tab } from '../../design-system/components';
 import ParticipantTab from '../tabs/ParticipantTab';
 import AssumptionsTab from '../tabs/AssumptionsTab';
 import ResultsTab from '../tabs/ResultsTab';
+import SensitivityTab from '../tabs/SensitivityTab';
 import TechnicalTab from '../tabs/TechnicalTab';
 import ReportsTab from '../tabs/ReportsTab';
 import SmartSuggestions from '../cards/SmartSuggestions';
@@ -49,6 +50,14 @@ const TabbedDashboard: React.FC<TabbedDashboardProps> = ({
       case 'results':
         return (
           <ResultsTab
+            results={results}
+            state={state}
+            loading={loading}
+          />
+        );
+      case 'sensitivity':
+        return (
+          <SensitivityTab
             results={results}
             state={state}
             loading={loading}
@@ -123,6 +132,45 @@ const TabbedDashboard: React.FC<TabbedDashboardProps> = ({
               </div>
             ) : (
               <p className="text-sm text-gray-600">Configure os parâmetros para ver os resultados.</p>
+            )}
+          </div>
+        );
+      case 'sensitivity':
+        return (
+          <div>
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Análise de Sensibilidade</h3>
+            {results ? (
+              <div className="space-y-4 text-sm text-gray-700">
+                <div>
+                  <h4 className="text-xs font-semibold uppercase tracking-wide mb-2">Sobre a Análise</h4>
+                  <div className="space-y-2">
+                    <p>A análise de sensibilidade mostra como mudanças nas premissas atuariais impactam as métricas principais.</p>
+                    <p>Gráficos tornado facilitam a identificação dos fatores de maior impacto no resultado.</p>
+                  </div>
+                </div>
+                
+                {state.plan_type === 'BD' && (
+                  <div>
+                    <h4 className="text-xs font-semibold uppercase tracking-wide mb-2">Plano BD - RMBA</h4>
+                    <div className="space-y-1">
+                      <p>• <span className="font-medium text-red-600">Vermelho:</span> Aumenta RMBA (piora equilíbrio)</p>
+                      <p>• <span className="font-medium text-green-600">Verde:</span> Reduz RMBA (melhora equilíbrio)</p>
+                    </div>
+                  </div>
+                )}
+
+                {state.plan_type === 'CD' && (
+                  <div>
+                    <h4 className="text-xs font-semibold uppercase tracking-wide mb-2">Plano CD - Renda</h4>
+                    <div className="space-y-1">
+                      <p>• <span className="font-medium text-green-600">Verde:</span> Aumenta renda mensal</p>
+                      <p>• <span className="font-medium text-red-600">Vermelho:</span> Reduz renda mensal</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600">Execute a simulação para ver a análise de sensibilidade.</p>
             )}
           </div>
         );

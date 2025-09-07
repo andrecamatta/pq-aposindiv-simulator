@@ -1,0 +1,88 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e7]:
+      - img "ActuarialSim Logo" [ref=e9]
+      - navigation [ref=e10]:
+        - list [ref=e11]:
+          - listitem [ref=e12]:
+            - link "engineering Técnico" [ref=e13] [cursor=pointer]:
+              - /url: "#"
+              - generic: engineering
+              - text: Técnico
+          - listitem [ref=e14]:
+            - link "person Participante" [ref=e15] [cursor=pointer]:
+              - /url: "#"
+              - generic: person
+              - text: Participante
+          - listitem [ref=e16]:
+            - link "list_alt Premissas" [ref=e17] [cursor=pointer]:
+              - /url: "#"
+              - generic: list_alt
+              - text: Premissas
+          - listitem [ref=e18]:
+            - link "analytics Resultados" [ref=e19] [cursor=pointer]:
+              - /url: "#"
+              - generic: analytics
+              - text: Resultados
+          - listitem [ref=e20]:
+            - link "settings Sensibilidade" [ref=e21] [cursor=pointer]:
+              - /url: "#"
+              - generic: settings
+              - text: Sensibilidade
+          - listitem [ref=e22]:
+            - link "description Relatórios" [ref=e23] [cursor=pointer]:
+              - /url: "#"
+              - generic: description
+              - text: Relatórios
+  - main [ref=e24]:
+    - generic [ref=e25]:
+      - generic [ref=e27]:
+        - generic:
+          - heading "Premissas Financeiras" [level=1]
+          - paragraph: Configure as premissas atuariais e financeiras para a simulação.
+        - generic [ref=e29]:
+          - generic [ref=e30]:
+            - heading "Benefícios & Contribuições" [level=3]
+            - generic [ref=e31]:
+              - generic:
+                - generic "Valor mensal desejado de aposentadoria em reais.": Benefício Mensal Desejado
+              - generic [ref=e32]:
+                - slider "Benefício Mensal Desejado" [active] [ref=e33] [cursor=pointer]: "1000"
+                - textbox [ref=e35]: R$ 5.000,00
+            - generic [ref=e36]:
+              - generic:
+                - generic "Idade planejada para início dos benefícios de aposentadoria.": Idade de Aposentadoria
+              - generic [ref=e37]:
+                - slider "Idade de Aposentadoria" [ref=e38] [cursor=pointer]: "65"
+                - textbox [ref=e40]: 65 anos
+            - generic [ref=e41]:
+              - generic:
+                - generic "Percentual do salário destinado à contribuição mensal.": Taxa de Contribuição
+              - generic [ref=e42]:
+                - slider "Taxa de Contribuição" [ref=e43] [cursor=pointer]: "8"
+                - textbox [ref=e45]: 8,00%
+          - generic [ref=e46]:
+            - heading "Taxas de Rentabilidade" [level=3]
+            - generic [ref=e47]:
+              - generic:
+                - generic "Rentabilidade real anual esperada dos investimentos (já descontada a inflação).": Taxa de Acumulação Real
+              - generic [ref=e48]:
+                - slider "Taxa de Acumulação Real" [ref=e49] [cursor=pointer]: "5"
+                - textbox [ref=e51]: 5,00%
+            - generic [ref=e52]:
+              - generic:
+                - generic "Taxa real usada para calcular o valor presente das obrigações.": Taxa de Desconto Real
+              - generic [ref=e53]:
+                - slider "Taxa de Desconto Real" [ref=e54] [cursor=pointer]: "5"
+                - textbox [ref=e56]: 5,00%
+      - region "Sugestões Inteligentes" [ref=e58]:
+        - generic [ref=e59]:
+          - img [ref=e61]
+          - heading "Sugestões Inteligentes" [level=3]
+        - generic [ref=e63]:
+          - img [ref=e64]
+          - generic: Gerando sugestões...
+```

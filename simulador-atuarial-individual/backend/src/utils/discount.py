@@ -21,8 +21,35 @@ def calculate_discount_factor(
     Returns:
         Fator de desconto calculado
     """
+    import math
+    
+    # Validar parâmetros para evitar valores infinitos
+    if discount_rate_monthly <= -1.0:
+        # Taxa impossível - retornar valor alto mas finito
+        return 1e6
+    
     adjusted_month = month + timing_adjustment
-    return (1 + discount_rate_monthly) ** adjusted_month
+    
+    # Limitar expoente para evitar overflow
+    if abs(adjusted_month) > 500:  # Limite prático para evitar overflow
+        if adjusted_month > 0:
+            return 1e6 if discount_rate_monthly >= 0 else 1e-6
+        else:
+            return 1e-6 if discount_rate_monthly >= 0 else 1e6
+    
+    try:
+        result = (1 + discount_rate_monthly) ** adjusted_month
+        
+        # Verificar se resultado é finito
+        if math.isfinite(result) and result > 0:
+            return result
+        else:
+            # Retornar valor seguro baseado no sinal esperado
+            return 1e6 if adjusted_month >= 0 else 1e-6
+            
+    except (OverflowError, ZeroDivisionError):
+        # Retornar valor seguro em caso de erro
+        return 1e6 if adjusted_month >= 0 else 1e-6
 
 
 def get_timing_adjustment(payment_timing: Literal["antecipado", "postecipado"]) -> float:

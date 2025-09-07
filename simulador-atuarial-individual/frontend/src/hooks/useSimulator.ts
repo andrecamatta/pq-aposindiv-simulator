@@ -41,14 +41,12 @@ export const useSimulator = () => {
         setLoading(false);
       });
       
-      wsClient.current.on('sensitivity_update', (data) => {
+      wsClient.current.on('sensitivity_update', () => {
         // Atualizar dados de sensibilidade se necessário
-        console.log('Sensitivity data received:', data);
       });
       
-      wsClient.current.on('calculation_completed', (data) => {
+      wsClient.current.on('calculation_completed', () => {
         setLoading(false);
-        console.log(`Cálculo concluído em ${data.computation_time_ms}ms`);
       });
       
       wsClient.current.on('error', (data) => {
@@ -56,15 +54,14 @@ export const useSimulator = () => {
         setLoading(false);
       });
       
-      wsClient.current.on('pong', (data) => {
-        console.log('Pong received:', data);
+      wsClient.current.on('pong', () => {
+        // Pong received
       });
       
       // Conectar
       wsClient.current.connect()
         .then(() => setConnected(true))
-        .catch((err) => {
-          console.error('Falha na conexão WebSocket:', err);
+        .catch(() => {
           setConnected(false);
         });
     }

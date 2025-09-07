@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     host: true, // Permite acesso de qualquer IP
     port: 5173,
-    strictPort: true, // Falha se a porta estiver ocupada
+    strictPort: false, // Permite usar próxima porta disponível
     open: false, // Não abrir browser automaticamente
   },
 })

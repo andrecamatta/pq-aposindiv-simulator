@@ -25,18 +25,39 @@ def annual_to_monthly_rate(annual_rate: float) -> float:
         logger.info(f"[TAXA_DEBUG] Taxa anual é zero, retornando taxa mensal zero")
         return 0.0
     
-    if annual_rate < -1:
-        logger.warning(f"[TAXA_DEBUG] Taxa anual negativa muito baixa: {annual_rate}")
-        
-    monthly_rate = (1 + annual_rate) ** (1/12) - 1
-    
-    # Verificar se o resultado é válido
-    if math.isnan(monthly_rate) or math.isinf(monthly_rate):
-        logger.error(f"[TAXA_DEBUG] Taxa mensal inválida calculada: {monthly_rate} (input: {annual_rate})")
+    # Validações para evitar valores infinitos ou inválidos
+    if annual_rate <= -1.0:
+        logger.error(f"[TAXA_DEBUG] Taxa anual impossível: {annual_rate} (<= -100%), usando 0%")
         return 0.0
     
-    logger.debug(f"[TAXA_DEBUG] Taxa anual {annual_rate} -> taxa mensal {monthly_rate}")
-    return monthly_rate
+    if annual_rate < -0.99:
+        logger.warning(f"[TAXA_DEBUG] Taxa anual negativa muito baixa: {annual_rate}, limitando a -99%")
+        annual_rate = -0.99
+    
+    # Limitar taxa anual extrema para evitar overflow
+    if abs(annual_rate) > 100:  # Mais de 10000% ao ano
+        logger.warning(f"[TAXA_DEBUG] Taxa anual extrema: {annual_rate}, limitando")
+        annual_rate = 100 if annual_rate > 0 else -0.99
+    
+    try:
+        base = 1 + annual_rate
+        if base <= 0:
+            logger.error(f"[TAXA_DEBUG] Base inválida: {base}, usando taxa zero")
+            return 0.0
+        
+        monthly_rate = base ** (1/12) - 1
+        
+        # Verificar se o resultado é válido
+        if math.isnan(monthly_rate) or math.isinf(monthly_rate):
+            logger.error(f"[TAXA_DEBUG] Taxa mensal inválida calculada: {monthly_rate} (input: {annual_rate})")
+            return 0.0
+        
+        logger.debug(f"[TAXA_DEBUG] Taxa anual {annual_rate} -> taxa mensal {monthly_rate}")
+        return monthly_rate
+        
+    except (ValueError, OverflowError, ZeroDivisionError) as e:
+        logger.error(f"[TAXA_DEBUG] Erro no cálculo da taxa: {e} (input: {annual_rate})")
+        return 0.0
 
 
 def monthly_to_annual_rate(monthly_rate: float) -> float:
@@ -51,4 +72,35 @@ def monthly_to_annual_rate(monthly_rate: float) -> float:
     Returns:
         Taxa anual equivalente
     """
-    return (1 + monthly_rate) ** 12 - 1
+    # Validações para evitar valores infinitos
+    if monthly_rate <= -1.0:
+        logger.error(f"[TAXA_DEBUG] Taxa mensal impossível: {monthly_rate} (<= -100%), usando 0%")
+        return 0.0
+    
+    if monthly_rate < -0.99:
+        logger.warning(f"[TAXA_DEBUG] Taxa mensal negativa muito baixa: {monthly_rate}, limitando a -99%")
+        monthly_rate = -0.99
+    
+    # Limitar taxa mensal extrema para evitar overflow
+    if abs(monthly_rate) > 10:  # Mais de 1000% ao mês
+        logger.warning(f"[TAXA_DEBUG] Taxa mensal extrema: {monthly_rate}, limitando")
+        monthly_rate = 10 if monthly_rate > 0 else -0.99
+    
+    try:
+        base = 1 + monthly_rate
+        if base <= 0:
+            logger.error(f"[TAXA_DEBUG] Base inválida para taxa mensal: {base}, usando 0%")
+            return 0.0
+        
+        annual_rate = base ** 12 - 1
+        
+        # Verificar se o resultado é válido
+        if math.isnan(annual_rate) or math.isinf(annual_rate):
+            logger.error(f"[TAXA_DEBUG] Taxa anual inválida calculada: {annual_rate} (input: {monthly_rate})")
+            return 0.0
+        
+        return annual_rate
+        
+    except (ValueError, OverflowError, ZeroDivisionError) as e:
+        logger.error(f"[TAXA_DEBUG] Erro no cálculo da taxa anual: {e} (input: {monthly_rate})")
+        return 0.0

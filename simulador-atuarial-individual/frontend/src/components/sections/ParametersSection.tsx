@@ -1,6 +1,6 @@
 import React from 'react';
 import type { SimulatorState, MortalityTable } from '../../types';
-import Slider from '../ui/Slider';
+import { RangeSlider } from '../../design-system/components';
 import { useFormHandler } from '../../hooks';
 
 interface ParametersSectionProps {
@@ -29,7 +29,7 @@ const ParametersSection: React.FC<ParametersSectionProps> = ({
           Objetivo do Plano
         </h3>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-          <Slider
+          <RangeSlider
             label="Benefício Desejado"
             value={state.target_benefit}
             min={1000}
@@ -41,7 +41,7 @@ const ParametersSection: React.FC<ParametersSectionProps> = ({
             suffix=" mil"
             disabled={loading}
           />
-          <Slider
+          <RangeSlider
             label="Taxa de Contribuição"
             value={state.contribution_rate}
             min={0}
@@ -65,7 +65,7 @@ const ParametersSection: React.FC<ParametersSectionProps> = ({
           Premissas Financeiras
         </h3>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-          <Slider
+          <RangeSlider
             label="Taxa de Acumulação Real"
             value={state.accrual_rate}
             min={0}
@@ -77,7 +77,7 @@ const ParametersSection: React.FC<ParametersSectionProps> = ({
             tooltip="Rentabilidade real anual esperada dos investimentos (já descontada a inflação)"
             disabled={loading}
           />
-          <Slider
+          <RangeSlider
             label="Taxa de Desconto Real"
             value={state.discount_rate}
             min={0}
@@ -89,7 +89,7 @@ const ParametersSection: React.FC<ParametersSectionProps> = ({
             formatDisplay={(v) => (v * 100).toFixed(2).replace('.', ',')}
             disabled={loading}
           />
-          <Slider
+          <RangeSlider
             label="Crescimento Salarial Real"
             value={state.salary_growth_real}
             min={0}

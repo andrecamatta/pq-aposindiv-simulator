@@ -16,9 +16,9 @@ MORTALITY_TABLES = {
         "regulatory_approved": True
     },
     "AT_2000": {
-        "name": "AT-2000 - Anuidades Brasileiras", 
-        "description": "Tábua para anuidades aprovada pela SUSEP",
-        "source": "SUSEP",
+        "name": "AT-2000 - Tábua Atuarial Americana", 
+        "description": "Tábua baseada em experiência de seguros individuais americanos (1971-1976), aprovada pela SUSEP para anuidades",
+        "source": "SOA (Society of Actuaries) - Aprovada pela SUSEP",
         "is_official": True,
         "regulatory_approved": True
     }
@@ -66,12 +66,11 @@ def _load_at_2000_female() -> np.ndarray:
     return _load_csv_table("at_2000_female.csv")
 
 
-# Mapeamento das funções de carregamento
+# Mapeamento das funções de carregamento (legacy)
+# AT_2000 removida - agora usa dados oficiais do banco via pymort
 _TABLE_LOADERS = {
     ("BR_EMS_2021", "M"): _load_br_ems_2021_male,
     ("BR_EMS_2021", "F"): _load_br_ems_2021_female,
-    ("AT_2000", "M"): _load_at_2000_male,
-    ("AT_2000", "F"): _load_at_2000_female,
 }
 
 # Cache para evitar recarregamento

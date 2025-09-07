@@ -43,8 +43,7 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
       
       setSuggestions(data.suggestions);
       setContext(data.context);
-    } catch (error) {
-      console.error('Erro ao buscar sugestões:', error);
+    } catch {
       setSuggestions([]);
     } finally {
       setSuggestionsLoading(false);
@@ -102,8 +101,8 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
       }
       
       onStateChange(updates);
-    } catch (error) {
-      console.error('Erro ao aplicar sugestão:', error);
+    } catch {
+      // Erro ao aplicar sugestão
     } finally {
       setApplyingId(null);
     }

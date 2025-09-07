@@ -10,14 +10,12 @@ interface ReportsTabProps {
 }
 
 const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
-  const handleDownload = (format: string) => {
+  const handleDownload = (_format: string) => {
     // TODO: Implementar download dos relatórios
-    console.log(`Download ${format} report`);
   };
 
-  const handlePreview = (format: string) => {
+  const handlePreview = (_format: string) => {
     // TODO: Implementar preview dos relatórios
-    console.log(`Preview ${format} report`);
   };
 
   return (

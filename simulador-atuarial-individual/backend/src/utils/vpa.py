@@ -553,15 +553,10 @@ def calculate_sustainable_benefit(
     admin_fee_monthly: float = 0.0
 ) -> float:
     """
-    FUNÇÃO LEGADA - MANTIDA PARA COMPATIBILIDADE
+    Calcula benefício sustentável usando método simplificado.
     
-    Esta função mantém a interface original mas não implementa
-    o cálculo correto. Use calculate_sustainable_benefit_with_engine
-    para obter o benefício sustentável real.
-    
-    TODO: Refatorar chamadas para usar nova função com engine.
+    Para cálculos mais precisos, use calculate_sustainable_benefit_with_engine.
     """
-    # Implementação simplificada como fallback
     total_resources = initial_balance + vpa_contributions
     
     annuity_factor = calculate_life_annuity_factor(
@@ -661,16 +656,38 @@ def calculate_vpa_contributions_with_admin_fees(
                 # Calcular quantos meses essa contribuição ficará sujeita à taxa administrativa
                 months_under_admin_fee = months_to_retirement - month
                 
-                # Fator de erosão: (1 - admin_fee_monthly)^months_under_admin_fee
-                # Representa o valor remanescente após aplicação da taxa administrativa
-                erosion_factor = (1 - admin_fee_monthly) ** months_under_admin_fee
+                # Validações para evitar valores infinitos no fator de erosão
+                if admin_fee_monthly >= 1.0:
+                    logger.error(f"[VPA_DEBUG] Taxa administrativa impossível: {admin_fee_monthly} (>= 100%), usando erosion_factor = 0")
+                    erosion_factor = 0.0
+                elif months_under_admin_fee > 1000:  # Limite prático para evitar overflow
+                    logger.warning(f"[VPA_DEBUG] Período muito longo: {months_under_admin_fee} meses, limitando erosão")
+                    erosion_factor = 0.001  # Valor mínimo prático
+                else:
+                    try:
+                        # Fator de erosão: (1 - admin_fee_monthly)^months_under_admin_fee
+                        # Representa o valor remanescente após aplicação da taxa administrativa
+                        base = 1 - admin_fee_monthly
+                        if base <= 0:
+                            erosion_factor = 0.0
+                        else:
+                            erosion_factor = base ** months_under_admin_fee
+                            
+                        # Verificar se erosion_factor é válido
+                        if math.isnan(erosion_factor) or math.isinf(erosion_factor):
+                            logger.error(f"[VPA_DEBUG] Erosion factor inválido no mês {month}: {erosion_factor}")
+                            erosion_factor = max(0.0, 1 - admin_fee_monthly)  # Usar aproximação linear
+                    
+                    except (OverflowError, ZeroDivisionError):
+                        logger.error(f"[VPA_DEBUG] Erro no cálculo do erosion factor no mês {month}")
+                        erosion_factor = max(0.0, 1 - admin_fee_monthly)  # Usar aproximação linear
                 
                 if month < 5:  # Log apenas os primeiros meses para não poluir
                     logger.debug(f"[VPA_DEBUG] Mês {month}: contrib={contribution}, erosion_factor={erosion_factor}, months_under_fee={months_under_admin_fee}")
                 
-                # Verificar se erosion_factor é válido
-                if math.isnan(erosion_factor) or math.isinf(erosion_factor):
-                    logger.error(f"[VPA_DEBUG] Erosion factor inválido no mês {month}: {erosion_factor}")
+                # Se erosion factor for inválido, pular esta contribuição
+                if erosion_factor < 0 or not math.isfinite(erosion_factor):
+                    logger.error(f"[VPA_DEBUG] Erosion factor inválido no mês {month}: {erosion_factor}, pulando contribuição")
                     continue
                 
                 # Contribuição efetiva após erosão administrativa

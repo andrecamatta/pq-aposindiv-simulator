@@ -1,0 +1,52 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e7]:
+      - img "ActuarialSim Logo" [ref=e9]
+      - navigation [ref=e10]:
+        - list [ref=e11]:
+          - listitem [ref=e12]:
+            - link "engineering Técnico" [ref=e13] [cursor=pointer]:
+              - /url: "#"
+              - generic [ref=e14] [cursor=pointer]: engineering
+              - text: Técnico
+          - listitem [ref=e15]:
+            - link "person Participante" [ref=e16] [cursor=pointer]:
+              - /url: "#"
+              - generic [ref=e17] [cursor=pointer]: person
+              - text: Participante
+          - listitem [ref=e18]:
+            - link "list_alt Premissas" [ref=e19] [cursor=pointer]:
+              - /url: "#"
+              - generic [ref=e20] [cursor=pointer]: list_alt
+              - text: Premissas
+          - listitem [ref=e21]:
+            - link "analytics Resultados" [active] [ref=e22] [cursor=pointer]:
+              - /url: "#"
+              - generic [ref=e23] [cursor=pointer]: analytics
+              - text: Resultados
+          - listitem [ref=e24]:
+            - link "settings Sensibilidade" [ref=e25] [cursor=pointer]:
+              - /url: "#"
+              - generic [ref=e26] [cursor=pointer]: settings
+              - text: Sensibilidade
+          - listitem [ref=e27]:
+            - link "description Relatórios" [ref=e28] [cursor=pointer]:
+              - /url: "#"
+              - generic [ref=e29] [cursor=pointer]: description
+              - text: Relatórios
+  - main [ref=e30]:
+    - generic [ref=e31]:
+      - generic [ref=e33]:
+        - generic [ref=e34]:
+          - heading "Resultados da Simulação" [level=1] [ref=e35]
+          - paragraph [ref=e36]: Análise completa das projeções atuariais e financeiras.
+        - generic [ref=e39]:
+          - heading "Aguardando Dados" [level=2] [ref=e40]
+          - paragraph [ref=e41]: Configure os parâmetros nas abas anteriores para ver os resultados
+      - generic [ref=e43]:
+        - heading "Análise Rápida" [level=3] [ref=e44]
+        - paragraph [ref=e45]: Configure os parâmetros para ver os resultados.
+```

@@ -15,7 +15,6 @@ export interface RangeSliderProps
   onChange: (value: number) => void;
   formatDisplay?: (value: number) => string;
   suffix?: string;
-  showMinMax?: boolean; // Deprecated - não usado na inspiração
 }
 
 const RangeSlider = React.memo(React.forwardRef<HTMLInputElement, RangeSliderProps>(
@@ -33,7 +32,6 @@ const RangeSlider = React.memo(React.forwardRef<HTMLInputElement, RangeSliderPro
       onChange,
       formatDisplay = (v) => v.toString(),
       suffix = '',
-      showMinMax = true,
       id,
       disabled,
       'aria-describedby': ariaDescribedBy,

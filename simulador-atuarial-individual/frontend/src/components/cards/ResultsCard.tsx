@@ -1,7 +1,7 @@
 import React from 'react';
 import { TrendingUp, DollarSign, AlertTriangle, CheckCircle } from 'lucide-react';
 import type { SimulatorResults } from '../../types';
-import { formatCurrency, formatPercentage } from '../../utils/formatting';
+import { formatCurrencyBR as formatCurrency, formatPercentageBR as formatPercentage } from '../../utils/formatBR';
 import { Card, CardHeader, CardTitle, CardContent } from '../../design-system/components';
 
 interface ResultsCardProps {

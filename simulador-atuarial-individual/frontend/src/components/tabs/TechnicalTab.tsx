@@ -127,7 +127,7 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                   </span>
                 }
                 value={state.mortality_table || 'BR_EMS_2021'}
-                onChange={(e) => handleInputChange('mortality_table', e.target.value)}
+                onChange={(value) => handleInputChange('mortality_table', value)}
                 options={mortalityOptions}
                 disabled={loading}
               />

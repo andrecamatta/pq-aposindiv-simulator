@@ -76,7 +76,6 @@ export class WebSocketClient {
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
-          console.log('WebSocket conectado');
           this.reconnectAttempts = 0;
           resolve();
         };
@@ -86,13 +85,11 @@ export class WebSocketClient {
           this.handleMessage(message);
         };
 
-        this.ws.onclose = (event) => {
-          console.log('WebSocket desconectado:', event.code, event.reason);
+        this.ws.onclose = () => {
           this.attemptReconnect();
         };
 
         this.ws.onerror = (error) => {
-          console.error('Erro WebSocket:', error);
           reject(error);
         };
       } catch (error) {
@@ -106,10 +103,8 @@ export class WebSocketClient {
       this.reconnectAttempts++;
       const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
       
-      console.log(`Tentativa de reconexão ${this.reconnectAttempts}/${this.maxReconnectAttempts} em ${delay}ms`);
-      
       setTimeout(() => {
-        this.connect().catch(console.error);
+        this.connect().catch(() => {});
       }, delay);
     }
   }
@@ -132,8 +127,6 @@ export class WebSocketClient {
   sendMessage(type: string, data?: any) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type, ...data }));
-    } else {
-      console.warn('WebSocket não está conectado');
     }
   }
 

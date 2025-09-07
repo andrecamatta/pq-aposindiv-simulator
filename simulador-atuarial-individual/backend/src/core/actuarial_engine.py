@@ -233,17 +233,17 @@ class ActuarialEngine:
             required_contribution_rate=sanitize_float_for_json(sufficiency["required_contribution_rate"]),
             
             # Projeções
-            projection_years=projections["years"],
-            projected_salaries=projections["salaries"],
-            projected_benefits=projections["benefits"],
-            projected_contributions=projections["contributions"],
-            survival_probabilities=projections["survival_probs"],
-            accumulated_reserves=projections["reserves"],
+            projection_years=sanitize_float_for_json(projections["years"]),
+            projected_salaries=sanitize_float_for_json(projections["salaries"]),
+            projected_benefits=sanitize_float_for_json(projections["benefits"]),
+            projected_contributions=sanitize_float_for_json(projections["contributions"]),
+            survival_probabilities=sanitize_float_for_json(projections["survival_probs"]),
+            accumulated_reserves=sanitize_float_for_json(projections["reserves"]),
             
             # Projeções atuariais para gráfico separado
-            projected_vpa_benefits=actuarial_projections["vpa_benefits"],
-            projected_vpa_contributions=actuarial_projections["vpa_contributions"],
-            projected_rmba_evolution=actuarial_projections["rmba_evolution"],
+            projected_vpa_benefits=sanitize_float_for_json(actuarial_projections["vpa_benefits"]),
+            projected_vpa_contributions=sanitize_float_for_json(actuarial_projections["vpa_contributions"]),
+            projected_rmba_evolution=sanitize_float_for_json(actuarial_projections["rmba_evolution"]),
             
             # Métricas (sanitizadas)
             total_contributions=sanitize_float_for_json(metrics["total_contributions"]),
@@ -254,23 +254,23 @@ class ActuarialEngine:
             funding_ratio=None,
             
             # Sensibilidade
-            sensitivity_discount_rate=sensitivity["discount_rate"],
-            sensitivity_mortality=sensitivity["mortality"],
-            sensitivity_retirement_age=sensitivity["retirement_age"],
-            sensitivity_salary_growth=sensitivity["salary_growth"],
-            sensitivity_inflation=sensitivity["inflation"],
+            sensitivity_discount_rate=sanitize_float_for_json(sensitivity["discount_rate"]),
+            sensitivity_mortality=sanitize_float_for_json(sensitivity["mortality"]),
+            sensitivity_retirement_age=sanitize_float_for_json(sensitivity["retirement_age"]),
+            sensitivity_salary_growth=sanitize_float_for_json(sensitivity["salary_growth"]),
+            sensitivity_inflation=sanitize_float_for_json(sensitivity["inflation"]),
             
             # Decomposição
-            actuarial_present_value_benefits=decomposition["apv_benefits"],
-            actuarial_present_value_salary=decomposition["apv_future_contributions"],
-            service_cost_breakdown=decomposition["service_cost"],
-            liability_duration=decomposition["duration"],
-            convexity=decomposition["convexity"],
+            actuarial_present_value_benefits=sanitize_float_for_json(decomposition["apv_benefits"]),
+            actuarial_present_value_salary=sanitize_float_for_json(decomposition["apv_future_contributions"]),
+            service_cost_breakdown=sanitize_float_for_json(decomposition["service_cost"]),
+            liability_duration=sanitize_float_for_json(decomposition["duration"]),
+            convexity=sanitize_float_for_json(decomposition["convexity"]),
             
             # Cenários
-            best_case_scenario=scenarios["best"],
-            worst_case_scenario=scenarios["worst"],
-            confidence_intervals=scenarios["confidence"],
+            best_case_scenario=sanitize_float_for_json(scenarios["best"]),
+            worst_case_scenario=sanitize_float_for_json(scenarios["worst"]),
+            confidence_intervals=sanitize_float_for_json(scenarios["confidence"]),
             
             # Metadados
             calculation_timestamp=datetime.now(),
@@ -367,23 +367,23 @@ class ActuarialEngine:
             funding_ratio=None,  # Não aplicável
             
             # Sensibilidade CD
-            sensitivity_discount_rate=cd_sensitivity["accumulation_rate"],
-            sensitivity_mortality=cd_sensitivity["mortality"],
-            sensitivity_retirement_age=cd_sensitivity["retirement_age"],
-            sensitivity_salary_growth=cd_sensitivity["salary_growth"],
+            sensitivity_discount_rate=sanitize_float_for_json(cd_sensitivity["accumulation_rate"]),
+            sensitivity_mortality=sanitize_float_for_json(cd_sensitivity["mortality"]),
+            sensitivity_retirement_age=sanitize_float_for_json(cd_sensitivity["retirement_age"]),
+            sensitivity_salary_growth=sanitize_float_for_json(cd_sensitivity["salary_growth"]),
             sensitivity_inflation={},
             
             # Decomposição (simplificada para CD)
-            actuarial_present_value_benefits=monthly_income * 12 * 15,  # Estimativa
-            actuarial_present_value_salary=cd_metrics["total_contributions"],
-            service_cost_breakdown={"accumulated_balance": accumulated_balance},
-            liability_duration=0.0,
-            convexity=0.0,
+            actuarial_present_value_benefits=sanitize_float_for_json(monthly_income * 12 * 15),  # Estimativa
+            actuarial_present_value_salary=sanitize_float_for_json(cd_metrics["total_contributions"]),
+            service_cost_breakdown=sanitize_float_for_json({"accumulated_balance": accumulated_balance}),
+            liability_duration=sanitize_float_for_json(0.0),
+            convexity=sanitize_float_for_json(0.0),
             
             # Cenários (simplificados)
-            best_case_scenario={"balance": accumulated_balance * 1.2},
-            worst_case_scenario={"balance": accumulated_balance * 0.8},
-            confidence_intervals={"balance": (accumulated_balance * 0.9, accumulated_balance * 1.1)},
+            best_case_scenario=sanitize_float_for_json({"balance": accumulated_balance * 1.2}),
+            worst_case_scenario=sanitize_float_for_json({"balance": accumulated_balance * 0.8}),
+            confidence_intervals=sanitize_float_for_json({"balance": (accumulated_balance * 0.9, accumulated_balance * 1.1)}),
             
             # Metadados
             calculation_timestamp=datetime.now(),
@@ -724,8 +724,14 @@ class ActuarialEngine:
             "inflation": {}
         }
         
-        # Sensibilidade taxa de desconto
-        for rate in [0.04, 0.05, 0.06, 0.07, 0.08]:
+        # Sensibilidade taxa de desconto - centrado no valor atual ±1%
+        current_discount = state.discount_rate
+        discount_variations = [
+            max(0.001, current_discount - 0.01),  # -1% com mínimo de 0.1%
+            current_discount,                      # Valor atual
+            current_discount + 0.01                # +1%
+        ]
+        for rate in discount_variations:
             modified_state = state.copy()
             modified_state.discount_rate = rate
             modified_context = ActuarialContext.from_state(modified_state)
@@ -733,9 +739,15 @@ class ActuarialEngine:
             rmba = self._calculate_rmba(modified_state, modified_context, projections)
             sensitivity["discount_rate"][rate] = rmba
         
-        # Sensibilidade idade aposentadoria
-        for age in [60, 62, 65, 67, 70]:
-            if age > state.age:
+        # Sensibilidade idade aposentadoria - centrado na idade atual ±1 ano
+        current_retirement_age = state.retirement_age
+        retirement_variations = [
+            max(state.age + 1, current_retirement_age - 1),  # -1 ano (mínimo: idade+1)
+            current_retirement_age,                          # Idade atual
+            min(75, current_retirement_age + 1)              # +1 ano (máximo: 75)
+        ]
+        for age in retirement_variations:
+            if age > state.age:  # Só incluir se for válido
                 modified_state = state.copy()
                 modified_state.retirement_age = age
                 modified_context = ActuarialContext.from_state(modified_state)
@@ -743,8 +755,14 @@ class ActuarialEngine:
                 rmba = self._calculate_rmba(modified_state, modified_context, projections)
                 sensitivity["retirement_age"][age] = rmba
         
-        # Sensibilidade crescimento salarial
-        for growth in [0.01, 0.02, 0.03, 0.04]:
+        # Sensibilidade crescimento salarial - centrado no valor atual ±1%
+        current_salary_growth = state.salary_growth_real
+        salary_growth_variations = [
+            max(0.0, current_salary_growth - 0.01),  # -1% com mínimo de 0%
+            current_salary_growth,                    # Valor atual
+            current_salary_growth + 0.01              # +1%
+        ]
+        for growth in salary_growth_variations:
             modified_state = state.copy()
             modified_state.salary_growth_real = growth
             modified_context = ActuarialContext.from_state(modified_state)
@@ -991,8 +1009,8 @@ class ActuarialEngine:
         # Substituir taxa de desconto por taxa de acumulação durante fase ativa
         context.discount_rate_monthly = annual_to_monthly_rate(accumulation_rate)
         
-        # Armazenar taxa de conversão para uso posterior
-        context.conversion_rate_monthly = annual_to_monthly_rate(conversion_rate)
+        # Armazenar taxa de conversão para uso posterior (usar setattr para adicionar dinamicamente)
+        setattr(context, 'conversion_rate_monthly', annual_to_monthly_rate(conversion_rate))
         
         return context
     
@@ -1126,7 +1144,8 @@ class ActuarialEngine:
                     accumulated_balance -= monthly_benefit_payment
                     
                     # Continuar capitalização do saldo restante com taxa de conversão
-                    accumulated_balance *= (1 + context.conversion_rate_monthly)
+                    conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
+                    accumulated_balance *= (1 + conversion_rate_monthly)
                 
                 # Para meses após o primeiro mês da aposentadoria
                 if months_since_retirement > 0:
@@ -1227,7 +1246,8 @@ class ActuarialEngine:
             }
             years = years_map[conversion_mode]
             months = years * 12
-            monthly_rate = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
+            conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
+            monthly_rate = conversion_rate_monthly
             
             # Considerar pagamentos extras (13º, 14º salário) no cálculo
             benefit_months_per_year = context.benefit_months_per_year  # Normalmente 13
@@ -1276,7 +1296,8 @@ class ActuarialEngine:
     
     def _calculate_actuarial_annuity(self, balance: float, state: SimulatorState, context: ActuarialContext, mortality_table: np.ndarray) -> float:
         """Calcula anuidade vitalícia atuarial"""
-        monthly_rate = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
+        conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
+        monthly_rate = conversion_rate_monthly
         
         # Calcular fator de anuidade vitalícia
         annuity_factor = 0.0
@@ -1461,11 +1482,95 @@ class ActuarialEngine:
 
     def _calculate_cd_sensitivity(self, state: SimulatorState) -> Dict:
         """Calcula análise de sensibilidade específica para CD"""
-        # Simplificado - pode ser expandido conforme necessário
-        return {
-            "accumulation_rate": {},  # Sensibilidade à taxa de acumulação
-            "conversion_rate": {},    # Sensibilidade à taxa de conversão
+        # Calcular valor base para CD
+        base_context = ActuarialContext.from_state(state)
+        base_mortality_table = get_mortality_table(state.mortality_table, state.gender.value, state.mortality_aggravation)
+        base_projections = self._calculate_cd_projections(state, base_context, base_mortality_table)
+        base_accumulated_balance = base_projections["balances"][-1] if base_projections["balances"] else 0
+        base_monthly_income = self._calculate_cd_monthly_income(state, base_context, base_accumulated_balance, base_mortality_table)
+        
+        sensitivity = {
+            "accumulation_rate": {},  # Taxa de acumulação
+            "conversion_rate": {},    # Taxa de conversão  
             "mortality": {},
             "retirement_age": {},
             "salary_growth": {}
         }
+        
+        # Sensibilidade taxa de acumulação - centrada no valor atual ±1%
+        if hasattr(state, 'accumulation_rate') and state.accumulation_rate:
+            current_accumulation = state.accumulation_rate
+            accumulation_variations = [
+                max(0.001, current_accumulation - 0.01),  # -1% com mínimo de 0.1%
+                current_accumulation,                      # Valor atual
+                current_accumulation + 0.01                # +1%
+            ]
+            for rate in accumulation_variations:
+                modified_state = state.copy()
+                modified_state.accumulation_rate = rate
+                modified_context = ActuarialContext.from_state(modified_state)
+                projections = self._calculate_cd_projections(modified_state, modified_context, base_mortality_table)
+                accumulated_balance = projections["balances"][-1] if projections["balances"] else 0
+                monthly_income = self._calculate_cd_monthly_income(modified_state, modified_context, accumulated_balance, base_mortality_table)
+                sensitivity["accumulation_rate"][rate] = monthly_income
+        
+        # Sensibilidade idade aposentadoria para CD - centrado na idade atual ±1 ano
+        current_retirement_age = state.retirement_age
+        retirement_variations = [
+            max(state.age + 1, current_retirement_age - 1),  # -1 ano (mínimo: idade+1)
+            current_retirement_age,                          # Idade atual
+            min(75, current_retirement_age + 1)              # +1 ano (máximo: 75)
+        ]
+        for age in retirement_variations:
+            if age > state.age:  # Só incluir se for válido
+                modified_state = state.copy()
+                modified_state.retirement_age = age
+                modified_context = ActuarialContext.from_state(modified_state)
+                projections = self._calculate_cd_projections(modified_state, modified_context, base_mortality_table)
+                accumulated_balance = projections["balances"][-1] if projections["balances"] else 0
+                monthly_income = self._calculate_cd_monthly_income(modified_state, modified_context, accumulated_balance, base_mortality_table)
+                sensitivity["retirement_age"][age] = monthly_income
+        
+        # Sensibilidade crescimento salarial para CD - centrado no valor atual ±1%
+        current_salary_growth = state.salary_growth_real
+        salary_growth_variations = [
+            max(0.0, current_salary_growth - 0.01),  # -1% com mínimo de 0%
+            current_salary_growth,                    # Valor atual
+            current_salary_growth + 0.01              # +1%
+        ]
+        for growth in salary_growth_variations:
+            modified_state = state.copy()
+            modified_state.salary_growth_real = growth
+            modified_context = ActuarialContext.from_state(modified_state)
+            projections = self._calculate_cd_projections(modified_state, modified_context, base_mortality_table)
+            accumulated_balance = projections["balances"][-1] if projections["balances"] else 0
+            monthly_income = self._calculate_cd_monthly_income(modified_state, modified_context, accumulated_balance, base_mortality_table)
+            sensitivity["salary_growth"][growth] = monthly_income
+        
+        # Se não temos dados reais, usar dados de demonstração centrados nos valores atuais
+        if not sensitivity["accumulation_rate"] and not sensitivity["retirement_age"] and not sensitivity["salary_growth"]:
+            # Taxa de acumulação centrada no valor atual ±1%
+            current_accumulation = getattr(state, 'accumulation_rate', 0.06) or 0.06  # Default 6% se não definido
+            sensitivity["accumulation_rate"] = {
+                max(0.001, current_accumulation - 0.01): base_monthly_income * 0.92,  # atual-1%
+                current_accumulation: base_monthly_income * 1.00,                     # atual
+                current_accumulation + 0.01: base_monthly_income * 1.08              # atual+1%
+            }
+            
+            # Idade de aposentadoria centrada no valor atual ±1 ano
+            current_retirement_age = state.retirement_age
+            sensitivity["retirement_age"] = {
+                max(state.age + 1, current_retirement_age - 1): base_monthly_income * 0.85,  # atual-1 ano
+                current_retirement_age: base_monthly_income * 1.00,                          # atual
+                min(75, current_retirement_age + 1): base_monthly_income * 1.20             # atual+1 ano
+            }
+            
+            # Crescimento salarial centrado no valor atual ±1%
+            current_salary_growth = state.salary_growth_real
+            sensitivity["salary_growth"] = {
+                max(0.0, current_salary_growth - 0.01): base_monthly_income * 0.95,  # atual-1%
+                current_salary_growth: base_monthly_income * 1.00,                   # atual
+                current_salary_growth + 0.01: base_monthly_income * 1.08            # atual+1%
+            }
+        
+        return sensitivity

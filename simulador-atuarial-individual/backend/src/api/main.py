@@ -9,7 +9,8 @@ from ..models import SimulatorState, SimulatorResults
 from ..models.suggestions import SuggestionsRequest, SuggestionsResponse
 from ..core.actuarial_engine import ActuarialEngine
 from ..core.suggestions_engine import SuggestionsEngine
-from ..core.mortality_tables import get_mortality_table_info
+from ..core.mortality_tables import get_mortality_table_info, get_mortality_table
+from ..core.actuarial_math import calculate_life_expectancy
 from ..utils.error_handling import handle_api_errors
 from ..utils.state_updater import state_action_handler
 from ..utils.response_formatter import response_formatter
@@ -234,6 +235,58 @@ async def apply_suggestion(request: dict):
             "new_results": response_formatter.sanitize_for_json(new_results)
         },
         message="Sugestão aplicada com sucesso"
+    )
+
+
+@app.get("/life-expectancy")
+@handle_api_errors(default_message="Erro ao calcular expectativa de vida")
+async def get_life_expectancy(
+    age: int,
+    gender: str,
+    mortality_table: str,
+    aggravation: float = 0.0
+):
+    """
+    Calcula a expectativa de vida condicionada à idade atual
+    
+    Args:
+        age: Idade atual
+        gender: Gênero ('M' ou 'F')
+        mortality_table: Código da tábua de mortalidade
+        aggravation: Agravamento percentual (-10% a +20%, default 0%)
+    
+    Returns:
+        Dict com expectativa de vida em anos e idade esperada de morte
+    """
+    # Converter agravamento de percentual para fator
+    aggravation_factor = 1.0 + (aggravation / 100.0)
+    
+    # Obter dados da tábua de mortalidade (já aplicando o agravamento)
+    table_data = get_mortality_table(mortality_table, gender, aggravation)
+    
+    # Calcular expectativa de vida (agravamento já aplicado na tábua)
+    life_expectancy = calculate_life_expectancy(
+        age=age,
+        gender=gender,
+        mortality_table=table_data,
+        aggravation_factor=1.0  # Sem agravamento adicional, já aplicado na tábua
+    )
+    
+    # Calcular idade esperada de morte
+    expected_death_age = age + life_expectancy
+    
+    return response_formatter.format_success_response(
+        data={
+            "life_expectancy": round(life_expectancy, 2),
+            "expected_death_age": round(expected_death_age, 1),
+            "current_age": age,
+            "parameters": {
+                "gender": gender,
+                "mortality_table": mortality_table,
+                "aggravation_percent": aggravation
+            }
+        },
+        message="Expectativa de vida calculada com sucesso"
     )
 
 
