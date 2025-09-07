@@ -6,7 +6,8 @@ import type {
   SimulatorState, 
   Suggestion, 
   SuggestionsResponse,
-  ApplySuggestionResponse
+  ApplySuggestionResponse,
+  SimulatorResults
 } from '../../types';
 
 interface SmartSuggestionsProps {
@@ -24,6 +25,7 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [context, setContext] = useState<Record<string, any>>({});
+  const [validationWarnings, setValidationWarnings] = useState<Record<string, string>>({});
 
   // Buscar sugestões quando estado mudar
   useEffect(() => {
@@ -50,9 +52,47 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
     }
   };
 
+  // Função para validar se sugestão realmente funcionou
+  const validateSuggestionApplication = async (
+    newState: SimulatorState,
+    originalDeficit: number,
+    suggestionId: string
+  ): Promise<boolean> => {
+    try {
+      // Simular com novo estado para verificar se déficit foi realmente zerado
+      const results: SimulatorResults = await apiService.simulate(newState);
+      const newDeficit = results.deficit_surplus;
+      
+      // Tolerância para validação (R$ 100)
+      const tolerance = 100;
+      const deficitReduced = Math.abs(newDeficit) < Math.abs(originalDeficit);
+      const deficitZeroed = Math.abs(newDeficit) <= tolerance;
+      
+      if (!deficitZeroed) {
+        const warningMsg = `Sugestão aplicada mas déficit não foi zerado (R$ ${formatCurrencyBR(Math.abs(newDeficit))})`;
+        setValidationWarnings(prev => ({
+          ...prev,
+          [suggestionId]: warningMsg
+        }));
+        return false;
+      }
+      
+      return true;
+    } catch {
+      return false; // Se não conseguir validar, assumir que falhou
+    }
+  };
+
   const applySuggestion = async (suggestion: Suggestion) => {
     try {
       setApplyingId(suggestion.id);
+      
+      // Limpar warnings anteriores
+      setValidationWarnings(prev => {
+        const newWarnings = { ...prev };
+        delete newWarnings[suggestion.id];
+        return newWarnings;
+      });
       
       // Preparar request com suporte para múltiplos valores
       const request: any = {
@@ -100,9 +140,44 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
           break;
       }
       
+      // Criar novo estado com as atualizações
+      const newState = { ...state, ...updates };
+      
+      // Aplicar mudanças imediatamente
       onStateChange(updates);
+      
+      // Validar pós-aplicação para sugestões de benefício sustentável
+      if (suggestion.action === 'apply_sustainable_benefit' || 
+          suggestion.action === 'update_replacement_rate' ||
+          suggestion.action === 'update_target_benefit') {
+        
+        const originalDeficit = context.current_deficit_surplus || 0;
+        
+        // Aguardar um pouco para garantir que o estado foi atualizado
+        setTimeout(async () => {
+          const validationSuccess = await validateSuggestionApplication(
+            newState, 
+            originalDeficit, 
+            suggestion.id
+          );
+          
+          if (validationSuccess) {
+            // Remove warning se existe
+            setValidationWarnings(prev => {
+              const newWarnings = { ...prev };
+              delete newWarnings[suggestion.id];
+              return newWarnings;
+            });
+          }
+        }, 500);
+      }
+      
     } catch {
       // Erro ao aplicar sugestão
+      setValidationWarnings(prev => ({
+        ...prev,
+        [suggestion.id]: 'Erro ao aplicar sugestão'
+      }));
     } finally {
       setApplyingId(null);
     }
@@ -197,6 +272,18 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
                     <p className="text-xs text-gray-600">
                       {suggestion.description} • {suggestion.impact_description}
                     </p>
+                    
+                    {/* Warning de validação */}
+                    {validationWarnings[suggestion.id] && (
+                      <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                        <div className="flex items-center gap-2">
+                          <Icon name="alert-triangle" className="w-3 h-3 text-yellow-600" />
+                          <p className="text-xs text-yellow-800">
+                            {validationWarnings[suggestion.id]}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 

@@ -35,26 +35,41 @@ interface MortalityMainChartProps {
   tableName: string;
   color?: string;
   showLogScale?: boolean;
+  chartType?: 'mortality' | 'survival';
 }
 
 const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
   data,
   tableName,
   color = 'rgb(59, 130, 246)',
-  showLogScale = true
+  showLogScale = true,
+  chartType = 'mortality'
 }) => {
+  // Calcular curva de sobrevivência se necessário
+  const calculateSurvivalData = () => {
+    let survivors = 100000; // radix padrão
+    return data.map(item => {
+      const lx = survivors;
+      survivors = survivors * (1 - Math.min(Math.max(item.qx, 0), 1));
+      return lx;
+    });
+  };
+  
+  const chartValues = chartType === 'survival' ? calculateSurvivalData() : data.map(item => item.qx);
   const chartData = {
     labels: data.map(item => item.age),
     datasets: [
       {
-        label: `${tableName}`,
-        data: data.map(item => item.qx),
+        label: `${tableName} - ${chartType === 'survival' ? 'Sobrevivência' : 'Mortalidade'}`,
+        data: chartValues,
         borderColor: color,
         backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 0.1)'),
         borderWidth: 2.5,
         pointRadius: 0,
-        pointHoverRadius: 0, // Remover hover points
-        pointHoverBorderWidth: 0,
+        pointHoverRadius: 5, // Mostrar pontos no hover
+        pointHoverBorderWidth: 2,
+        pointHoverBackgroundColor: color,
+        pointHoverBorderColor: 'white',
         tension: 0.2,
         fill: true,
         fillBetween: 'origin',
@@ -84,7 +99,7 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
       },
       title: {
         display: true,
-        text: `Curva de Mortalidade - ${tableName}`,
+        text: `${chartType === 'survival' ? 'Curva de Sobrevivência' : 'Curva de Mortalidade'} - ${tableName}`,
         font: {
           size: 18,
           weight: 'bold' as const,
@@ -95,7 +110,36 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
         },
       },
       tooltip: {
-        enabled: false, // Desabilitar tooltips completamente
+        enabled: true,
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        titleColor: 'white',
+        bodyColor: 'white',
+        padding: 12,
+        displayColors: false,
+        cornerRadius: 8,
+        titleFont: {
+          size: 14,
+          weight: 'bold' as const,
+        },
+        bodyFont: {
+          size: 13,
+        },
+        callbacks: {
+          title: (tooltipItems: any) => {
+            return `Idade: ${tooltipItems[0].label} anos`;
+          },
+          label: (tooltipItem: any) => {
+            const value = tooltipItem.raw;
+            if (chartType === 'survival') {
+              return `Sobreviventes: ${value.toLocaleString('pt-BR')}`;
+            } else {
+              return `Taxa de Mortalidade: ${(value * 100).toLocaleString('pt-BR', {
+                minimumFractionDigits: 3,
+                maximumFractionDigits: 3
+              })}%`;
+            }
+          },
+        },
       },
     },
     scales: {
@@ -124,11 +168,13 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
         },
       },
       y: {
-        type: showLogScale ? 'logarithmic' as const : 'linear' as const,
+        type: (showLogScale && chartType === 'mortality') ? 'logarithmic' as const : 'linear' as const,
         display: true,
         title: {
           display: true,
-          text: `Taxa de Mortalidade (qx) - ${showLogScale ? 'Escala Log' : 'Escala Linear'}`,
+          text: chartType === 'survival' 
+            ? 'Número de Sobreviventes' 
+            : `Taxa de Mortalidade (%) - ${showLogScale ? 'Escala Log' : 'Escala Linear'}`,
           font: {
             size: 14,
             weight: '600' as const,
@@ -142,9 +188,27 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
           lineWidth: 1,
         },
         ticks: {
-          display: false, // Desabilitar ticks completamente para eliminar annotations
+          display: true,
+          callback: function(value: any) {
+            if (typeof value === 'number') {
+              if (chartType === 'survival') {
+                return value.toLocaleString('pt-BR');
+              } else {
+                return (value * 100).toLocaleString('pt-BR', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                }) + '%';
+              }
+            }
+            return value;
+          },
+          font: {
+            size: 10,
+          },
+          maxTicksLimit: 6,
         },
-        min: showLogScale ? 0.0001 : undefined, // Evitar log(0)
+        min: (showLogScale && chartType === 'mortality') ? 0.0001 : 0,
+        max: chartType === 'survival' ? 100000 : undefined,
       },
     },
     interaction: {
@@ -159,8 +223,10 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
       point: {
         hoverBackgroundColor: color,
         hoverBorderColor: 'white',
-        radius: 0, // Garantir que pontos não sejam visíveis
-        hoverRadius: 0,
+        hoverBorderWidth: 2,
+        radius: 0, // Pontos normalmente invisíveis
+        hoverRadius: 5, // Pontos visíveis ao passar o mouse
+        pointStyle: 'circle',
       },
     },
   };

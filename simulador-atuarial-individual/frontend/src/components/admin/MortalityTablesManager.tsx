@@ -12,11 +12,14 @@ import {
   CheckCircle,
   Loader2,
   TrendingUp,
-  GitCompare
+  GitCompare,
+  X,
+  MoreHorizontal
 } from 'lucide-react';
 import { useMortalityTables } from './hooks/useMortalityTables';
 import type { MortalityTableAdmin, TableStatistics } from './hooks/useMortalityTables';
 import { MortalityMainChart, StatisticsPanel, MortalityComparisonChart } from './charts';
+import { Tooltip } from '../../design-system/components/Tooltip';
 import UploadCSVForm from './UploadCSVForm';
 
 interface MortalityTablesManagerProps {
@@ -56,6 +59,18 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
   const [statsLoading, setStatsLoading] = useState(false);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
+  const [chartType, setChartType] = useState<'mortality' | 'survival'>('mortality');
+  const [comparisonChartType, setComparisonChartType] = useState<'mortality' | 'survival'>('mortality');
+  
+  // Estado para dropdown de ações
+  const [openDropdown, setOpenDropdown] = useState<number | null>(null);
+
+  // useEffect para limpar dados quando não há tábuas selecionadas
+  useEffect(() => {
+    if (analysisView === 'comparison' && comparisonTables.length === 0) {
+      setComparisonData([]);
+    }
+  }, [comparisonTables, analysisView]);
 
   // Fechar modal com Escape
   useEffect(() => {
@@ -87,6 +102,17 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
   };
 
   // Handlers
+  const toggleDropdown = (tableId: number) => {
+    setOpenDropdown(openDropdown === tableId ? null : tableId);
+  };
+
+  // Fechar dropdown quando clica fora
+  useEffect(() => {
+    const handleClickOutside = () => setOpenDropdown(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
   const handleToggleActive = async (tableId: number) => {
     try {
       setActionLoading(tableId);
@@ -137,6 +163,18 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
     }
   };
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openDropdown !== null) {
+        setOpenDropdown(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [openDropdown]);
+
   // Analysis handlers
   const handleAnalyzeTable = async (table: MortalityTableAdmin) => {
     try {
@@ -162,20 +200,38 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
 
   const handleToggleComparison = (tableId: number) => {
     setComparisonTables(prev => {
+      let newTables;
       if (prev.includes(tableId)) {
-        return prev.filter(id => id !== tableId);
+        newTables = prev.filter(id => id !== tableId);
       } else if (prev.length < 5) { // Limit to 5 tables for readability
-        return [...prev, tableId];
+        newTables = [...prev, tableId];
       } else {
         alert('Máximo de 5 tábuas para comparação');
         return prev;
       }
+      
+      // Se estivermos na view de comparação, recarregar dados automaticamente
+      if (analysisView === 'comparison') {
+        if (newTables.length > 0) {
+          // Passar os novos valores diretamente para evitar race condition
+          loadComparisonData(newTables);
+        } else {
+          // Se não há mais tábuas, limpar os dados
+          setComparisonData([]);
+        }
+      }
+      
+      return newTables;
     });
   };
 
   // Carregar dados de comparação
-  const loadComparisonData = async () => {
-    if (comparisonTables.length === 0) return;
+  const loadComparisonData = async (tablesToLoad?: number[]) => {
+    const tables = tablesToLoad || comparisonTables;
+    if (tables.length === 0) {
+      setComparisonData([]);
+      return;
+    }
     
     try {
       setComparisonLoading(true);
@@ -188,8 +244,8 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
         'rgb(168, 85, 247)',   // purple
       ];
       
-      const dataPromises = comparisonTables.map(async (tableId, index) => {
-        const table = tables.find(t => t.id === tableId);
+      const dataPromises = tables.map(async (tableId, index) => {
+        const table = filteredTables.find(t => t.id === tableId);
         if (!table) return null;
         
         const mortalityData = await getTableMortalityData(tableId);
@@ -229,28 +285,8 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
 
   const renderDashboard = () => (
     <div className="space-y-6">
-      {/* Estatísticas */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-          <div className="text-sm text-blue-800">Total de Tábuas</div>
-        </div>
-        <div className="bg-green-50 p-4 rounded-lg">
-          <div className="text-2xl font-bold text-green-600">{stats.active}</div>
-          <div className="text-sm text-green-800">Ativas</div>
-        </div>
-        <div className="bg-purple-50 p-4 rounded-lg">
-          <div className="text-2xl font-bold text-purple-600">{stats.official}</div>
-          <div className="text-sm text-purple-800">Oficiais</div>
-        </div>
-        <div className="bg-orange-50 p-4 rounded-lg">
-          <div className="text-2xl font-bold text-orange-600">{stats.sources}</div>
-          <div className="text-sm text-orange-800">Fontes</div>
-        </div>
-      </div>
-
       {/* Busca e Filtros */}
-      <div className="flex gap-4">
+      <div className="flex gap-4 items-center">
         <div className="flex-1">
           <input
             type="text"
@@ -263,7 +299,7 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
       </div>
 
       {/* Lista de Tábuas */}
-      <div className="space-y-3 max-h-96 overflow-y-auto">
+      <div className="max-h-96 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
@@ -280,89 +316,178 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
             <p className="text-gray-500">Nenhuma tábua encontrada</p>
           </div>
         ) : (
-          filteredTables.map((table) => (
-            <div
-              key={table.id}
-              className={`p-4 border rounded-lg transition-colors ${
-                table.is_active ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-medium text-gray-900">{table.name}</h3>
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                      {table.code}
-                    </span>
-                    {table.is_official && (
-                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                        Oficial
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-600 mt-1">
-                    Fonte: {table.source} • Gênero: {table.gender} • País: {table.country || 'N/A'}
-                  </div>
-                  {table.description && (
-                    <p className="text-sm text-gray-500 mt-1">{table.description}</p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 ml-4">
-                  {table.is_active ? (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <AlertCircle className="h-5 w-5 text-gray-400" />
-                  )}
+          /* Tabela de Tábuas */
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredTables.map((table) => {
+                  const isInComparison = comparisonTables.includes(table.id);
+                  const comparisonIndex = comparisonTables.indexOf(table.id);
                   
-                  <button
-                    onClick={() => handleAnalyzeTable(table)}
-                    disabled={statsLoading}
-                    className="p-2 hover:bg-white rounded transition-colors"
-                    title="Analisar Tábua"
-                  >
-                    <TrendingUp className="h-4 w-4 text-blue-500" />
-                  </button>
+                  return (
+                    <tr key={table.id} className={`hover:bg-gray-50 transition-colors ${
+                      table.is_active ? 'bg-green-50' : ''
+                    } ${isInComparison ? 'bg-blue-50' : ''}`}>
+                        
+                        {/* Nome com Tooltip */}
+                        <td className="px-3 py-2">
+                          <Tooltip
+                            content={
+                              <div className="space-y-2 text-xs">
+                                <div>
+                                  <span className="font-semibold">Código:</span>
+                                  <span className="ml-2 font-mono">{table.code}</span>
+                                </div>
+                                <div>
+                                  <span className="font-semibold">Fonte:</span>
+                                  <span className="ml-2">{table.source}</span>
+                                </div>
+                                <div>
+                                  <span className="font-semibold">Gênero:</span>
+                                  <span className="ml-2">{table.gender}</span>
+                                </div>
+                                <div>
+                                  <span className="font-semibold">País:</span>
+                                  <span className="ml-2">{table.country || 'N/A'}</span>
+                                </div>
+                                {table.description && (
+                                  <div>
+                                    <span className="font-semibold">Descrição:</span>
+                                    <div className="mt-1">{table.description}</div>
+                                  </div>
+                                )}
+                                {table.is_official && (
+                                  <div className="mt-2">
+                                    <span className="inline-block text-xs bg-blue-600 text-white px-2 py-1 rounded">
+                                      Tabela Oficial
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            }
+                            side="top"
+                            className="max-w-sm"
+                          >
+                            <div className="font-medium text-sm text-gray-900 truncate cursor-help">
+                              {table.name}
+                              {table.is_official && (
+                                <span className="ml-2 inline-block text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-medium">
+                                  Oficial
+                                </span>
+                              )}
+                            </div>
+                          </Tooltip>
+                        </td>
 
-                  <button
-                    onClick={() => handleToggleComparison(table.id)}
-                    className={`p-2 hover:bg-white rounded transition-colors ${
-                      comparisonTables.includes(table.id) ? 'bg-blue-100' : ''
-                    }`}
-                    title={comparisonTables.includes(table.id) ? 'Remover da Comparação' : 'Adicionar à Comparação'}
-                  >
-                    <GitCompare className={`h-4 w-4 ${
-                      comparisonTables.includes(table.id) ? 'text-blue-600' : 'text-gray-400'
-                    }`} />
-                  </button>
-                  
-                  <button
-                    onClick={() => handleToggleActive(table.id)}
-                    disabled={actionLoading === table.id}
-                    className="p-2 hover:bg-white rounded transition-colors"
-                    title={table.is_active ? 'Desativar' : 'Ativar'}
-                  >
-                    {actionLoading === table.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                    ) : (
-                      <Power className={`h-4 w-4 ${table.is_active ? 'text-orange-500' : 'text-gray-400'}`} />
-                    )}
-                  </button>
+                        {/* Status */}
+                        <td className="px-3 py-2 text-center">
+                          {table.is_active ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Ativa
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Inativa
+                            </span>
+                          )}
+                        </td>
 
-                  {!table.is_system && (
-                    <button
-                      onClick={() => handleDelete(table.id, table.name)}
-                      disabled={actionLoading === table.id}
-                      className="p-2 hover:bg-white rounded transition-colors"
-                      title="Excluir"
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))
+                        {/* Ações - Menu Dropdown */}
+                        <td className="px-3 py-2 text-center">
+                          <div className="relative inline-block">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleDropdown(table.id);
+                              }}
+                              className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                              title="Mais ações"
+                            >
+                              <MoreHorizontal className="h-4 w-4 text-gray-400" />
+                            </button>
+                            
+                            {openDropdown === table.id && (
+                              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAnalyzeTable(table);
+                                    setOpenDropdown(null);
+                                  }}
+                                  disabled={statsLoading}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                >
+                                  <TrendingUp className="h-4 w-4 text-blue-500" />
+                                  Analisar
+                                </button>
+                                
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleComparison(table.id);
+                                    setOpenDropdown(null);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                >
+                                  <GitCompare className="h-4 w-4 text-gray-500" />
+                                  {isInComparison ? 'Remover da Comparação' : 'Adicionar à Comparação'}
+                                  {isInComparison && (
+                                    <span className="ml-auto bg-blue-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                                      {comparisonIndex + 1}
+                                    </span>
+                                  )}
+                                </button>
+
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleActive(table.id);
+                                    setOpenDropdown(null);
+                                  }}
+                                  disabled={actionLoading === table.id}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                >
+                                  {actionLoading === table.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                                  ) : (
+                                    <Power className={`h-4 w-4 ${table.is_active ? 'text-orange-500' : 'text-green-500'}`} />
+                                  )}
+                                  {table.is_active ? 'Desativar' : 'Ativar'}
+                                </button>
+
+                                {!table.is_system && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDelete(table.id, table.name);
+                                      setOpenDropdown(null);
+                                    }}
+                                    disabled={actionLoading === table.id}
+                                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                    Excluir
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
@@ -448,7 +573,7 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
               return;
             }
             setAnalysisView('comparison');
-            loadComparisonData();
+            loadComparisonData(comparisonTables);
           }}
           className={`px-4 py-2 rounded-lg transition-colors ${
             analysisView === 'comparison' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
@@ -461,6 +586,18 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
 
       {analysisView === 'individual' && selectedTable && selectedTableStats ? (
         <div className="space-y-6">
+          {/* Combobox para selecionar tipo de gráfico */}
+          <div className="flex justify-start">
+            <select
+              value={chartType}
+              onChange={(e) => setChartType(e.target.value as 'mortality' | 'survival')}
+              className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="mortality">Taxa de Mortalidade (qx)</option>
+              <option value="survival">Curva de Sobrevivência (lx)</option>
+            </select>
+          </div>
+          
           {/* Professional Layout: Main Chart + Statistics Panel */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             {/* Main Mortality Chart - 70% width */}
@@ -470,7 +607,8 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
                   data={selectedTableData} 
                   tableName={selectedTable.name}
                   color="rgb(59, 130, 246)"
-                  showLogScale={true}
+                  showLogScale={chartType === 'mortality'}
+                  chartType={chartType}
                 />
               ) : (
                 <div className="w-full h-[500px] bg-white rounded-lg border border-gray-200 flex items-center justify-center">
@@ -496,9 +634,21 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
       ) : analysisView === 'comparison' && comparisonTables.length > 0 ? (
         <div className="space-y-6">
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
-              Comparação de Tábuas ({comparisonTables.length})
-            </h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">
+                Comparação de Tábuas ({comparisonTables.length})
+              </h3>
+              
+              {/* Combobox para tipo de gráfico na comparação */}
+              <select
+                value={comparisonChartType}
+                onChange={(e) => setComparisonChartType(e.target.value as 'mortality' | 'survival')}
+                className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="mortality">Taxa de Mortalidade (qx)</option>
+                <option value="survival">Curva de Sobrevivência (lx)</option>
+              </select>
+            </div>
             
             {/* Selected Tables List */}
             <div className="mb-4">
@@ -534,15 +684,16 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
             ) : comparisonData.length > 0 ? (
               <MortalityComparisonChart 
                 tables={comparisonData}
-                title={`Comparação de ${comparisonData.length} Tábuas de Mortalidade`}
+                title={`Comparação de ${comparisonData.length} Tábuas de ${comparisonChartType === 'survival' ? 'Sobrevivência' : 'Mortalidade'}`}
+                chartType={comparisonChartType}
               />
             ) : (
               <div className="flex items-center justify-center h-96 bg-white rounded-lg border border-gray-200">
                 <div className="text-center">
                   <BarChart3 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">Carregue os dados</h4>
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">Carregando dados...</h4>
                   <p className="text-gray-600">
-                    Clique no botão "Comparação" acima para carregar os gráficos.
+                    Os gráficos de comparação estão sendo carregados.
                   </p>
                 </div>
               </div>
@@ -571,17 +722,14 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop + Modal Container */}
       <div
-        className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-[9998] transition-opacity duration-200"
+        className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-[9998] transition-opacity duration-200 flex items-center justify-center p-4"
         onClick={onClose}
         aria-hidden="true"
-      />
-
-      {/* Modal */}
-      <div className="fixed inset-0 flex items-center justify-center z-[9999] p-4 pointer-events-none">
+      >
         <div
-          className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col pointer-events-auto transform transition-all duration-200 ease-out"
+          className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-200 ease-out"
           onClick={(e) => e.stopPropagation()}
           style={{
             backgroundColor: 'rgb(255, 255, 255)',
@@ -599,9 +747,7 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
               aria-label="Fechar (ESC)"
               title="Fechar (ESC)"
             >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X className="h-5 w-5" />
             </button>
           </div>
 
