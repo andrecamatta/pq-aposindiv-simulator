@@ -29,13 +29,13 @@ const SensitivityTab: React.FC<SensitivityTabProps> = ({
     'sensitivity_inflation': 'Inflação (a.a.)', // Mantido oculto por enquanto
   };
 
-  // Tooltips explicativos para cada variável
+  // Tooltips explicativos para cada variável (atualizado para déficit/superávit)
   const variableTooltips: Record<string, string> = {
-    'sensitivity_discount_rate': 'Taxa usada para descontar valores futuros a valor presente. Taxas maiores reduzem as reservas necessárias.',
-    'sensitivity_mortality': 'Tábua que determina as probabilidades de morte. Tábuas com maior mortalidade reduzem as reservas.',
-    'sensitivity_retirement_age': 'Idade em que o benefício inicia. Idades maiores reduzem o período de pagamento e as reservas.',
-    'sensitivity_salary_growth': 'Taxa de crescimento real dos salários. Maiores taxas aumentam benefícios futuros e reservas.',
-    'sensitivity_inflation': 'Taxa de inflação para reajuste de benefícios. Maiores taxas aumentam o valor presente dos benefícios.',
+    'sensitivity_discount_rate': 'Taxa usada para descontar valores futuros a valor presente. Taxas maiores reduzem as reservas necessárias, melhorando o superávit.',
+    'sensitivity_mortality': 'Tábua que determina as probabilidades de morte. Tábuas com maior mortalidade reduzem os benefícios esperados, melhorando o superávit.',
+    'sensitivity_retirement_age': 'Idade em que o benefício inicia. Idades maiores reduzem o período de pagamento, melhorando o superávit.',
+    'sensitivity_salary_growth': 'Taxa de crescimento real dos salários. Maiores taxas aumentam contribuições e benefícios futuros - impacto líquido no superávit.',
+    'sensitivity_inflation': 'Taxa de inflação para reajuste de benefícios. Maiores taxas aumentam o valor presente dos benefícios, piorando o superávit.',
   };
 
   // Função para extrair extremos de um dicionário de sensibilidade
@@ -144,26 +144,44 @@ const SensitivityTab: React.FC<SensitivityTabProps> = ({
   // Processar dados de sensibilidade para BD
   const processBDSensitivity = (results: SimulatorResults): TornadoItem[] => {
     console.log('[Sensibilidade] Processando BD - Dados recebidos:', {
-      rmba: results.rmba,
-      discount_rate: results.sensitivity_discount_rate,
-      mortality: results.sensitivity_mortality,
-      retirement_age: results.sensitivity_retirement_age,
-      salary_growth: results.sensitivity_salary_growth,
-      inflation: results.sensitivity_inflation
+      deficit_surplus: results.deficit_surplus,
+      deficit_discount_rate: results.sensitivity_deficit_discount_rate,
+      deficit_mortality: results.sensitivity_deficit_mortality,
+      deficit_retirement_age: results.sensitivity_deficit_retirement_age,
+      deficit_salary_growth: results.sensitivity_deficit_salary_growth,
+      rmba_fallback: results.rmba
     });
 
-    const baseline = results.rmba;
+    // NOVA LÓGICA: usar déficit/superávit como baseline (mais útil para análise)
+    const baseline = results.deficit_surplus;
     const items: TornadoItem[] = [];
 
-    // Verificar se temos dados reais ou usar fallback
-    const hasRealData = Object.keys(results.sensitivity_discount_rate || {}).length > 0 ||
+    // Verificar se temos dados de déficit (preferencial) ou usar RMBA (fallback)
+    const hasDeficitData = Object.keys(results.sensitivity_deficit_discount_rate || {}).length > 0 ||
+                          Object.keys(results.sensitivity_deficit_mortality || {}).length > 0 ||
+                          Object.keys(results.sensitivity_deficit_retirement_age || {}).length > 0 ||
+                          Object.keys(results.sensitivity_deficit_salary_growth || {}).length > 0;
+    
+    const hasRmbaData = Object.keys(results.sensitivity_discount_rate || {}).length > 0 ||
                         Object.keys(results.sensitivity_mortality || {}).length > 0 ||
                         Object.keys(results.sensitivity_retirement_age || {}).length > 0 ||
                         Object.keys(results.sensitivity_salary_growth || {}).length > 0;
 
     let sensitivityData;
-    if (hasRealData) {
-      console.log('[Sensibilidade] BD: usando dados reais do backend');
+    let useDeficitMode = false;
+    
+    if (hasDeficitData) {
+      console.log('[Sensibilidade] BD: usando dados de déficit/superávit (preferencial)');
+      useDeficitMode = true;
+      sensitivityData = {
+        sensitivity_discount_rate: results.sensitivity_deficit_discount_rate,
+        sensitivity_mortality: results.sensitivity_deficit_mortality,
+        sensitivity_retirement_age: results.sensitivity_deficit_retirement_age,
+        sensitivity_salary_growth: results.sensitivity_deficit_salary_growth
+      };
+    } else if (hasRmbaData) {
+      console.log('[Sensibilidade] BD: usando dados RMBA (fallback)');
+      useDeficitMode = false;
       sensitivityData = {
         sensitivity_discount_rate: results.sensitivity_discount_rate,
         sensitivity_mortality: results.sensitivity_mortality,
@@ -172,6 +190,7 @@ const SensitivityTab: React.FC<SensitivityTabProps> = ({
       };
     } else {
       console.log('[Sensibilidade] BD: usando dados de demonstração (backend vazio)');
+      useDeficitMode = false;
       sensitivityData = getMockSensitivityData(baseline, state);
     }
 
@@ -326,15 +345,20 @@ const SensitivityTab: React.FC<SensitivityTabProps> = ({
       return 0;
     }
     
-    // CORREÇÃO: Usar mesmo padrão do resto do código - fallback para 'BD'
-    // Anteriormente a lógica usava detecção automática (hasRMBA ? 'BD' : 'CD') que falhava
-    // quando BD retornava RMBA null devido a valores infinitos no backend
     const planType = state?.plan_type || 'BD';
-    const hasRMBA = results.rmba != null; // CORREÇÃO: aceitar valores negativos (déficit)
     
     if (planType === 'BD') {
-      // Para BD, sempre tentar usar RMBA se disponível, senão usar 0 
-      return hasRMBA ? results.rmba : 0;
+      // NOVA LÓGICA: usar déficit/superávit como baseline (mais útil)
+      // Verificar se temos dados de déficit disponíveis
+      const hasDeficitData = Object.keys(results.sensitivity_deficit_discount_rate || {}).length > 0;
+      
+      if (hasDeficitData || results.deficit_surplus != null) {
+        console.log('[Baseline] BD: usando déficit/superávit:', results.deficit_surplus);
+        return results.deficit_surplus;
+      } else {
+        console.log('[Baseline] BD: fallback para RMBA:', results.rmba);
+        return results.rmba || 0;
+      }
     } else {
       // Para CD, usar o campo correto baseado na métrica selecionada
       if (selectedMetric === 'monthly_income') {
@@ -464,7 +488,7 @@ const SensitivityTab: React.FC<SensitivityTabProps> = ({
                 <div className="flex items-center gap-3">
                   <Icon name="bar-chart" size="md" className="text-blue-600" />
                   <h3 className="text-xl font-semibold text-gray-900">
-                    {(state.plan_type || 'BD') === 'BD' ? 'Análise de Sensibilidade - Impacto no RMBA' : 
+                    {(state.plan_type || 'BD') === 'BD' ? 'Análise de Sensibilidade - Impacto no Superávit/Déficit' : 
                      selectedMetric === 'monthly_income' ? 'Análise de Sensibilidade - Impacto na Renda Mensal' : 'Análise de Sensibilidade - Impacto na Taxa de Reposição'}
                   </h3>
                 </div>

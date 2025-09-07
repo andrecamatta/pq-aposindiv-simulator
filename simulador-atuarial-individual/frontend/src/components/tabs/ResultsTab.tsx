@@ -253,7 +253,7 @@ const ResultsTab: React.FC<ResultsTabProps> = ({ results, state, loading }) => {
                 Análise Atuarial
               </h2>
             </div>
-            <ActuarialChart results={results} currentAge={state.age} />
+            <ActuarialChart results={results} currentAge={state.age} retirementAge={state.retirement_age} />
           </div>
         </div>
       )}

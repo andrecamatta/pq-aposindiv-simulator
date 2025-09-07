@@ -9,10 +9,11 @@ import { getZeroLineGridConfig } from '../../utils/chartSetup';
 interface ActuarialChartProps {
   results: SimulatorResults;
   currentAge: number;
+  retirementAge: number;
 }
 
 
-const ActuarialChart: React.FC<ActuarialChartProps> = ({ results, currentAge }) => {
+const ActuarialChart: React.FC<ActuarialChartProps> = ({ results, currentAge, retirementAge }) => {
   // Verificações de segurança
   if (!results || !results.projection_years || !Array.isArray(results.projection_years)) {
     return (
@@ -26,13 +27,25 @@ const ActuarialChart: React.FC<ActuarialChartProps> = ({ results, currentAge }) 
     );
   }
 
+  // Detectar se a pessoa já está aposentada
+  const isAlreadyRetired = currentAge >= retirementAge;
+  
   // Calcular labels de idade baseadas na idade atual
   const ageLabels = results.projection_years.map(year => currentAge + year);
   
   // Usar dados reais do backend para projeções atuariais
   const vpaBenefits = results.projected_vpa_benefits || [];
   const vpaContributions = results.projected_vpa_contributions || [];
-  const rmbaEvolution = results.projected_rmba_evolution || [];
+  
+  // Escolher RMBA (ativos) ou RMBC (aposentados) baseado no status
+  const reserveEvolution = isAlreadyRetired 
+    ? (results.projected_rmbc_evolution || [])
+    : (results.projected_rmba_evolution || []);
+  
+  // Label dinâmico baseado no status
+  const reserveLabel = isAlreadyRetired 
+    ? 'RMBC (Benefícios Concedidos)'
+    : 'RMBA (Reserva Matemática)';
 
   const data = {
     labels: ageLabels,
@@ -58,8 +71,8 @@ const ActuarialChart: React.FC<ActuarialChartProps> = ({ results, currentAge }) 
         borderDash: [3, 3],
       },
       {
-        label: 'RMBA (Reserva Matemática)',
-        data: rmbaEvolution,
+        label: reserveLabel,
+        data: reserveEvolution,
         borderColor: '#13a4ec', // primary color from inspiration
         backgroundColor: 'rgba(19, 164, 236, 0.1)',
         tension: 0.4,
@@ -145,7 +158,11 @@ const ActuarialChart: React.FC<ActuarialChartProps> = ({ results, currentAge }) 
           Análise Atuarial - Considerando Mortalidade
         </h3>
         <InfoTooltip 
-          content="Valores Presentes Atuariais (VPA) que consideram probabilidades de sobrevivência da tábua de mortalidade. VPA dos Benefícios = valor presente dos benefícios futuros ponderados pela probabilidade de estar vivo para recebê-los. RMBA = diferença entre VPA benefícios e VPA contribuições. Usado para cálculos regulatórios e análise de suficiência."
+          content={
+            isAlreadyRetired 
+              ? "Para aposentados: RMBC (Reserva Matemática de Benefícios Concedidos) = valor presente dos benefícios restantes a serem pagos. VPA Contribuições = 0 (não há contribuições futuras). Usado para análise da sustentabilidade dos benefícios."
+              : "Para ativos: RMBA (Reserva Matemática de Benefícios a Conceder) = diferença entre VPA benefícios futuros e VPA contribuições futuras. VPA considera probabilidades de sobrevivência da tábua de mortalidade. Usado para cálculos regulatórios e análise de suficiência."
+          }
           iconSize={18}
         />
       </div>

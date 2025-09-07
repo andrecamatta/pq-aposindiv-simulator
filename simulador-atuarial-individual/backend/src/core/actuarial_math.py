@@ -36,31 +36,8 @@ import numpy as np
 from typing import List, Tuple
 import math
 
-
-def annual_to_monthly_rate(annual_rate: float) -> float:
-    """
-    Converte taxa anual para taxa mensal equivalente
-    
-    Args:
-        annual_rate: Taxa anual (decimal, ex: 0.05 para 5%)
-    
-    Returns:
-        Taxa mensal equivalente
-    """
-    return (1 + annual_rate) ** (1/12) - 1
-
-
-def monthly_to_annual_rate(monthly_rate: float) -> float:
-    """
-    Converte taxa mensal para taxa anual equivalente
-    
-    Args:
-        monthly_rate: Taxa mensal (decimal)
-    
-    Returns:
-        Taxa anual equivalente
-    """
-    return (1 + monthly_rate) ** 12 - 1
+# Importar conversores de taxa da versão mais robusta
+from ..utils.rates import annual_to_monthly_rate, monthly_to_annual_rate
 
 
 def calculate_discount_factor(rate: float, periods: int, timing: str = "postecipado") -> float:

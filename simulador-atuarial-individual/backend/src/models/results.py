@@ -36,7 +36,8 @@ class SimulatorResults(BaseModel):
     # Projeções atuariais para gráfico separado
     projected_vpa_benefits: List[float]    # VPA dos benefícios por ano
     projected_vpa_contributions: List[float]  # VPA das contribuições por ano
-    projected_rmba_evolution: List[float]     # Evolução da RMBA por ano
+    projected_rmba_evolution: List[float]     # Evolução da RMBA por ano (pessoas ativas)
+    projected_rmbc_evolution: List[float]     # Evolução da RMBC por ano (pessoas aposentadas)
     
     # Métricas-chave
     total_contributions: float  # Contribuições totais projetadas
@@ -46,12 +47,19 @@ class SimulatorResults(BaseModel):
     sustainable_replacement_ratio: float  # Taxa de reposição sustentável (%)
     funding_ratio: Optional[float] = None  # Cobertura patrimonial
     
-    # Análise detalhada de sensibilidade
+    # Análise detalhada de sensibilidade (RMBA - original)
     sensitivity_discount_rate: Dict[float, float]  # Taxa → Impacto RMBA
     sensitivity_mortality: Dict[str, float]        # Tabela → Impacto RMBA  
     sensitivity_retirement_age: Dict[int, float]   # Idade → Impacto RMBA
     sensitivity_salary_growth: Dict[float, float]  # Taxa → Impacto RMBA
     sensitivity_inflation: Dict[float, float]      # Taxa → Impacto RMBA
+    
+    # Análise detalhada de sensibilidade (Déficit/Superávit - novo)
+    sensitivity_deficit_discount_rate: Dict[float, float]  # Taxa → Impacto Déficit
+    sensitivity_deficit_mortality: Dict[str, float]        # Tabela → Impacto Déficit  
+    sensitivity_deficit_retirement_age: Dict[int, float]   # Idade → Impacto Déficit
+    sensitivity_deficit_salary_growth: Dict[float, float]  # Taxa → Impacto Déficit
+    sensitivity_deficit_inflation: Dict[float, float]      # Taxa → Impacto Déficit
     
     # Decomposição atuarial detalhada
     actuarial_present_value_benefits: float        # VPA dos benefícios futuros

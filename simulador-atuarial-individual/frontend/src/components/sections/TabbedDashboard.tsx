@@ -8,6 +8,7 @@ import SensitivityTab from '../tabs/SensitivityTab';
 import TechnicalTab from '../tabs/TechnicalTab';
 import ReportsTab from '../tabs/ReportsTab';
 import SmartSuggestions from '../cards/SmartSuggestions';
+import MortalityTablesManager from '../admin/MortalityTablesManager';
 import { formatCurrencyBR, formatSliderDisplayBR, formatSimplePercentageBR } from '../../utils/formatBR';
 
 interface TabbedDashboardProps {
@@ -26,6 +27,7 @@ const TabbedDashboard: React.FC<TabbedDashboardProps> = ({
   loading
 }) => {
   const [activeTab, setActiveTab] = useState('participant');
+  const [isMortalityTablesOpen, setIsMortalityTablesOpen] = useState(false);
 
   const currentTab = tabs.find(tab => tab.id === activeTab);
   
@@ -191,7 +193,11 @@ const TabbedDashboard: React.FC<TabbedDashboardProps> = ({
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+      <TabNavigation 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab}
+        onOpenMortalityTables={() => setIsMortalityTablesOpen(true)}
+      />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 bg-white p-8 rounded-lg shadow-md">
@@ -202,6 +208,11 @@ const TabbedDashboard: React.FC<TabbedDashboardProps> = ({
           </div>
         </div>
       </main>
+      
+      {/* Modal de Gerenciamento de Tábuas de Mortalidade */}
+      {isMortalityTablesOpen && (
+        <MortalityTablesManager onClose={() => setIsMortalityTablesOpen(false)} />
+      )}
     </div>
   );
 };

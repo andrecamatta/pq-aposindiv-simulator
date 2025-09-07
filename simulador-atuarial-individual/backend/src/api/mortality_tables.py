@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File, Query
 from sqlmodel import Session, select
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import logging
+import pandas as pd
+import numpy as np
+from io import StringIO
 
 from ..database import get_session, engine
 from ..models.database import MortalityTable
@@ -187,18 +190,52 @@ async def get_mortality_table(
     return result
 
 
-@router.get("/{table_id}/data", response_model=Dict[str, float])
+@router.get("/{table_id}/data")
 async def get_mortality_table_data(
     table_id: int,
+    format: str = Query("dict", description="Formato: 'dict' ou 'chart'"),
+    min_age: int = Query(None, description="Idade mínima"),
+    max_age: int = Query(None, description="Idade máxima"),
     session: Session = Depends(get_session)
 ):
-    """Obtém apenas os dados da tábua de mortalidade"""
+    """Obtém dados da tábua de mortalidade (compatível com gráficos)"""
     table = validate_table_access(table_id, session)
     
     if not table.is_active:
         raise HTTPException(status_code=400, detail="Tábua de mortalidade não está ativa")
     
-    return {str(k): v for k, v in table.get_table_data().items()}
+    table_data = table.get_table_data()
+    
+    # Aplicar filtros de idade se fornecidos
+    if min_age is not None or max_age is not None:
+        filtered_data = {}
+        for age, qx in table_data.items():
+            if min_age is not None and age < min_age:
+                continue
+            if max_age is not None and age > max_age:
+                continue
+            filtered_data[age] = qx
+        table_data = filtered_data
+    
+    if format == "chart":
+        # Formato para gráficos Chart.js
+        return {
+            "success": True,
+            "table_info": {
+                "id": table.id,
+                "name": table.name,
+                "code": table.code,
+                "gender": table.gender
+            },
+            "data": [
+                {"age": int(age), "qx": float(qx)} 
+                for age, qx in sorted(table_data.items())
+            ],
+            "count": len(table_data)
+        }
+    else:
+        # Formato original (dict)
+        return {str(k): v for k, v in table_data.items()}
 
 
 @router.post("/reload/{table_id}")
@@ -417,3 +454,415 @@ async def ensure_required_tables(
     
     background_tasks.add_task(run_initialization)
     return {"message": "Verificação de tábuas obrigatórias iniciada em background"}
+
+
+# ============================================================================
+# NOVOS ENDPOINTS PARA INTERFACE DE GERENCIAMENTO
+# ============================================================================
+
+class CSVValidator:
+    """Validador para arquivos CSV de tábuas de mortalidade"""
+    
+    @staticmethod
+    def validate_csv_content(content: str) -> Dict[str, Any]:
+        """Valida o conteúdo do CSV e retorna dados estruturados"""
+        try:
+            # Tentar diferentes separadores
+            separators = [',', ';', '\t']
+            df = None
+            used_separator = ','
+            
+            for sep in separators:
+                try:
+                    df_test = pd.read_csv(StringIO(content), sep=sep)
+                    if len(df_test.columns) > 1:  # Pelo menos 2 colunas
+                        df = df_test
+                        used_separator = sep
+                        break
+                except:
+                    continue
+            
+            if df is None:
+                return {"valid": False, "error": "Não foi possível interpretar o arquivo CSV"}
+            
+            # Identificar colunas necessárias
+            age_col = None
+            qx_col = None
+            gender_col = None
+            
+            # Buscar colunas por nomes comuns
+            for col in df.columns:
+                col_lower = col.lower().strip()
+                if col_lower in ['idade', 'age', 'x']:
+                    age_col = col
+                elif col_lower in ['qx', 'mortality_rate', 'taxa_mortalidade', 'probabilidade']:
+                    qx_col = col
+                elif col_lower in ['genero', 'gender', 'sexo', 'sex']:
+                    gender_col = col
+            
+            if age_col is None:
+                return {"valid": False, "error": "Coluna de idade não encontrada (esperado: idade, age, x)"}
+            
+            if qx_col is None:
+                return {"valid": False, "error": "Coluna de qx não encontrada (esperado: qx, mortality_rate, taxa_mortalidade)"}
+            
+            # Validar dados
+            df_clean = df.dropna(subset=[age_col, qx_col])
+            
+            # Validar idades
+            try:
+                ages = pd.to_numeric(df_clean[age_col], errors='coerce')
+                if ages.isna().any():
+                    return {"valid": False, "error": "Valores de idade inválidos encontrados"}
+                
+                if ages.min() < 0 or ages.max() > 130:
+                    return {"valid": False, "error": "Idades fora do intervalo válido (0-130)"}
+                
+            except Exception as e:
+                return {"valid": False, "error": f"Erro ao validar idades: {str(e)}"}
+            
+            # Validar qx
+            try:
+                qx_values = pd.to_numeric(df_clean[qx_col], errors='coerce')
+                if qx_values.isna().any():
+                    return {"valid": False, "error": "Valores de qx inválidos encontrados"}
+                
+                if qx_values.min() < 0 or qx_values.max() > 1:
+                    return {"valid": False, "error": "Valores de qx fora do intervalo válido (0-1)"}
+                
+            except Exception as e:
+                return {"valid": False, "error": f"Erro ao validar qx: {str(e)}"}
+            
+            # Preparar dados para resposta
+            table_data = {}
+            for _, row in df_clean.iterrows():
+                age = int(row[age_col])
+                qx = float(row[qx_col])
+                table_data[age] = qx
+            
+            return {
+                "valid": True,
+                "separator": used_separator,
+                "columns": {
+                    "age": age_col,
+                    "qx": qx_col,
+                    "gender": gender_col
+                },
+                "records_count": len(table_data),
+                "age_range": {"min": int(ages.min()), "max": int(ages.max())},
+                "qx_range": {"min": float(qx_values.min()), "max": float(qx_values.max())},
+                "preview_data": dict(list(table_data.items())[:10]),  # Primeiros 10 registros
+                "table_data": table_data
+            }
+            
+        except Exception as e:
+            return {"valid": False, "error": f"Erro ao processar CSV: {str(e)}"}
+
+
+@router.post("/admin/upload-csv")
+async def upload_csv_table(
+    file: UploadFile = File(...),
+    name: str = Query(..., description="Nome da tábua"),
+    description: str = Query("", description="Descrição da tábua"),
+    country: str = Query("BR", description="País de origem"),
+    gender: str = Query(..., description="Gênero (M/F)"),
+    session: Session = Depends(get_session)
+):
+    """Upload e validação de arquivo CSV para nova tábua de mortalidade"""
+    
+    # Verificar tipo do arquivo
+    if not file.content_type or 'csv' not in file.content_type.lower():
+        if not file.filename or not file.filename.lower().endswith('.csv'):
+            raise HTTPException(status_code=400, detail="Arquivo deve ser um CSV")
+    
+    try:
+        # Ler conteúdo do arquivo
+        content = await file.read()
+        text_content = content.decode('utf-8')
+        
+        # Validar conteúdo
+        validation_result = CSVValidator.validate_csv_content(text_content)
+        
+        if not validation_result["valid"]:
+            raise HTTPException(status_code=400, detail=validation_result["error"])
+        
+        # Criar código único para a tábua
+        import hashlib
+        import time
+        code = f"CSV_{hashlib.md5(f'{name}_{time.time()}'.encode()).hexdigest()[:8]}_{gender}"
+        
+        # Criar entrada no banco
+        repo = MortalityTableRepository(session)
+        
+        # Verificar se já existe
+        existing = repo.get_by_code(code)
+        if existing:
+            raise HTTPException(status_code=400, detail="Tábua com este código já existe")
+        
+        # Criar nova tábua
+        new_table = MortalityTable(
+            name=name,
+            code=code,
+            description=description,
+            country=country,
+            gender=gender,
+            source="csv",
+            source_id=file.filename or "uploaded_file.csv",
+            is_official=False,  # Tábuas carregadas via CSV não são oficiais por padrão
+            regulatory_approved=False,
+            is_active=True,
+            last_loaded=datetime.utcnow()
+        )
+        
+        # Definir dados da tábua
+        new_table.set_table_data(validation_result["table_data"])
+        
+        # Definir metadados
+        metadata = {
+            "upload_info": {
+                "filename": file.filename,
+                "size": len(content),
+                "separator": validation_result["separator"],
+                "columns_mapped": validation_result["columns"],
+                "records_count": validation_result["records_count"],
+                "age_range": validation_result["age_range"],
+                "qx_range": validation_result["qx_range"]
+            },
+            "validation_timestamp": datetime.utcnow().isoformat(),
+            "upload_timestamp": datetime.utcnow().isoformat()
+        }
+        new_table.set_metadata(metadata)
+        
+        # Salvar no banco
+        created_table = repo.create(new_table)
+        
+        logger.info(f"Tábua CSV '{name}' carregada com sucesso: {code}")
+        
+        return {
+            "success": True,
+            "message": f"Tábua '{name}' carregada com sucesso",
+            "table": _table_to_dict(created_table),
+            "validation_info": {
+                "records_count": validation_result["records_count"],
+                "age_range": validation_result["age_range"],
+                "qx_range": validation_result["qx_range"]
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="Arquivo deve estar codificado em UTF-8")
+    except Exception as e:
+        logger.error(f"Erro ao processar upload CSV: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
+
+
+@router.get("/admin/search-pymort")
+async def search_pymort_tables(
+    query: str = Query(..., description="Termo de busca"),
+    limit: int = Query(20, description="Limite de resultados")
+):
+    """Busca tábuas no pymort por termo"""
+    loader = MortalityTableLoader()
+    
+    if "pymort" not in loader.get_available_sources():
+        raise HTTPException(status_code=400, detail="pymort não está disponível")
+    
+    try:
+        # Por enquanto, retornar uma lista simulada já que pymort não tem busca direta por termo
+        # Em uma implementação completa, seria necessário ter uma base de IDs conhecidos
+        suggested_tables = [
+            {"id": 825, "name": "Annuity Table 1983 (AT-83)", "description": "AT-83 mortality table"},
+            {"id": 3262, "name": "Individual Annuity Mortality 2012 (IAM 2012)", "description": "2012 Individual Annuity Mortality Table"},
+            {"id": 809, "name": "Group Annuity Mortality 1971 (GAM-71)", "description": "1971 Group Annuity Mortality Table"},
+            {"id": 900, "name": "Unisex Pension 1984 (UP-84)", "description": "1984 Unisex Pension Table"}
+        ]
+        
+        # Filtrar por query
+        if query:
+            filtered_tables = [
+                t for t in suggested_tables 
+                if query.lower() in t["name"].lower() or query.lower() in t["description"].lower()
+            ]
+        else:
+            filtered_tables = suggested_tables
+        
+        return {
+            "success": True,
+            "query": query,
+            "results": filtered_tables[:limit],
+            "total_found": len(filtered_tables)
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro ao buscar no pymort: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro na busca: {str(e)}")
+
+
+@router.get("/{table_id}/statistics")
+async def get_table_statistics(
+    table_id: int,
+    session: Session = Depends(get_session)
+):
+    """Obtém estatísticas detalhadas de uma tábua"""
+    table = validate_table_access(table_id, session)
+    
+    try:
+        table_data = table.get_table_data()
+        
+        if not table_data:
+            raise HTTPException(status_code=400, detail="Tábua não possui dados")
+        
+        ages = list(table_data.keys())
+        qx_values = list(table_data.values())
+        
+        # Converter para numpy para cálculos
+        ages_array = np.array(ages)
+        qx_array = np.array(qx_values)
+        
+        # Calcular estatísticas
+        stats = {
+            "basic_stats": {
+                "records_count": len(table_data),
+                "age_range": {"min": int(ages_array.min()), "max": int(ages_array.max())},
+                "qx_stats": {
+                    "min": float(qx_array.min()),
+                    "max": float(qx_array.max()),
+                    "mean": float(qx_array.mean()),
+                    "median": float(np.median(qx_array)),
+                    "std": float(qx_array.std())
+                }
+            },
+            "age_groups": {
+                "young": {"ages": "0-20", "avg_qx": float(qx_array[ages_array <= 20].mean()) if any(ages_array <= 20) else 0},
+                "adult": {"ages": "21-65", "avg_qx": float(qx_array[(ages_array > 20) & (ages_array <= 65)].mean()) if any((ages_array > 20) & (ages_array <= 65)) else 0},
+                "elderly": {"ages": "65+", "avg_qx": float(qx_array[ages_array > 65].mean()) if any(ages_array > 65) else 0}
+            },
+            "percentiles": {
+                "p25": float(np.percentile(qx_array, 25)),
+                "p50": float(np.percentile(qx_array, 50)),
+                "p75": float(np.percentile(qx_array, 75)),
+                "p90": float(np.percentile(qx_array, 90)),
+                "p95": float(np.percentile(qx_array, 95))
+            }
+        }
+        
+        return {
+            "success": True,
+            "table_info": {
+                "id": table.id,
+                "name": table.name,
+                "code": table.code,
+                "gender": table.gender
+            },
+            "statistics": stats
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro ao calcular estatísticas da tábua {table_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao calcular estatísticas: {str(e)}")
+
+
+@router.get("/admin/compare")
+async def compare_tables(
+    table_ids: str = Query(..., description="IDs das tábuas separados por vírgula"),
+    session: Session = Depends(get_session)
+):
+    """Compara múltiplas tábuas de mortalidade"""
+    try:
+        # Parsear IDs
+        ids = [int(id.strip()) for id in table_ids.split(',') if id.strip()]
+        
+        if len(ids) < 2:
+            raise HTTPException(status_code=400, detail="Pelo menos 2 tábuas são necessárias para comparação")
+        
+        if len(ids) > 10:
+            raise HTTPException(status_code=400, detail="Máximo de 10 tábuas para comparação")
+        
+        # Buscar tábuas
+        tables = []
+        for table_id in ids:
+            table = validate_table_access(table_id, session)
+            tables.append(table)
+        
+        # Preparar dados para comparação
+        comparison_data = {
+            "tables": [],
+            "ages_union": set(),
+            "comparison_matrix": {}
+        }
+        
+        # Coletar dados de todas as tábuas
+        for table in tables:
+            table_data = table.get_table_data()
+            
+            table_info = {
+                "id": table.id,
+                "name": table.name,
+                "code": table.code,
+                "gender": table.gender,
+                "source": table.source,
+                "data": table_data,
+                "age_range": {"min": min(table_data.keys()), "max": max(table_data.keys())},
+                "records_count": len(table_data)
+            }
+            
+            comparison_data["tables"].append(table_info)
+            comparison_data["ages_union"].update(table_data.keys())
+        
+        # Criar matriz de comparação para idades comuns
+        common_ages = sorted(comparison_data["ages_union"])
+        comparison_matrix = {}
+        
+        for age in common_ages:
+            age_data = {"age": age, "tables": {}}
+            for table_info in comparison_data["tables"]:
+                if age in table_info["data"]:
+                    age_data["tables"][table_info["code"]] = table_info["data"][age]
+                else:
+                    age_data["tables"][table_info["code"]] = None
+            
+            comparison_matrix[age] = age_data
+        
+        comparison_data["comparison_matrix"] = comparison_matrix
+        comparison_data["ages_union"] = common_ages
+        
+        return {
+            "success": True,
+            "comparison": comparison_data
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="IDs inválidos fornecidos")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao comparar tábuas: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro na comparação: {str(e)}")
+
+
+@router.post("/admin/{table_id}/toggle-active")
+async def toggle_table_active(
+    table_id: int,
+    session: Session = Depends(get_session)
+):
+    """Ativa ou desativa uma tábua de mortalidade"""
+    table = validate_table_access(table_id, session, allow_system=False)
+    
+    # Alternar status
+    table.is_active = not table.is_active
+    table.updated_at = datetime.utcnow()
+    
+    session.add(table)
+    session.commit()
+    session.refresh(table)
+    
+    status = "ativada" if table.is_active else "desativada"
+    logger.info(f"Tábua {table.name} foi {status}")
+    
+    return {
+        "success": True,
+        "message": f"Tábua '{table.name}' foi {status}",
+        "table": _table_to_dict(table)
+    }

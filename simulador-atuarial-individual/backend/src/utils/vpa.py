@@ -420,7 +420,10 @@ def calculate_sustainable_benefit_with_engine(
         # Criar cópia do estado com novo benefício
         test_state = copy.deepcopy(state)
         test_state.target_benefit = float(benefit_value)
-        test_state.benefit_target_mode = "VALUE"
+        
+        # CORREÇÃO CRÍTICA: usar enum em vez de string
+        from ..models.participant import BenefitTargetMode
+        test_state.benefit_target_mode = BenefitTargetMode.VALUE
         
         # Calcular usando engine atuarial existente
         try:

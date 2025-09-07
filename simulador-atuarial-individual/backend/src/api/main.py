@@ -26,9 +26,42 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     import logging
+    from ..database import engine
+    from ..models.database import MortalityTable
+    from sqlmodel import Session, select
+    
     logger = logging.getLogger(__name__)
     
     logger.info("Iniciando aplicação...")
+    
+    # Verificar tábuas de mortalidade disponíveis no banco
+    try:
+        with Session(engine) as session:
+            statement = select(MortalityTable).where(MortalityTable.is_active == True)
+            tables = session.exec(statement).all()
+            
+            # Agrupar por família
+            table_families = set()
+            for table in tables:
+                family_code = table.code
+                if family_code.endswith('_M') or family_code.endswith('_F'):
+                    family_code = family_code[:-2]
+                table_families.add(family_code)
+            
+            logger.info(f"✅ {len(tables)} tábuas de mortalidade disponíveis no banco")
+            logger.info(f"   Famílias: {', '.join(sorted(table_families))}")
+            
+            # Verificar tábuas essenciais
+            essential_tables = ['BR_EMS_2021', 'AT_2000']
+            missing = [t for t in essential_tables if t not in table_families]
+            if missing:
+                logger.warning(f"⚠️  Tábuas essenciais faltando: {', '.join(missing)}")
+            else:
+                logger.info("✅ Todas as tábuas essenciais estão disponíveis")
+    
+    except Exception as e:
+        logger.error(f"Erro ao verificar tábuas de mortalidade: {e}")
+    
     logger.info("Aplicação iniciada com sucesso")
 
 # CORS middleware

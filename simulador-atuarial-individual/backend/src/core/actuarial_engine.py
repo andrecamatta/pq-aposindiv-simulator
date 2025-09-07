@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import time
 
 from ..models import SimulatorState, SimulatorResults, BenefitTargetMode, PlanType, CDConversionMode
-from .mortality_tables import get_mortality_table, MORTALITY_TABLES
+from .mortality_tables import get_mortality_table, get_mortality_table_info
 from .financial_math import present_value, annuity_value
 from ..utils import (
     annual_to_monthly_rate,
@@ -29,6 +29,10 @@ class ActuarialContext:
     # Períodos em meses
     months_to_retirement: int
     total_months_projection: int
+    
+    # Status de aposentadoria
+    is_already_retired: bool  # True se age >= retirement_age
+    months_since_retirement: int  # Meses já aposentado (0 se ainda ativo)
     
     # Valores mensais efetivos (considerando 13º)
     monthly_salary: float
@@ -55,20 +59,38 @@ class ActuarialContext:
         discount_monthly = annual_to_monthly_rate(state.discount_rate)
         salary_growth_monthly = annual_to_monthly_rate(state.salary_growth_real)
         
-        # Períodos em meses - garantir horizonte adequado para aposentadoria
-        months_to_retirement = (state.retirement_age - state.age) * 12
+        # Detectar se já está aposentado
+        is_already_retired = state.age >= state.retirement_age
         
-        # Estender período se necessário para cobrir aposentadoria adequadamente
-        min_retirement_years = 25  # Mínimo 25 anos de aposentadoria
-        projected_retirement_years = state.projection_years - (state.retirement_age - state.age)
-        
-        if projected_retirement_years < min_retirement_years:
-            # Estender automaticamente para garantir período adequado
-            total_years = (state.retirement_age - state.age) + min_retirement_years
-            total_months = total_years * 12
-            print(f"[INFO] Período estendido para {total_years} anos para análise adequada da aposentadoria")
+        if is_already_retired:
+            # Pessoa já aposentada
+            months_to_retirement = 0
+            months_since_retirement = (state.age - state.retirement_age) * 12
+            print(f"[INFO] Pessoa já aposentada há {months_since_retirement/12:.1f} anos")
         else:
-            total_months = state.projection_years * 12
+            # Pessoa ainda ativa
+            months_to_retirement = (state.retirement_age - state.age) * 12
+            months_since_retirement = 0
+        
+        # Calcular período total de projeção
+        if is_already_retired:
+            # Para aposentados: projetar apenas os anos restantes de expectativa de vida
+            # Usar no máximo 30 anos de projeção ou até idade 95
+            max_years_projection = min(30, 95 - state.age)
+            total_months = max(12, max_years_projection * 12)  # Mínimo 1 ano
+            print(f"[INFO] Aposentado: projetando {total_months/12:.0f} anos de benefícios")
+        else:
+            # Para ativos: garantir período adequado para aposentadoria
+            min_retirement_years = 25  # Mínimo 25 anos de aposentadoria
+            projected_retirement_years = state.projection_years - (state.retirement_age - state.age)
+            
+            if projected_retirement_years < min_retirement_years:
+                # Estender automaticamente para garantir período adequado
+                total_years = (state.retirement_age - state.age) + min_retirement_years
+                total_months = total_years * 12
+                print(f"[INFO] Período estendido para {total_years} anos para análise adequada da aposentadoria")
+            else:
+                total_months = state.projection_years * 12
         
         # Configurações técnicas
         payment_timing = state.payment_timing.value
@@ -106,6 +128,8 @@ class ActuarialContext:
             salary_growth_real_monthly=salary_growth_monthly,
             months_to_retirement=months_to_retirement,
             total_months_projection=total_months,
+            is_already_retired=is_already_retired,
+            months_since_retirement=months_since_retirement,
             monthly_salary=monthly_salary,
             monthly_contribution=monthly_contribution,
             monthly_benefit=monthly_benefit,
@@ -124,15 +148,10 @@ def sanitize_float_for_json(value: Any) -> Any:
     Sanitiza valores float para serem compatíveis com JSON
     Converte inf, -inf e nan para valores seguros
     """
+    from .validators import CalculationValidator
+    
     if isinstance(value, (int, float)):
-        if math.isinf(value):
-            if value > 0:
-                return 1e6  # 1 milhão para +inf
-            else:
-                return -1e6  # -1 milhão para -inf
-        elif math.isnan(value):
-            return 0.0  # Zero para NaN
-        return value
+        return CalculationValidator.validate_financial_result(value)
     elif isinstance(value, list):
         return [sanitize_float_for_json(item) for item in value]
     elif isinstance(value, dict):
@@ -141,10 +160,43 @@ def sanitize_float_for_json(value: Any) -> Any:
 
 
 class ActuarialEngine:
-    """Motor de cálculos atuariais para simulação individual"""
+    """
+    Motor de cálculos atuariais refatorado para orquestração
+    Delega cálculos específicos para classes especializadas
+    """
     
     def __init__(self):
+        # Cache mantido para compatibilidade
         self.cache = {}
+        
+        # Inicializar calculadoras especializadas com lazy loading para evitar imports circulares
+        self._bd_calculator = None
+        self._cd_calculator = None
+        self._projection_engine = None
+    
+    @property
+    def bd_calculator(self):
+        """Lazy loading do BDCalculator"""
+        if self._bd_calculator is None:
+            from .bd_calculator import BDCalculator
+            self._bd_calculator = BDCalculator()
+        return self._bd_calculator
+    
+    @property
+    def cd_calculator(self):
+        """Lazy loading do CDCalculator"""
+        if self._cd_calculator is None:
+            from .cd_calculator import CDCalculator
+            self._cd_calculator = CDCalculator()
+        return self._cd_calculator
+    
+    @property
+    def projection_engine(self):
+        """Lazy loading do ProjectionEngine"""
+        if self._projection_engine is None:
+            from .projection_engine import ProjectionEngine
+            self._projection_engine = ProjectionEngine()
+        return self._projection_engine
         
     def _calculate_cd_deficit_surplus(self, state: SimulatorState, monthly_income: float) -> float:
         """
@@ -198,14 +250,20 @@ class ActuarialEngine:
         
         # Calcular reservas matemáticas
         rmba = self._calculate_rmba(state, context, projections)
-        rmbc = self._calculate_rmbc(state, projections)
+        rmbc = self._calculate_rmbc(state, context, projections)
         normal_cost = self._calculate_normal_cost(state, context, projections)
         
         # Calcular métricas-chave
         metrics = self._calculate_key_metrics(state, context, projections)
         
-        # Análise de sensibilidade
-        sensitivity = self._calculate_sensitivity(state)
+        # Análise de sensibilidade usando calculadoras consolidadas
+        from .sensitivity import create_rmba_sensitivity_calculator, create_deficit_sensitivity_calculator
+        
+        rmba_calculator = create_rmba_sensitivity_calculator()
+        deficit_calculator = create_deficit_sensitivity_calculator()
+        
+        sensitivity = rmba_calculator.calculate_sensitivity(state)
+        sensitivity_deficit = deficit_calculator.calculate_sensitivity(state)
         
         # Decomposição atuarial
         decomposition = self._calculate_actuarial_decomposition(state, context, projections)
@@ -244,6 +302,7 @@ class ActuarialEngine:
             projected_vpa_benefits=sanitize_float_for_json(actuarial_projections["vpa_benefits"]),
             projected_vpa_contributions=sanitize_float_for_json(actuarial_projections["vpa_contributions"]),
             projected_rmba_evolution=sanitize_float_for_json(actuarial_projections["rmba_evolution"]),
+            projected_rmbc_evolution=sanitize_float_for_json(actuarial_projections["rmbc_evolution"]),
             
             # Métricas (sanitizadas)
             total_contributions=sanitize_float_for_json(metrics["total_contributions"]),
@@ -253,12 +312,19 @@ class ActuarialEngine:
             sustainable_replacement_ratio=sanitize_float_for_json(metrics["sustainable_replacement_ratio"]),
             funding_ratio=None,
             
-            # Sensibilidade
+            # Sensibilidade (RMBA - original)
             sensitivity_discount_rate=sanitize_float_for_json(sensitivity["discount_rate"]),
             sensitivity_mortality=sanitize_float_for_json(sensitivity["mortality"]),
             sensitivity_retirement_age=sanitize_float_for_json(sensitivity["retirement_age"]),
             sensitivity_salary_growth=sanitize_float_for_json(sensitivity["salary_growth"]),
             sensitivity_inflation=sanitize_float_for_json(sensitivity["inflation"]),
+            
+            # Sensibilidade (Déficit/Superávit - novo)
+            sensitivity_deficit_discount_rate=sanitize_float_for_json(sensitivity_deficit["discount_rate"]),
+            sensitivity_deficit_mortality=sanitize_float_for_json(sensitivity_deficit["mortality"]),
+            sensitivity_deficit_retirement_age=sanitize_float_for_json(sensitivity_deficit["retirement_age"]),
+            sensitivity_deficit_salary_growth=sanitize_float_for_json(sensitivity_deficit["salary_growth"]),
+            sensitivity_deficit_inflation=sanitize_float_for_json(sensitivity_deficit["inflation"]),
             
             # Decomposição
             actuarial_present_value_benefits=sanitize_float_for_json(decomposition["apv_benefits"]),
@@ -308,8 +374,11 @@ class ActuarialEngine:
         # Análise de modalidades de conversão
         conversion_analysis = self._analyze_cd_conversion_modes(state, context, accumulated_balance, mortality_table)
         
-        # Sensibilidade específica para CD
-        cd_sensitivity = self._calculate_cd_sensitivity(state)
+        # Sensibilidade específica para CD usando calculadora consolidada
+        from .sensitivity import create_cd_sensitivity_calculator
+        
+        cd_calculator = create_cd_sensitivity_calculator()
+        cd_sensitivity = cd_calculator.calculate_sensitivity(state)
         
         computation_time = (time.time() - start_time) * 1000
         
@@ -393,15 +462,15 @@ class ActuarialEngine:
         )
     
     def _validate_state(self, state: SimulatorState) -> None:
-        """Valida parâmetros de entrada"""
-        if state.age < 18 or state.age > 70:
-            raise ValueError("Idade deve estar entre 18 e 70 anos")
+        """Valida parâmetros de entrada usando validador centralizado"""
+        from .validators import StateValidator, ValidationError
         
-        if state.retirement_age <= state.age:
-            raise ValueError("Idade de aposentadoria deve ser maior que idade atual")
-        
-        if state.salary <= 0:
-            raise ValueError("Salário deve ser positivo")
+        try:
+            errors = StateValidator.validate_full_state(state)
+            if errors:
+                raise ValueError("; ".join(errors))
+        except ValidationError as e:
+            raise ValueError(str(e))
     
     def _calculate_projections(self, state: SimulatorState, context: ActuarialContext, mortality_table: np.ndarray) -> Dict:
         """Calcula projeções temporais em base mensal"""
@@ -412,7 +481,10 @@ class ActuarialEngine:
         # Projeção salarial mensal considerando múltiplos pagamentos anuais
         monthly_salaries = []
         for month in projection_months:
-            if month < months_to_retirement:  # Fase ativa: meses 0 até months_to_retirement-1
+            # Para aposentados: sem salários futuros
+            if context.is_already_retired:
+                monthly_salary = 0.0
+            elif month < months_to_retirement:  # Fase ativa: meses 0 até months_to_retirement-1
                 # Crescimento mensal composto do salário base
                 base_monthly_salary = context.monthly_salary * ((1 + context.salary_growth_real_monthly) ** month)
                 
@@ -450,7 +522,11 @@ class ActuarialEngine:
         # Projeção de benefícios mensais considerando múltiplos pagamentos anuais
         monthly_benefits = []
         for month in projection_months:
-            if month >= months_to_retirement:  # Fase aposentado: meses months_to_retirement em diante
+            # Para aposentados: benefícios começam imediatamente (mês 0)
+            # Para ativos: benefícios começam em months_to_retirement
+            benefit_starts = context.is_already_retired or (month >= months_to_retirement)
+            
+            if benefit_starts:  # Fase aposentado ou aposentadoria futura
                 # Lógica de pagamentos: todos os 12 meses têm pagamento base
                 # Meses específicos têm pagamentos extras (13º, 14º, etc.)
                 current_month_in_year = month % 12  # 0=jan, 1=fev, ..., 11=dez
@@ -477,8 +553,14 @@ class ActuarialEngine:
         monthly_contributions_gross = []
         monthly_contributions = []  # Contribuições líquidas após carregamento
         for monthly_salary in monthly_salaries:
-            contribution_gross = monthly_salary * (state.contribution_rate / 100)
-            contribution_net = contribution_gross * (1 - context.loading_fee_rate)
+            # Aposentados não fazem contribuições
+            if context.is_already_retired:
+                contribution_gross = 0.0
+                contribution_net = 0.0
+            else:
+                contribution_gross = monthly_salary * (state.contribution_rate / 100)
+                contribution_net = contribution_gross * (1 - context.loading_fee_rate)
+            
             monthly_contributions_gross.append(contribution_gross)
             monthly_contributions.append(contribution_net)
         
@@ -527,11 +609,16 @@ class ActuarialEngine:
             if month < 5:
                 print(f"[ENGINE_DEBUG] Mês {month}: saldo após taxa adm: {accumulated}, taxa aplicada: {context.admin_fee_monthly}")
             
-            if month < months_to_retirement:  # Fase ativa: acumular contribuições
-                # Adicionar contribuição líquida (já com carregamento descontado)
+            # Para aposentados: apenas descontar benefícios (sem contribuições)
+            # Para ativos: acumular contribuições até aposentadoria, depois descontar benefícios
+            if context.is_already_retired:
+                # Aposentados: sempre descontam benefícios
+                accumulated -= monthly_benefits[month]
+            elif month < months_to_retirement:
+                # Ativos na fase de contribuição: acumular contribuições
                 accumulated += monthly_contributions[month]
             else:
-                # Fase aposentado: descontar benefícios
+                # Ativos na fase de aposentadoria: descontar benefícios
                 accumulated -= monthly_benefits[month]
             
             # Permitir reservas negativas para análise realística de déficits
@@ -590,6 +677,12 @@ class ActuarialEngine:
     
     def _calculate_rmba(self, state: SimulatorState, context: ActuarialContext, projections: Dict) -> float:
         """Calcula Reserva Matemática de Benefícios a Conceder (RMBA)"""
+        # Para pessoas já aposentadas, RMBA = 0 (não há benefícios futuros a conceder)
+        if context.is_already_retired:
+            print(f"[RMBA_DEBUG] Pessoa aposentada: RMBA = 0")
+            return 0.0
+        
+        # Para pessoas ativas: RMBA = VPA(Benefícios) - VPA(Contribuições)
         monthly_data = projections["monthly_data"]
         
         # Usar utilitário para calcular VPAs de benefícios e contribuições
@@ -604,14 +697,129 @@ class ActuarialEngine:
             context.admin_fee_monthly  # Passa a taxa administrativa
         )
         
+        print(f"[RMBA_DEBUG] Pessoa ativa: VPA Benefícios = {vpa_benefits:.2f}, VPA Contrib = {vpa_contributions:.2f}")
+        
+        # LOGS DETALHADOS PARA AUDITORIA
+        print(f"[AUDITORIA] === DETALHAMENTO DOS VPAS ===")
+        print(f"[AUDITORIA] Parâmetros base:")
+        print(f"[AUDITORIA]   - Idade: {state.age} → {state.retirement_age} anos ({state.retirement_age - state.age} anos contribuição)")
+        print(f"[AUDITORIA]   - Salário mensal: R$ {state.salary:,.2f} ({state.salary_months_per_year}x/ano)")
+        print(f"[AUDITORIA]   - Contribuição: {state.contribution_rate}% = R$ {state.salary * state.contribution_rate / 100:,.2f}/mês")
+        print(f"[AUDITORIA]   - Benefício alvo: R$ {state.target_benefit:,.2f}/mês ({state.benefit_months_per_year}x/ano)")
+        print(f"[AUDITORIA]   - Taxa desconto: {state.discount_rate:.1%} a.a. = {context.discount_rate_monthly:.4%}/mês")
+        print(f"[AUDITORIA]   - Crescimento salarial: {state.salary_growth_real:.1%} a.a.")
+        print(f"[AUDITORIA]   - Taxa administrativa: {state.admin_fee_rate:.1%} a.a. = {context.admin_fee_monthly:.4%}/mês")
+        print(f"[AUDITORIA]   - Timing pagamentos: {state.payment_timing}")
+        print(f"[AUDITORIA]   - Meses até aposentadoria: {context.months_to_retirement}")
+        
+        # Análise das contribuições projetadas
+        total_months_contrib = context.months_to_retirement
+        contrib_inicial_liquida = state.salary * (state.contribution_rate/100) * (1 - context.admin_fee_monthly)
+        print(f"[AUDITORIA] Contribuições:")
+        print(f"[AUDITORIA]   - Contribuição inicial líquida: R$ {contrib_inicial_liquida:,.2f}/mês")
+        print(f"[AUDITORIA]   - Total meses de contribuição: {total_months_contrib}")
+        
+        # Análise dos benefícios projetados  
+        annual_benefit = state.target_benefit * state.benefit_months_per_year
+        print(f"[AUDITORIA] Benefícios:")
+        print(f"[AUDITORIA]   - Benefício mensal: R$ {state.target_benefit:,.2f}")
+        print(f"[AUDITORIA]   - Benefício anual: R$ {annual_benefit:,.2f}")
+        
         # RMBA = VPA(Benefícios) - VPA(Contribuições)
-        return vpa_benefits - vpa_contributions
+        rmba = vpa_benefits - vpa_contributions
+        
+        print(f"[AUDITORIA] Resultado final:")
+        print(f"[AUDITORIA]   - VPA Contribuições: R$ {vpa_contributions:,.2f}")
+        print(f"[AUDITORIA]   - VPA Benefícios: R$ {vpa_benefits:,.2f}")  
+        print(f"[AUDITORIA]   - RMBA: R$ {rmba:,.2f}")
+        print(f"[AUDITORIA]   - Superávit: R$ {state.initial_balance - rmba:,.2f}")
+        print(f"[AUDITORIA] ================================")
+        
+        # VERIFICAÇÃO DE SANIDADE ECONÔMICA
+        self._validate_economic_sanity(state, vpa_benefits, vpa_contributions, rmba)
+        
+        return rmba
     
-    def _calculate_rmbc(self, state: SimulatorState, projections: Dict) -> float:
-        """Calcula Reserva Matemática de Benefícios Concedidos"""
-        # Para participante ativo, RMBC = 0
-        # Seria calculada após aposentadoria
-        return 0.0
+    def _validate_economic_sanity(self, state: SimulatorState, vpa_benefits: float, vpa_contributions: float, rmba: float) -> None:
+        """
+        Valida se os resultados fazem sentido econômico
+        
+        Args:
+            state: Estado do simulador
+            vpa_benefits: VPA dos benefícios
+            vpa_contributions: VPA das contribuições
+            rmba: RMBA calculada
+        """
+        warnings = []
+        
+        # Validação 1: Relação VPA Benefícios vs Contribuições
+        if vpa_contributions > 0 and vpa_benefits > 0:
+            ratio = vpa_contributions / vpa_benefits
+            
+            if ratio > 3.0:  # Contribuições muito maiores que benefícios
+                warnings.append(f"⚠️  VPA Contribuições ({vpa_contributions:.2f}) é {ratio:.1f}x maior que VPA Benefícios ({vpa_benefits:.2f})")
+            elif ratio < 0.5:  # Benefícios muito maiores que contribuições
+                warnings.append(f"⚠️  VPA Benefícios ({vpa_benefits:.2f}) é {1/ratio:.1f}x maior que VPA Contribuições ({vpa_contributions:.2f})")
+        
+        # Validação 2: RMBA versus salário e tempo de contribuição
+        annual_salary = state.salary * state.salary_months_per_year
+        years_to_retirement = (state.retirement_age - state.age)
+        total_expected_contributions = annual_salary * (state.contribution_rate / 100) * years_to_retirement
+        
+        if abs(rmba) > total_expected_contributions * 2:
+            warnings.append(f"⚠️  RMBA ({rmba:.2f}) parece desproporcional às contribuições esperadas ({total_expected_contributions:.2f})")
+        
+        # Validação 3: Superávit suspeito para saldo inicial zero
+        if state.initial_balance == 0 and rmba < -50000:  # Superávit > R$ 50.000 com saldo zero
+            warnings.append(f"⚠️  Superávit alto ({-rmba:.2f}) com saldo inicial zero pode indicar erro de cálculo")
+        
+        # Validação 4: Benefício alvo versus capacidade de contribuição
+        if hasattr(state, 'target_benefit') and state.target_benefit:
+            annual_benefit = state.target_benefit * state.benefit_months_per_year
+            annual_contribution = annual_salary * (state.contribution_rate / 100)
+            
+            if annual_benefit > annual_contribution * 10:  # Benefício > 10x contribuição anual
+                warnings.append(f"⚠️  Benefício alvo ({annual_benefit:.2f}/ano) muito alto versus contribuição ({annual_contribution:.2f}/ano)")
+        
+        # Registrar warnings se houver
+        if warnings:
+            print(f"[SANIDADE_ECONÔMICA] Alertas para validação:")
+            for warning in warnings:
+                print(f"[SANIDADE_ECONÔMICA] {warning}")
+    
+    def _calculate_rmbc(self, state: SimulatorState, context: ActuarialContext, projections: Dict) -> float:
+        """Calcula Reserva Matemática de Benefícios Concedidos (RMBC)"""
+        # Para pessoas ativas, RMBC = 0 
+        if not context.is_already_retired:
+            print(f"[RMBC_DEBUG] Pessoa ativa: RMBC = 0")
+            return 0.0
+        
+        # Para pessoas aposentadas: RMBC = VPA dos benefícios restantes
+        monthly_data = projections["monthly_data"]
+        
+        # Calcular VPA dos benefícios restantes usando sobrevivência e desconto
+        vpa_benefits = 0.0
+        
+        # Ajuste de timing usando utilitário
+        timing_adjustment = get_timing_adjustment(context.payment_timing)
+        
+        for month_idx, benefit in enumerate(monthly_data["benefits"]):
+            if benefit > 0:  # Só benefícios positivos
+                survival_prob = monthly_data["survival_probs"][month_idx]
+                
+                # Calcular fator de desconto mensal
+                discount_factor = calculate_discount_factor(
+                    context.discount_rate_monthly,
+                    month_idx,
+                    timing_adjustment
+                )
+                
+                # VPA deste pagamento de benefício
+                present_value = (benefit * survival_prob) / discount_factor
+                vpa_benefits += present_value
+        
+        print(f"[RMBC_DEBUG] Pessoa aposentada: RMBC = {vpa_benefits:.2f}")
+        return vpa_benefits
     
     def _calculate_normal_cost(self, state: SimulatorState, context: ActuarialContext, projections: Dict) -> float:
         """Calcula Custo Normal anual usando base mensal"""
@@ -708,85 +916,6 @@ class ActuarialEngine:
             "sustainable_replacement_ratio": sustainable_replacement_ratio
         }
     
-    def _calculate_sensitivity(self, state: SimulatorState) -> Dict:
-        """Calcula análise de sensibilidade"""
-        # Criar contexto base e obter tábua de mortalidade
-        base_context = ActuarialContext.from_state(state)
-        base_mortality_table = get_mortality_table(state.mortality_table, state.gender.value, state.mortality_aggravation)
-        base_projections = self._calculate_projections(state, base_context, base_mortality_table)
-        base_rmba = self._calculate_rmba(state, base_context, base_projections)
-        
-        sensitivity = {
-            "discount_rate": {},
-            "mortality": {},
-            "retirement_age": {},
-            "salary_growth": {},
-            "inflation": {}
-        }
-        
-        # Sensibilidade taxa de desconto - centrado no valor atual ±1%
-        current_discount = state.discount_rate
-        discount_variations = [
-            max(0.001, current_discount - 0.01),  # -1% com mínimo de 0.1%
-            current_discount,                      # Valor atual
-            current_discount + 0.01                # +1%
-        ]
-        for rate in discount_variations:
-            modified_state = state.copy()
-            modified_state.discount_rate = rate
-            modified_context = ActuarialContext.from_state(modified_state)
-            projections = self._calculate_projections(modified_state, modified_context, base_mortality_table)
-            rmba = self._calculate_rmba(modified_state, modified_context, projections)
-            sensitivity["discount_rate"][rate] = rmba
-        
-        # Sensibilidade idade aposentadoria - centrado na idade atual ±1 ano
-        current_retirement_age = state.retirement_age
-        retirement_variations = [
-            max(state.age + 1, current_retirement_age - 1),  # -1 ano (mínimo: idade+1)
-            current_retirement_age,                          # Idade atual
-            min(75, current_retirement_age + 1)              # +1 ano (máximo: 75)
-        ]
-        for age in retirement_variations:
-            if age > state.age:  # Só incluir se for válido
-                modified_state = state.copy()
-                modified_state.retirement_age = age
-                modified_context = ActuarialContext.from_state(modified_state)
-                projections = self._calculate_projections(modified_state, modified_context, base_mortality_table)
-                rmba = self._calculate_rmba(modified_state, modified_context, projections)
-                sensitivity["retirement_age"][age] = rmba
-        
-        # Sensibilidade crescimento salarial - centrado no valor atual ±1%
-        current_salary_growth = state.salary_growth_real
-        salary_growth_variations = [
-            max(0.0, current_salary_growth - 0.01),  # -1% com mínimo de 0%
-            current_salary_growth,                    # Valor atual
-            current_salary_growth + 0.01              # +1%
-        ]
-        for growth in salary_growth_variations:
-            modified_state = state.copy()
-            modified_state.salary_growth_real = growth
-            modified_context = ActuarialContext.from_state(modified_state)
-            projections = self._calculate_projections(modified_state, modified_context, base_mortality_table)
-            rmba = self._calculate_rmba(modified_state, modified_context, projections)
-            sensitivity["salary_growth"][growth] = rmba
-        
-        # Sensibilidade inflação (removida - não aplicável em cálculos reais)
-        # Mantendo estrutura para compatibilidade com interface
-        sensitivity["inflation"] = {}
-        
-        # Sensibilidade mortalidade
-        from .mortality_tables import MORTALITY_TABLES
-        for table_name in MORTALITY_TABLES.keys():
-            try:
-                mortality_table = get_mortality_table(table_name, state.gender.value)
-                projections = self._calculate_projections(state, base_context, mortality_table)
-                rmba = self._calculate_rmba(state, base_context, projections)
-                sensitivity["mortality"][table_name] = rmba
-            except Exception as e:
-                # Se a tábua não estiver disponível, usar valor base
-                sensitivity["mortality"][table_name] = base_rmba
-        
-        return sensitivity
     
     def _calculate_actuarial_decomposition(self, state: SimulatorState, context: ActuarialContext, projections: Dict) -> Dict:
         """Calcula decomposição atuarial detalhada"""
@@ -936,6 +1065,7 @@ class ActuarialEngine:
         vpa_benefits_yearly = []
         vpa_contributions_yearly = []
         rmba_evolution_yearly = []
+        rmbc_evolution_yearly = []  # Novo: para aposentados
         
         # Ajuste de timing usando utilitário
         timing_adjustment = get_timing_adjustment(context.payment_timing)
@@ -946,23 +1076,42 @@ class ActuarialEngine:
             
             # VPA dos benefícios futuros a partir deste ano
             vpa_benefits = 0.0
-            for month in range(year_month, len(monthly_data["benefits"])):
-                if month >= months_to_retirement:
+            
+            if context.is_already_retired:
+                # Para aposentados: VPA dos benefícios a partir deste ano (RMBC logic)
+                for month in range(year_month, len(monthly_data["benefits"])):
                     benefit = monthly_data["benefits"][month]
-                    survival_prob = monthly_data["survival_probs"][month]
-                    discount_months = month - year_month
-                    if discount_months >= 0:
-                        discount_factor = calculate_discount_factor(
-                            context.discount_rate_monthly,
-                            discount_months,
-                            timing_adjustment
-                        )
-                        vpa_benefits += (benefit * survival_prob) / discount_factor
+                    if benefit > 0:
+                        survival_prob = monthly_data["survival_probs"][month]
+                        discount_months = month - year_month
+                        if discount_months >= 0:
+                            discount_factor = calculate_discount_factor(
+                                context.discount_rate_monthly,
+                                discount_months,
+                                timing_adjustment
+                            )
+                            vpa_benefits += (benefit * survival_prob) / discount_factor
+            else:
+                # Para ativos: VPA dos benefícios futuros (após aposentadoria)
+                for month in range(year_month, len(monthly_data["benefits"])):
+                    if month >= months_to_retirement:
+                        benefit = monthly_data["benefits"][month]
+                        survival_prob = monthly_data["survival_probs"][month]
+                        discount_months = month - year_month
+                        if discount_months >= 0:
+                            discount_factor = calculate_discount_factor(
+                                context.discount_rate_monthly,
+                                discount_months,
+                                timing_adjustment
+                            )
+                            vpa_benefits += (benefit * survival_prob) / discount_factor
             
             # VPA das contribuições futuras a partir deste ano
-            # CORREÇÃO: Usar mesma metodologia da função _calculate_rmba para consistência
-            # Aplicar taxa administrativa usando utilitário dedicado
-            if year_month < months_to_retirement:
+            # Para aposentados: sempre 0 (não há contribuições futuras)
+            # Para ativos: usar cálculo normal
+            if context.is_already_retired or year_month >= months_to_retirement:
+                vpa_contributions = 0.0
+            else:
                 # Extrair contribuições a partir deste ano
                 contributions_from_year = monthly_data["contributions"][year_month:months_to_retirement]
                 survival_probs_from_year = monthly_data["survival_probs"][year_month:]
@@ -976,21 +1125,27 @@ class ActuarialEngine:
                     context.payment_timing,
                     len(contributions_from_year)  # meses restantes até aposentadoria
                 )
-            else:
-                # Após aposentadoria, não há mais contribuições
-                vpa_contributions = 0.0
             
-            # RMBA neste ponto = VPA benefícios - VPA contribuições
-            rmba_year = vpa_benefits - vpa_contributions
+            # Calcular reservas matemáticas
+            if context.is_already_retired:
+                # Para aposentados: RMBC = VPA benefícios, RMBA = 0
+                rmbc_year = vpa_benefits
+                rmba_year = 0.0
+            else:
+                # Para ativos: RMBA = VPA benefícios - VPA contribuições, RMBC = 0
+                rmba_year = vpa_benefits - vpa_contributions
+                rmbc_year = 0.0
             
             vpa_benefits_yearly.append(vpa_benefits)
             vpa_contributions_yearly.append(vpa_contributions)
             rmba_evolution_yearly.append(rmba_year)
+            rmbc_evolution_yearly.append(rmbc_year)
         
         return {
             "vpa_benefits": vpa_benefits_yearly,
             "vpa_contributions": vpa_contributions_yearly,
-            "rmba_evolution": rmba_evolution_yearly
+            "rmba_evolution": rmba_evolution_yearly,
+            "rmbc_evolution": rmbc_evolution_yearly
         }
 
     # ============================================================
@@ -1480,97 +1635,3 @@ class ActuarialEngine:
         
         return months_count / 12.0  # Converter para anos
 
-    def _calculate_cd_sensitivity(self, state: SimulatorState) -> Dict:
-        """Calcula análise de sensibilidade específica para CD"""
-        # Calcular valor base para CD
-        base_context = ActuarialContext.from_state(state)
-        base_mortality_table = get_mortality_table(state.mortality_table, state.gender.value, state.mortality_aggravation)
-        base_projections = self._calculate_cd_projections(state, base_context, base_mortality_table)
-        base_accumulated_balance = base_projections["balances"][-1] if base_projections["balances"] else 0
-        base_monthly_income = self._calculate_cd_monthly_income(state, base_context, base_accumulated_balance, base_mortality_table)
-        
-        sensitivity = {
-            "accumulation_rate": {},  # Taxa de acumulação
-            "conversion_rate": {},    # Taxa de conversão  
-            "mortality": {},
-            "retirement_age": {},
-            "salary_growth": {}
-        }
-        
-        # Sensibilidade taxa de acumulação - centrada no valor atual ±1%
-        if hasattr(state, 'accumulation_rate') and state.accumulation_rate:
-            current_accumulation = state.accumulation_rate
-            accumulation_variations = [
-                max(0.001, current_accumulation - 0.01),  # -1% com mínimo de 0.1%
-                current_accumulation,                      # Valor atual
-                current_accumulation + 0.01                # +1%
-            ]
-            for rate in accumulation_variations:
-                modified_state = state.copy()
-                modified_state.accumulation_rate = rate
-                modified_context = ActuarialContext.from_state(modified_state)
-                projections = self._calculate_cd_projections(modified_state, modified_context, base_mortality_table)
-                accumulated_balance = projections["balances"][-1] if projections["balances"] else 0
-                monthly_income = self._calculate_cd_monthly_income(modified_state, modified_context, accumulated_balance, base_mortality_table)
-                sensitivity["accumulation_rate"][rate] = monthly_income
-        
-        # Sensibilidade idade aposentadoria para CD - centrado na idade atual ±1 ano
-        current_retirement_age = state.retirement_age
-        retirement_variations = [
-            max(state.age + 1, current_retirement_age - 1),  # -1 ano (mínimo: idade+1)
-            current_retirement_age,                          # Idade atual
-            min(75, current_retirement_age + 1)              # +1 ano (máximo: 75)
-        ]
-        for age in retirement_variations:
-            if age > state.age:  # Só incluir se for válido
-                modified_state = state.copy()
-                modified_state.retirement_age = age
-                modified_context = ActuarialContext.from_state(modified_state)
-                projections = self._calculate_cd_projections(modified_state, modified_context, base_mortality_table)
-                accumulated_balance = projections["balances"][-1] if projections["balances"] else 0
-                monthly_income = self._calculate_cd_monthly_income(modified_state, modified_context, accumulated_balance, base_mortality_table)
-                sensitivity["retirement_age"][age] = monthly_income
-        
-        # Sensibilidade crescimento salarial para CD - centrado no valor atual ±1%
-        current_salary_growth = state.salary_growth_real
-        salary_growth_variations = [
-            max(0.0, current_salary_growth - 0.01),  # -1% com mínimo de 0%
-            current_salary_growth,                    # Valor atual
-            current_salary_growth + 0.01              # +1%
-        ]
-        for growth in salary_growth_variations:
-            modified_state = state.copy()
-            modified_state.salary_growth_real = growth
-            modified_context = ActuarialContext.from_state(modified_state)
-            projections = self._calculate_cd_projections(modified_state, modified_context, base_mortality_table)
-            accumulated_balance = projections["balances"][-1] if projections["balances"] else 0
-            monthly_income = self._calculate_cd_monthly_income(modified_state, modified_context, accumulated_balance, base_mortality_table)
-            sensitivity["salary_growth"][growth] = monthly_income
-        
-        # Se não temos dados reais, usar dados de demonstração centrados nos valores atuais
-        if not sensitivity["accumulation_rate"] and not sensitivity["retirement_age"] and not sensitivity["salary_growth"]:
-            # Taxa de acumulação centrada no valor atual ±1%
-            current_accumulation = getattr(state, 'accumulation_rate', 0.06) or 0.06  # Default 6% se não definido
-            sensitivity["accumulation_rate"] = {
-                max(0.001, current_accumulation - 0.01): base_monthly_income * 0.92,  # atual-1%
-                current_accumulation: base_monthly_income * 1.00,                     # atual
-                current_accumulation + 0.01: base_monthly_income * 1.08              # atual+1%
-            }
-            
-            # Idade de aposentadoria centrada no valor atual ±1 ano
-            current_retirement_age = state.retirement_age
-            sensitivity["retirement_age"] = {
-                max(state.age + 1, current_retirement_age - 1): base_monthly_income * 0.85,  # atual-1 ano
-                current_retirement_age: base_monthly_income * 1.00,                          # atual
-                min(75, current_retirement_age + 1): base_monthly_income * 1.20             # atual+1 ano
-            }
-            
-            # Crescimento salarial centrado no valor atual ±1%
-            current_salary_growth = state.salary_growth_real
-            sensitivity["salary_growth"] = {
-                max(0.0, current_salary_growth - 0.01): base_monthly_income * 0.95,  # atual-1%
-                current_salary_growth: base_monthly_income * 1.00,                   # atual
-                current_salary_growth + 0.01: base_monthly_income * 1.08            # atual+1%
-            }
-        
-        return sensitivity

@@ -25,6 +25,16 @@ const ParticipantTab: React.FC<ParticipantTabProps> = ({
     aggravation: state.mortality_aggravation || 0
   });
 
+  const formatLifeExpectancy = (years: number): string => {
+    const wholeYears = Math.floor(years);
+    const months = Math.round((years - wholeYears) * 12);
+    
+    if (months === 0) {
+      return `${wholeYears} anos`;
+    }
+    return `${wholeYears} anos e ${months} ${months === 1 ? 'mês' : 'meses'}`;
+  };
+
   const genderOptions = [
     { value: 'M', label: 'Masculino' },
     { value: 'F', label: 'Feminino' }
@@ -67,7 +77,7 @@ const ParticipantTab: React.FC<ParticipantTabProps> = ({
                 </span>
               ) : lifeExpectancyData.data ? (
                 <span>
-                  Expectativa de vida: <strong>{lifeExpectancyData.data.life_expectancy.toFixed(1)} anos</strong> (até {lifeExpectancyData.data.expected_death_age.toFixed(0)} anos)
+                  Expectativa de vida: <strong>{formatLifeExpectancy(lifeExpectancyData.data.life_expectancy)}</strong> (até {lifeExpectancyData.data.expected_death_age.toFixed(0)} anos)
                 </span>
               ) : lifeExpectancyData.error ? (
                 <span className="text-red-500">

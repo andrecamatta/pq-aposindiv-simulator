@@ -1,80 +1,134 @@
 import numpy as np
-import pandas as pd
-import os
 from typing import Dict, Any
-from pathlib import Path
+import logging
+import time
+from dataclasses import dataclass
 
-# Caminho para os dados das tábuas
-DATA_DIR = Path(__file__).parent.parent.parent / "data" / "mortality_tables"
-
-MORTALITY_TABLES = {
-    "BR_EMS_2021": {
-        "name": "BR-EMS 2021 - Experiência Brasileira",
-        "description": "Tábua oficial SUSEP baseada em 94M registros (2004-2018)",
-        "source": "SUSEP - Superintendência de Seguros Privados",
-        "is_official": True,
-        "regulatory_approved": True
-    },
-    "AT_2000": {
-        "name": "AT-2000 - Tábua Atuarial Americana", 
-        "description": "Tábua baseada em experiência de seguros individuais americanos (1971-1976), aprovada pela SUSEP para anuidades",
-        "source": "SOA (Society of Actuaries) - Aprovada pela SUSEP",
-        "is_official": True,
-        "regulatory_approved": True
-    }
-}
+logger = logging.getLogger(__name__)
 
 
-def _load_csv_table(filename: str) -> np.ndarray:
-    """Carrega tábua de mortalidade de arquivo CSV"""
-    file_path = DATA_DIR / filename
+@dataclass
+class CacheEntry:
+    """Entrada de cache com TTL (Time To Live)"""
+    data: np.ndarray
+    timestamp: float
+    ttl_seconds: float = 3600  # 1 hora por padrão
     
-    if not file_path.exists():
-        raise FileNotFoundError(f"Arquivo de tábua não encontrado: {file_path}")
+    @property
+    def is_expired(self) -> bool:
+        """Verifica se a entrada expirou"""
+        return time.time() - self.timestamp > self.ttl_seconds
+
+
+class MortalityTableCache:
+    """Cache otimizado para tábuas de mortalidade com TTL e limpeza automática"""
     
-    df = pd.read_csv(file_path)
+    def __init__(self, max_entries: int = 100, default_ttl: float = 3600):
+        self.max_entries = max_entries
+        self.default_ttl = default_ttl
+        self._cache: Dict[tuple, CacheEntry] = {}
+        self._last_cleanup = time.time()
+        self._cleanup_interval = 600  # Limpeza a cada 10 minutos
     
-    # Criar array com índices por idade (0 a idade_max)
-    max_age = df['idade'].max()
-    mortality_rates = np.zeros(max_age + 1)
+    def get(self, key: tuple) -> np.ndarray:
+        """
+        Obtém entrada do cache
+        
+        Args:
+            key: Chave do cache (table_code, gender, aggravation_pct)
+            
+        Returns:
+            Tábua de mortalidade ou None se não encontrada/expirada
+        """
+        self._cleanup_if_needed()
+        
+        if key in self._cache:
+            entry = self._cache[key]
+            if not entry.is_expired:
+                return entry.data.copy()  # Retornar cópia para evitar modificação
+            else:
+                # Remover entrada expirada
+                del self._cache[key]
+        
+        return None
     
-    # Preencher as taxas de mortalidade
-    for _, row in df.iterrows():
-        age = int(row['idade'])
-        mortality_rates[age] = float(row['qx'])
+    def set(self, key: tuple, data: np.ndarray, ttl: float = None) -> None:
+        """
+        Armazena entrada no cache
+        
+        Args:
+            key: Chave do cache
+            data: Tábua de mortalidade
+            ttl: Time to live em segundos (usa default se None)
+        """
+        if ttl is None:
+            ttl = self.default_ttl
+        
+        # Se cache estiver cheio, remover entradas mais antigas
+        if len(self._cache) >= self.max_entries:
+            self._evict_oldest()
+        
+        entry = CacheEntry(
+            data=data.copy(),
+            timestamp=time.time(),
+            ttl_seconds=ttl
+        )
+        self._cache[key] = entry
     
-    return mortality_rates
+    def _cleanup_if_needed(self) -> None:
+        """Executa limpeza automática de entradas expiradas se necessário"""
+        current_time = time.time()
+        if current_time - self._last_cleanup > self._cleanup_interval:
+            self._cleanup_expired()
+            self._last_cleanup = current_time
+    
+    def _cleanup_expired(self) -> None:
+        """Remove todas as entradas expiradas"""
+        expired_keys = [
+            key for key, entry in self._cache.items()
+            if entry.is_expired
+        ]
+        for key in expired_keys:
+            del self._cache[key]
+        
+        if expired_keys:
+            logger.info(f"[CACHE] Removidas {len(expired_keys)} entradas expiradas")
+    
+    def _evict_oldest(self) -> None:
+        """Remove a entrada mais antiga para liberar espaço"""
+        if not self._cache:
+            return
+        
+        oldest_key = min(
+            self._cache.keys(),
+            key=lambda k: self._cache[k].timestamp
+        )
+        del self._cache[oldest_key]
+        logger.info(f"[CACHE] Removida entrada mais antiga: {oldest_key}")
+    
+    def clear(self) -> None:
+        """Limpa todo o cache"""
+        self._cache.clear()
+        logger.info("[CACHE] Cache limpo completamente")
+    
+    def stats(self) -> Dict[str, Any]:
+        """Retorna estatísticas do cache"""
+        current_time = time.time()
+        expired_count = sum(1 for entry in self._cache.values() if entry.is_expired)
+        
+        return {
+            "total_entries": len(self._cache),
+            "expired_entries": expired_count,
+            "active_entries": len(self._cache) - expired_count,
+            "max_entries": self.max_entries,
+            "last_cleanup": self._last_cleanup,
+            "time_since_cleanup": current_time - self._last_cleanup
+        }
 
 
-def _load_br_ems_2021_male() -> np.ndarray:
-    """Carrega tábua BR-EMS 2021 masculina oficial"""
-    return _load_csv_table("br_ems_2021_male.csv")
+# Cache global otimizado
+_MORTALITY_CACHE = MortalityTableCache()
 
-
-def _load_br_ems_2021_female() -> np.ndarray:
-    """Carrega tábua BR-EMS 2021 feminina oficial"""
-    return _load_csv_table("br_ems_2021_female.csv")
-
-
-def _load_at_2000_male() -> np.ndarray:
-    """Carrega tábua AT-2000 masculina oficial"""
-    return _load_csv_table("at_2000_male.csv")
-
-
-def _load_at_2000_female() -> np.ndarray:
-    """Carrega tábua AT-2000 feminina oficial"""
-    return _load_csv_table("at_2000_female.csv")
-
-
-# Mapeamento das funções de carregamento (legacy)
-# AT_2000 removida - agora usa dados oficiais do banco via pymort
-_TABLE_LOADERS = {
-    ("BR_EMS_2021", "M"): _load_br_ems_2021_male,
-    ("BR_EMS_2021", "F"): _load_br_ems_2021_female,
-}
-
-# Cache para evitar recarregamento
-_CACHE = {}
 
 
 def apply_mortality_aggravation(mortality_table: np.ndarray, aggravation_pct: float) -> np.ndarray:
@@ -110,38 +164,34 @@ def apply_mortality_aggravation(mortality_table: np.ndarray, aggravation_pct: fl
 
 
 def get_mortality_table(table_code: str, gender: str, aggravation_pct: float = 0.0) -> np.ndarray:
-    """Obtém tábua de mortalidade específica com agravamento opcional"""
+    """Obtém tábua de mortalidade do banco de dados com agravamento opcional"""
     # Cache considerando o agravamento
     cache_key = (table_code, gender, aggravation_pct)
     
-    if cache_key in _CACHE:
-        return _CACHE[cache_key]
+    # Tentar obter do cache otimizado
+    cached_table = _MORTALITY_CACHE.get(cache_key)
+    if cached_table is not None:
+        return cached_table
     
-    # Primeiro, obter a tábua base (sem agravamento)
-    base_cache_key = (table_code, gender)
-    base_table = None
+    # Obter a tábua base do banco (sem agravamento)
+    base_cache_key = (table_code, gender, 0.0)  # Sempre agravamento zero para tábua base
     
-    if base_cache_key in _CACHE:
-        base_table = _CACHE[base_cache_key]
-    
-    # Carregar tábua base se não estiver em cache
+    base_table = _MORTALITY_CACHE.get(base_cache_key)
     if base_table is None:
-        # Primeiro tentar o sistema antigo (compatibilidade)
-        if base_cache_key in _TABLE_LOADERS:
-            loader = _TABLE_LOADERS[base_cache_key]
-            base_table = loader()
-            _CACHE[base_cache_key] = base_table
-        else:
-            # Tentar o sistema novo (banco de dados)
-            base_table = _load_from_database(table_code, gender)
-            if base_table is not None:
-                _CACHE[base_cache_key] = base_table
-            else:
-                raise ValueError(f"Tábua {table_code} para gênero {gender} não encontrada")
+        # Carregar do banco de dados
+        base_table = _load_from_database(table_code, gender)
+        if base_table is None:
+            raise ValueError(f"Tábua {table_code} para gênero {gender} não encontrada no banco de dados")
+        
+        # Armazenar tábua base no cache com TTL maior (2 horas)
+        _MORTALITY_CACHE.set(base_cache_key, base_table, ttl=7200)
     
     # Aplicar agravamento à tábua base
     adjusted_table = apply_mortality_aggravation(base_table, aggravation_pct)
-    _CACHE[cache_key] = adjusted_table
+    
+    # Armazenar no cache com TTL padrão (1 hora)
+    _MORTALITY_CACHE.set(cache_key, adjusted_table)
+    
     return adjusted_table
 
 
@@ -153,13 +203,22 @@ def _load_from_database(table_code: str, gender: str) -> np.ndarray:
         from sqlmodel import Session, select
         
         with Session(engine) as session:
-            # Procurar tábua específica por gênero primeiro
+            # Procurar tábua específica por gênero
             specific_code = f"{table_code}_{gender}"
             statement = select(MortalityTable).where(
                 MortalityTable.code == specific_code,
                 MortalityTable.is_active == True
             )
             table = session.exec(statement).first()
+            
+            if not table:
+                # Se não encontrar específica, procurar genérica com o gênero correto
+                statement = select(MortalityTable).where(
+                    MortalityTable.code.like(f"{table_code}%"),
+                    MortalityTable.gender == gender,
+                    MortalityTable.is_active == True
+                )
+                table = session.exec(statement).first()
             
             if table:
                 table_data_dict = table.get_table_data()
@@ -170,44 +229,18 @@ def _load_from_database(table_code: str, gender: str) -> np.ndarray:
                     mortality_rates[age] = rate
                 return mortality_rates
             
-            # Se não encontrar específica, procurar genérica com o gênero correto
-            statement = select(MortalityTable).where(
-                MortalityTable.code.like(f"{table_code}%"),
-                MortalityTable.gender == gender,
-                MortalityTable.is_active == True
-            )
-            table = session.exec(statement).first()
-            
-            if table:
-                table_data_dict = table.get_table_data()
-                max_age = max(table_data_dict.keys())
-                mortality_rates = np.zeros(max_age + 1)
-                for age, rate in table_data_dict.items():
-                    mortality_rates[age] = rate
-                return mortality_rates
+            logger.warning(f"Tábua {table_code}_{gender} não encontrada no banco")
+            return None
     
     except Exception as e:
-        print(f"Erro ao carregar tábua do banco: {e}")
-    
-    return None
+        logger.error(f"Erro ao carregar tábua {table_code}_{gender} do banco: {e}")
+        return None
 
 
 def get_mortality_table_info() -> list[Dict[str, Any]]:
-    """Retorna informações sobre todas as tábuas disponíveis (genéricas, sem especificar gênero)"""
+    """Retorna informações sobre todas as tábuas disponíveis do banco de dados"""
     tables_info = []
     
-    # Adicionar tábuas do sistema antigo
-    for code, table in MORTALITY_TABLES.items():
-        tables_info.append({
-            "code": code,
-            "name": table["name"],
-            "description": table["description"],
-            "source": table["source"],
-            "is_official": table["is_official"],
-            "regulatory_approved": table["regulatory_approved"]
-        })
-    
-    # Adicionar tábuas do banco de dados (agrupadas por família)
     try:
         from ..database import engine
         from ..models.database import MortalityTable
@@ -236,17 +269,53 @@ def get_mortality_table_info() -> list[Dict[str, Any]]:
                         "regulatory_approved": table.regulatory_approved
                     }
             
-            # Adicionar apenas se não existir no sistema antigo
-            for family_code, family_info in table_families.items():
-                if not any(t["code"] == family_code for t in tables_info):
-                    tables_info.append(family_info)
+            # Adicionar todas as famílias de tábuas
+            tables_info.extend(table_families.values())
     
     except Exception as e:
-        print(f"Erro ao carregar tábuas do banco: {e}")
+        logger.error(f"Erro ao carregar informações das tábuas do banco: {e}")
     
     return tables_info
 
 
 def validate_mortality_table(table_code: str) -> bool:
-    """Valida se a tábua existe"""
-    return table_code in MORTALITY_TABLES
+    """Valida se a tábua existe no banco de dados"""
+    try:
+        from ..database import engine
+        from ..models.database import MortalityTable
+        from sqlmodel import Session, select
+        
+        with Session(engine) as session:
+            # Procurar por códigos com sufixos _M/_F ou código exato
+            patterns = [table_code, f"{table_code}_M", f"{table_code}_F"]
+            
+            for pattern in patterns:
+                statement = select(MortalityTable).where(
+                    MortalityTable.code == pattern,
+                    MortalityTable.is_active == True
+                )
+                if session.exec(statement).first():
+                    return True
+        
+        return False
+    except Exception as e:
+        logger.error(f"Erro ao validar tábua {table_code}: {e}")
+        return False
+
+
+def get_cache_stats() -> Dict[str, Any]:
+    """
+    Retorna estatísticas do cache de tábuas de mortalidade
+    
+    Returns:
+        Dicionário com estatísticas do cache
+    """
+    return _MORTALITY_CACHE.stats()
+
+
+def clear_mortality_cache() -> None:
+    """
+    Limpa completamente o cache de tábuas de mortalidade
+    Útil para testes ou liberação de memória
+    """
+    _MORTALITY_CACHE.clear()

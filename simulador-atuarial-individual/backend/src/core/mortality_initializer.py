@@ -24,11 +24,12 @@ class MortalityTableInitializer:
             "regulatory_approved": True
         },
         {
-            "code": "AT_2012",
-            "name": "AT-2012 - Individual Annuity Mortality",
-            "description": "Tábua SOA Individual Annuity Mortality 2012 (IAM 2012)",
+            "code": "2012_IAM_BASIC",
+            "name": "2012 IAM Basic - Individual Annuity Mortality",
+            "description": "2012 Individual Annuity Mortality Basic Table (SOA)",
             "source": "pymort",
-            "source_id": "3262",
+            "source_id_male": "2581",
+            "source_id_female": "2582", 
             "priority": 1,
             "is_official": True,
             "regulatory_approved": False
@@ -198,7 +199,15 @@ class MortalityTableInitializer:
                     table = self._create_local_table(table_config, gender)
                     
                 elif source == "pymort":
-                    source_id = table_config.get("source_id")
+                    # Usar IDs específicos por gênero se disponível
+                    if gender == "M" and "source_id_male" in table_config:
+                        source_id = table_config["source_id_male"]
+                    elif gender == "F" and "source_id_female" in table_config:
+                        source_id = table_config["source_id_female"]
+                    else:
+                        # Fallback para source_id genérico (backward compatibility)
+                        source_id = table_config.get("source_id")
+                    
                     if source_id:
                         table = self.loader.load_from_pymort(int(source_id))
                         if table:

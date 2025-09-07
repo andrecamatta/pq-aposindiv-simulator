@@ -87,7 +87,8 @@ export interface SimulatorResults {
   // Projeções atuariais para gráfico separado
   projected_vpa_benefits: number[];
   projected_vpa_contributions: number[];
-  projected_rmba_evolution: number[];
+  projected_rmba_evolution: number[];      // Para pessoas ativas
+  projected_rmbc_evolution: number[];      // Para pessoas aposentadas
   
   // Métricas
   total_contributions: number;
@@ -97,12 +98,19 @@ export interface SimulatorResults {
   sustainable_replacement_ratio: number;
   funding_ratio?: number;
   
-  // Sensibilidade
+  // Sensibilidade (RMBA - original)
   sensitivity_discount_rate: Record<number, number>;
   sensitivity_mortality: Record<string, number>;
   sensitivity_retirement_age: Record<number, number>;
   sensitivity_salary_growth: Record<number, number>;
   sensitivity_inflation: Record<number, number>;
+  
+  // Sensibilidade (Déficit/Superávit - novo)
+  sensitivity_deficit_discount_rate: Record<number, number>;
+  sensitivity_deficit_mortality: Record<string, number>;
+  sensitivity_deficit_retirement_age: Record<number, number>;
+  sensitivity_deficit_salary_growth: Record<number, number>;
+  sensitivity_deficit_inflation: Record<number, number>;
   
   // Decomposição
   actuarial_present_value_benefits: number;
