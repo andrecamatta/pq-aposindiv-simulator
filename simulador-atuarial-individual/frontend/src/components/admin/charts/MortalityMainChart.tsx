@@ -35,7 +35,7 @@ interface MortalityMainChartProps {
   tableName: string;
   color?: string;
   showLogScale?: boolean;
-  chartType?: 'mortality' | 'survival';
+  chartType?: 'mortality' | 'survival' | 'life_expectancy' | 'deaths';
 }
 
 const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
@@ -47,21 +47,116 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
 }) => {
   // Calcular curva de sobrevivência se necessário
   const calculateSurvivalData = () => {
+    if (!data || data.length === 0) return [];
+    
+    // Ordenar dados por idade para garantir sequência correta
+    const sortedData = [...data].sort((a, b) => a.age - b.age);
+    
     let survivors = 100000; // radix padrão
-    return data.map(item => {
-      const lx = survivors;
-      survivors = survivors * (1 - Math.min(Math.max(item.qx, 0), 1));
-      return lx;
+    return sortedData.map(item => {
+      const currentSurvivors = survivors;
+      // Validar qx: deve estar entre 0 e 1
+      const qx = Math.min(Math.max(item.qx || 0, 0), 1);
+      // Aplicar mortalidade para próxima idade
+      survivors = survivors * (1 - qx);
+      return currentSurvivors;
     });
   };
+
+  // Calcular expectativa de vida remanescente (êx)
+  const calculateLifeExpectancyData = () => {
+    if (!data || data.length === 0) return [];
+    
+    const sortedData = [...data].sort((a, b) => a.age - b.age);
+    const survivalData = calculateSurvivalData();
+    
+    return sortedData.map((item, index) => {
+      let totalLifeYears = 0;
+      const currentSurvivors = survivalData[index];
+      
+      if (currentSurvivors > 0) {
+        // Somar anos de vida restantes para todas as idades futuras
+        for (let futureIndex = index; futureIndex < survivalData.length; futureIndex++) {
+          totalLifeYears += survivalData[futureIndex] / currentSurvivors;
+        }
+      }
+      
+      return Math.max(0, totalLifeYears);
+    });
+  };
+
+  // Calcular número de mortes por idade (dx)
+  const calculateDeathsData = () => {
+    if (!data || data.length === 0) return [];
+    
+    const sortedData = [...data].sort((a, b) => a.age - b.age);
+    const survivalData = calculateSurvivalData();
+    
+    return sortedData.map((item, index) => {
+      const qx = Math.min(Math.max(item.qx || 0, 0), 1);
+      const survivors = survivalData[index];
+      return survivors * qx;
+    });
+  };
+
   
-  const chartValues = chartType === 'survival' ? calculateSurvivalData() : data.map(item => item.qx);
+  const chartValues = () => {
+    switch (chartType) {
+      case 'survival':
+        return calculateSurvivalData();
+      case 'life_expectancy':
+        return calculateLifeExpectancyData();
+      case 'deaths':
+        return calculateDeathsData();
+      default: // 'mortality'
+        return data.map(item => item.qx);
+    }
+  };
+  const getChartLabel = () => {
+    switch (chartType) {
+      case 'survival':
+        return 'Sobrevivência';
+      case 'life_expectancy':
+        return 'Expectativa de Vida';
+      case 'deaths':
+        return 'Número de Mortes';
+      default:
+        return 'Mortalidade';
+    }
+  };
+
+  const getChartTitle = () => {
+    switch (chartType) {
+      case 'survival':
+        return 'Curva de Sobrevivência';
+      case 'life_expectancy':
+        return 'Expectativa de Vida Remanescente';
+      case 'deaths':
+        return 'Distribuição de Mortes por Idade';
+      default:
+        return 'Curva de Mortalidade';
+    }
+  };
+
+  const getYAxisTitle = () => {
+    switch (chartType) {
+      case 'survival':
+        return 'Número de Sobreviventes';
+      case 'life_expectancy':
+        return 'Anos de Vida Restantes (êx)';
+      case 'deaths':
+        return `Número de Mortes (dx) - ${showLogScale ? 'Escala Log' : 'Escala Linear'}`;
+      default:
+        return `Taxa de Mortalidade (%) - ${showLogScale ? 'Escala Log' : 'Escala Linear'}`;
+    }
+  };
+
   const chartData = {
     labels: data.map(item => item.age),
     datasets: [
       {
-        label: `${tableName} - ${chartType === 'survival' ? 'Sobrevivência' : 'Mortalidade'}`,
-        data: chartValues,
+        label: `${tableName} - ${getChartLabel()}`,
+        data: chartValues(),
         borderColor: color,
         backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 0.1)'),
         borderWidth: 2.5,
@@ -99,7 +194,7 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
       },
       title: {
         display: true,
-        text: `${chartType === 'survival' ? 'Curva de Sobrevivência' : 'Curva de Mortalidade'} - ${tableName}`,
+        text: `${getChartTitle()} - ${tableName}`,
         font: {
           size: 18,
           weight: 'bold' as const,
@@ -111,7 +206,7 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
       },
       tooltip: {
         enabled: true,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: 'rgba(0, 0, 0, 0.95)',
         titleColor: 'white',
         bodyColor: 'white',
         padding: 12,
@@ -130,13 +225,23 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
           },
           label: (tooltipItem: any) => {
             const value = tooltipItem.raw;
-            if (chartType === 'survival') {
-              return `Sobreviventes: ${value.toLocaleString('pt-BR')}`;
-            } else {
-              return `Taxa de Mortalidade: ${(value * 100).toLocaleString('pt-BR', {
-                minimumFractionDigits: 3,
-                maximumFractionDigits: 3
-              })}%`;
+            switch (chartType) {
+              case 'survival':
+                return `Sobreviventes: ${value.toLocaleString('pt-BR')}`;
+              case 'life_expectancy':
+                return `Expectativa de Vida: ${value.toLocaleString('pt-BR', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                })} anos`;
+              case 'deaths':
+                return `Mortes: ${value.toLocaleString('pt-BR', {
+                  maximumFractionDigits: 0
+                })}`;
+              default:
+                return `Taxa de Mortalidade: ${(value * 100).toLocaleString('pt-BR', {
+                  minimumFractionDigits: 3,
+                  maximumFractionDigits: 3
+                })}%`;
             }
           },
         },
@@ -168,13 +273,11 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
         },
       },
       y: {
-        type: (showLogScale && chartType === 'mortality') ? 'logarithmic' as const : 'linear' as const,
+        type: (showLogScale && (chartType === 'mortality' || chartType === 'deaths')) ? 'logarithmic' as const : 'linear' as const,
         display: true,
         title: {
           display: true,
-          text: chartType === 'survival' 
-            ? 'Número de Sobreviventes' 
-            : `Taxa de Mortalidade (%) - ${showLogScale ? 'Escala Log' : 'Escala Linear'}`,
+          text: getYAxisTitle(),
           font: {
             size: 14,
             weight: '600' as const,
@@ -191,13 +294,23 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
           display: true,
           callback: function(value: any) {
             if (typeof value === 'number') {
-              if (chartType === 'survival') {
-                return value.toLocaleString('pt-BR');
-              } else {
-                return (value * 100).toLocaleString('pt-BR', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
-                }) + '%';
+              switch (chartType) {
+                case 'survival':
+                  return value.toLocaleString('pt-BR');
+                case 'life_expectancy':
+                  return value.toLocaleString('pt-BR', {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1
+                  });
+                case 'deaths':
+                  return value.toLocaleString('pt-BR', {
+                    maximumFractionDigits: 0
+                  });
+                default:
+                  return (value * 100).toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  }) + '%';
               }
             }
             return value;
@@ -207,8 +320,30 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
           },
           maxTicksLimit: 6,
         },
-        min: (showLogScale && chartType === 'mortality') ? 0.0001 : 0,
-        max: chartType === 'survival' ? 100000 : undefined,
+        min: (() => {
+          switch (chartType) {
+            case 'survival':
+              return 0;
+            case 'life_expectancy':
+              return 0;
+            case 'deaths':
+              return showLogScale ? 1 : 0;
+            default:
+              return showLogScale ? 0.0001 : 0;
+          }
+        })(),
+        max: (() => {
+          switch (chartType) {
+            case 'survival':
+              return 100000;
+            case 'life_expectancy':
+              return undefined; // Deixar automático
+            case 'deaths':
+              return undefined; // Deixar automático
+            default:
+              return undefined; // Deixar automático
+          }
+        })(),
       },
     },
     interaction: {
@@ -238,7 +373,7 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
       </div>
       
       {/* Controls */}
-      <div className="px-4 pb-3 border-t border-gray-100 bg-gray-50/50">
+      <div className="px-4 pb-3 border-t border-gray-100">
         <div className="flex items-center justify-between text-xs text-gray-600">
           <div className="flex items-center space-x-4">
             <span className="flex items-center">
@@ -246,10 +381,7 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
                 className="w-3 h-0.5 mr-2 rounded"
                 style={{ backgroundColor: color }}
               />
-              {data.length} pontos de idade
-            </span>
-            <span>
-              Faixa: {Math.min(...data.map(d => d.age))} - {Math.max(...data.map(d => d.age))} anos
+              {tableName}
             </span>
           </div>
           <div className="flex items-center space-x-2">

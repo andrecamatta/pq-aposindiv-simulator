@@ -30,7 +30,7 @@ interface MortalityTableData {
 interface MortalityComparisonChartProps {
   tables: MortalityTableData[];
   title?: string;
-  chartType?: 'mortality' | 'survival';
+  chartType?: 'mortality' | 'survival' | 'life_expectancy' | 'deaths';
 }
 
 const colors = [
@@ -51,19 +51,57 @@ const MortalityComparisonChart: React.FC<MortalityComparisonChartProps> = ({
 }) => {
   // Função para calcular sobrevivência
   const calculateSurvivalData = (mortalityData: Array<{ age: number; qx: number }>) => {
-    let survivors = 100000; // radix padrão
-    const survivalData: { [age: number]: number } = {};
+    if (!mortalityData || mortalityData.length === 0) return [];
     
     // Ordenar por idade
     const sortedData = [...mortalityData].sort((a, b) => a.age - b.age);
     
-    sortedData.forEach(item => {
-      survivalData[item.age] = survivors;
-      survivors = survivors * (1 - Math.min(Math.max(item.qx, 0), 1));
+    let survivors = 100000; // radix padrão
+    return sortedData.map(item => {
+      const currentSurvivors = survivors;
+      // Validar qx: deve estar entre 0 e 1
+      const qx = Math.min(Math.max(item.qx || 0, 0), 1);
+      // Aplicar mortalidade para próxima idade
+      survivors = survivors * (1 - qx);
+      return currentSurvivors;
     });
-    
-    return survivalData;
   };
+
+  // Função para calcular expectativa de vida
+  const calculateLifeExpectancyData = (mortalityData: Array<{ age: number; qx: number }>) => {
+    if (!mortalityData || mortalityData.length === 0) return [];
+    
+    const sortedData = [...mortalityData].sort((a, b) => a.age - b.age);
+    const survivalData = calculateSurvivalData(mortalityData);
+    
+    return sortedData.map((item, index) => {
+      let totalLifeYears = 0;
+      const currentSurvivors = survivalData[index];
+      
+      if (currentSurvivors > 0) {
+        for (let futureIndex = index; futureIndex < survivalData.length; futureIndex++) {
+          totalLifeYears += survivalData[futureIndex] / currentSurvivors;
+        }
+      }
+      
+      return Math.max(0, totalLifeYears);
+    });
+  };
+
+  // Função para calcular número de mortes
+  const calculateDeathsData = (mortalityData: Array<{ age: number; qx: number }>) => {
+    if (!mortalityData || mortalityData.length === 0) return [];
+    
+    const sortedData = [...mortalityData].sort((a, b) => a.age - b.age);
+    const survivalData = calculateSurvivalData(mortalityData);
+    
+    return sortedData.map((item, index) => {
+      const qx = Math.min(Math.max(item.qx || 0, 0), 1);
+      const survivors = survivalData[index];
+      return survivors * qx;
+    });
+  };
+
   // Find common age range
   const allAges = tables.flatMap(table => table.data.map(item => item.age));
   const minAge = Math.min(...allAges);
@@ -73,17 +111,41 @@ const MortalityComparisonChart: React.FC<MortalityComparisonChartProps> = ({
   const chartData = {
     labels: ageRange,
     datasets: tables.map((table, index) => {
-      const survivalData = chartType === 'survival' ? calculateSurvivalData(table.data) : null;
+      let chartValues: (number | null)[];
+      
+      switch (chartType) {
+        case 'survival':
+          const survivalData = calculateSurvivalData(table.data);
+          chartValues = ageRange.map(age => {
+            const dataIndex = table.data.findIndex(item => item.age === age);
+            return dataIndex !== -1 && survivalData[dataIndex] !== undefined ? survivalData[dataIndex] : null;
+          });
+          break;
+        case 'life_expectancy':
+          const lifeExpectancyData = calculateLifeExpectancyData(table.data);
+          chartValues = ageRange.map(age => {
+            const dataIndex = table.data.findIndex(item => item.age === age);
+            return dataIndex !== -1 && lifeExpectancyData[dataIndex] !== undefined ? lifeExpectancyData[dataIndex] : null;
+          });
+          break;
+        case 'deaths':
+          const deathsData = calculateDeathsData(table.data);
+          chartValues = ageRange.map(age => {
+            const dataIndex = table.data.findIndex(item => item.age === age);
+            return dataIndex !== -1 && deathsData[dataIndex] !== undefined ? deathsData[dataIndex] : null;
+          });
+          break;
+        default: // 'mortality'
+          chartValues = ageRange.map(age => {
+            const dataPoint = table.data.find(item => item.age === age);
+            return dataPoint ? dataPoint.qx : null;
+          });
+          break;
+      }
       
       return {
         label: table.name,
-        data: ageRange.map(age => {
-          const dataPoint = table.data.find(item => item.age === age);
-          if (chartType === 'survival' && survivalData) {
-            return survivalData[age] || null;
-          }
-          return dataPoint ? dataPoint.qx : null;
-        }),
+        data: chartValues,
       borderColor: table.color || colors[index % colors.length],
       backgroundColor: (table.color || colors[index % colors.length]).replace('rgb', 'rgba').replace(')', ', 0.1)'),
       borderWidth: 2,
@@ -131,7 +193,7 @@ const MortalityComparisonChart: React.FC<MortalityComparisonChartProps> = ({
       },
       tooltip: {
         enabled: true,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: 'rgba(0, 0, 0, 0.95)',
         titleColor: 'white',
         bodyColor: 'white',
         padding: 12,
@@ -152,13 +214,23 @@ const MortalityComparisonChart: React.FC<MortalityComparisonChartProps> = ({
             const value = tooltipItem.raw;
             if (value === null) return null;
             
-            if (chartType === 'survival') {
-              return `${tooltipItem.dataset.label}: ${value.toLocaleString('pt-BR')} sobreviventes`;
-            } else {
-              return `${tooltipItem.dataset.label}: ${(value * 100).toLocaleString('pt-BR', {
-                minimumFractionDigits: 3,
-                maximumFractionDigits: 3
-              })}%`;
+            switch (chartType) {
+              case 'survival':
+                return `${tooltipItem.dataset.label}: ${value.toLocaleString('pt-BR')} sobreviventes`;
+              case 'life_expectancy':
+                return `${tooltipItem.dataset.label}: ${value.toLocaleString('pt-BR', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                })} anos`;
+              case 'deaths':
+                return `${tooltipItem.dataset.label}: ${value.toLocaleString('pt-BR', {
+                  maximumFractionDigits: 0
+                })} mortes`;
+              default:
+                return `${tooltipItem.dataset.label}: ${(value * 100).toLocaleString('pt-BR', {
+                  minimumFractionDigits: 3,
+                  maximumFractionDigits: 3
+                })}%`;
             }
           },
         },
@@ -190,13 +262,22 @@ const MortalityComparisonChart: React.FC<MortalityComparisonChartProps> = ({
         },
       },
       y: {
-        type: chartType === 'mortality' ? 'logarithmic' as const : 'linear' as const,
+        type: (chartType === 'mortality' || chartType === 'deaths') ? 'logarithmic' as const : 'linear' as const,
         display: true,
         title: {
           display: true,
-          text: chartType === 'survival' 
-            ? 'Número de Sobreviventes' 
-            : 'Taxa de Mortalidade (%) - Escala Logarítmica',
+          text: (() => {
+            switch (chartType) {
+              case 'survival':
+                return 'Número de Sobreviventes';
+              case 'life_expectancy':
+                return 'Anos de Vida Restantes (êx)';
+              case 'deaths':
+                return 'Número de Mortes (dx) - Escala Logarítmica';
+              default:
+                return 'Taxa de Mortalidade (%) - Escala Logarítmica';
+            }
+          })(),
           font: {
             size: 14,
             weight: '600' as const,
@@ -213,13 +294,23 @@ const MortalityComparisonChart: React.FC<MortalityComparisonChartProps> = ({
           display: true,
           callback: function(value: any) {
             if (typeof value === 'number') {
-              if (chartType === 'survival') {
-                return value.toLocaleString('pt-BR');
-              } else {
-                return (value * 100).toLocaleString('pt-BR', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
-                }) + '%';
+              switch (chartType) {
+                case 'survival':
+                  return value.toLocaleString('pt-BR');
+                case 'life_expectancy':
+                  return value.toLocaleString('pt-BR', {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1
+                  });
+                case 'deaths':
+                  return value.toLocaleString('pt-BR', {
+                    maximumFractionDigits: 0
+                  });
+                default:
+                  return (value * 100).toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  }) + '%';
               }
             }
             return value;
@@ -229,8 +320,26 @@ const MortalityComparisonChart: React.FC<MortalityComparisonChartProps> = ({
           },
           maxTicksLimit: 6,
         },
-        min: chartType === 'mortality' ? 0.0001 : 0,
-        max: chartType === 'survival' ? 100000 : undefined,
+        min: (() => {
+          switch (chartType) {
+            case 'survival':
+              return 0;
+            case 'life_expectancy':
+              return 0;
+            case 'deaths':
+              return 1; // Para escala log
+            default:
+              return 0.0001; // Para escala log da mortalidade
+          }
+        })(),
+        max: (() => {
+          switch (chartType) {
+            case 'survival':
+              return 100000;
+            default:
+              return undefined; // Deixar automático
+          }
+        })(),
       },
     },
     interaction: {
@@ -250,7 +359,7 @@ const MortalityComparisonChart: React.FC<MortalityComparisonChartProps> = ({
       </div>
       
       {/* Controls */}
-      <div className="px-6 pb-4 border-t border-gray-100 bg-gray-50/50">
+      <div className="px-6 pb-4 border-t border-gray-100">
         <div className="flex items-center justify-between text-xs text-gray-600">
           <div className="flex items-center space-x-6">
             {tables.map((table, index) => (
@@ -259,12 +368,12 @@ const MortalityComparisonChart: React.FC<MortalityComparisonChartProps> = ({
                   className="w-3 h-0.5 mr-2 rounded"
                   style={{ backgroundColor: table.color || colors[index % colors.length] }}
                 />
-                {table.name} ({table.data.length} pontos)
+                {table.name}
               </span>
             ))}
           </div>
           <div className="flex items-center space-x-2">
-            <span>Escala: {chartType === 'mortality' ? 'Logarítmica' : 'Linear'}</span>
+            <span>Escala: {(chartType === 'mortality' || chartType === 'deaths') ? 'Logarítmica' : 'Linear'}</span>
           </div>
         </div>
       </div>

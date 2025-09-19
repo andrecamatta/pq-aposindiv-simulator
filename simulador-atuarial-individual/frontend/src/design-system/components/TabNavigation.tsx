@@ -1,5 +1,4 @@
 import React from 'react';
-import LogoMenu from '../../components/admin/LogoMenu';
 import './TabNavigation.css';
 
 export interface Tab {
@@ -36,6 +35,11 @@ export const tabs: Tab[] = [
     icon: 'settings',
   },
   {
+    id: 'tables',
+    label: 'Tábuas',
+    icon: 'table_chart',
+  },
+  {
     id: 'reports',
     label: 'Relatórios',
     icon: 'description',
@@ -46,20 +50,27 @@ interface TabNavigationProps {
   className?: string;
   activeTab?: string;
   onTabChange?: (tabId: string) => void;
-  onOpenMortalityTables?: () => void;
 }
 
 const TabNavigation: React.FC<TabNavigationProps> = ({
   className = '',
   activeTab = 'technical',
   onTabChange,
-  onOpenMortalityTables,
 }) => {
   return (
     <header className={`bg-white shadow-sm ${className}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-4">
-          <LogoMenu onOpenMortalityTables={onOpenMortalityTables} />
+          <div className="flex items-center gap-3">
+            <img
+              src="/logo.png"
+              alt="ActuarialSim Logo"
+              className="h-8 w-auto max-w-[40px] object-contain"
+            />
+            <h1 className="text-xl font-semibold text-gray-800">
+              ActuarialSim
+            </h1>
+          </div>
           <nav className="tab-navigation">
             <ul>
               {tabs.map((tab) => {

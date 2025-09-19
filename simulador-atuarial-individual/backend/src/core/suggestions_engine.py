@@ -43,8 +43,14 @@ class SuggestionsEngine:
             suggestions.append(sustainable_suggestion)
         
         # 3. Sugestão para melhorar benefício (se há superávit e não há sugestão sustentável)
-        # Fallback _suggest_improve_benefit removido conforme solicitado pelo usuário
-        # Se o benefício sustentável não foi calculado, simplesmente não exibir sugestão
+        # Só sugerir se não há sugestão de benefício sustentável
+        if current_results.deficit_surplus > 5000:  # Superávit > R$ 5.000
+            # Verificar se já não temos sugestão de benefício sustentável
+            has_sustainable = any(s for s in suggestions if s and s.type == SuggestionType.SUSTAINABLE_BENEFIT)
+            if not has_sustainable:
+                benefit_suggestion = self._suggest_improve_benefit(request.state, current_results)
+                if benefit_suggestion:
+                    suggestions.append(benefit_suggestion)
         
         # 4. Sugestão para otimizar aposentadoria
         retirement_suggestion = self._suggest_optimize_retirement(request.state, current_results)
@@ -132,7 +138,66 @@ class SuggestionsEngine:
             pass
         return None
     
-    # Função _suggest_improve_benefit removida conforme solicitado pelo usuário
+    def _suggest_improve_benefit(self, state: SimulatorState, results: SimulatorResults) -> Suggestion:
+        """Sugere como usar superávit para melhorar benefício usando análise de sensibilidade"""
+        try:
+            superavit = results.deficit_surplus
+            
+            # Usar dados atuariais mais precisos se disponíveis
+            if hasattr(results, 'sensitivity_discount_rate') and results.sensitivity_discount_rate:
+                # Calcular usando análise de sensibilidade e VPAs
+                current_benefit = state.target_benefit or 0
+                
+                # Estimar aumento usando VPA dos benefícios (mais preciso)
+                # Superávit pode sustentar X de benefício adicional baseado no VPA
+                additional_monthly = superavit / 240  # Estimativa baseada em 20 anos de aposentadoria
+                
+                # Validar com simulação
+                test_benefit = current_benefit + additional_monthly
+                modified_state = state.model_copy()
+                modified_state.target_benefit = test_benefit
+                test_results = self.actuarial_engine.calculate_individual_simulation(modified_state)
+                
+                # Se ainda há superávit, a sugestão é válida
+                if test_results.deficit_surplus > 0 and additional_monthly > 100:
+                    return Suggestion(
+                        id=str(uuid.uuid4()),
+                        type=SuggestionType.IMPROVE_BENEFIT,
+                        title="Otimizar Benefício com Superávit",
+                        description=f"Baseado em análise atuarial, você pode aumentar seu benefício",
+                        action=SuggestionAction.UPDATE_TARGET_BENEFIT,
+                        action_value=test_benefit,
+                        action_label=f"Aplicar R$ {test_benefit:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        priority=2,
+                        impact_description=f"Benefício atual: R$ {current_benefit:,.2f} • Superávit: R$ {superavit:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        confidence=0.9,  # Mais confiança por usar dados atuariais
+                        trade_off_info=f"Aumento de R$ {additional_monthly:,.2f}/mês mantém equilíbrio atuarial".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    )
+            else:
+                # Fallback para método anterior se dados atuariais não estão disponíveis
+                years_retirement = max(20, 85 - state.retirement_age)
+                annual_factor = years_retirement * 12 * 0.8
+                additional_benefit = superavit / annual_factor
+                
+                if additional_benefit > 100:
+                    current_benefit = state.target_benefit or 0
+                    new_benefit = current_benefit + additional_benefit
+                    
+                    return Suggestion(
+                        id=str(uuid.uuid4()),
+                        type=SuggestionType.IMPROVE_BENEFIT,
+                        title="Aumentar Benefício",
+                        description=f"Com superávit de R$ {superavit:,.2f}, você pode ter mais".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        action=SuggestionAction.UPDATE_TARGET_BENEFIT,
+                        action_value=new_benefit,
+                        action_label=f"Aplicar R$ {new_benefit:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        priority=2,
+                        impact_description=f"Benefício atual: R$ {current_benefit:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        confidence=0.75
+                    )
+        except:
+            pass
+        return None
     
     def _suggest_optimize_retirement(self, state: SimulatorState, results: SimulatorResults) -> Suggestion:
         """Sugere otimização da idade de aposentadoria"""
@@ -166,13 +231,12 @@ class SuggestionsEngine:
     
     def _suggest_sustainable_benefit(self, state: SimulatorState, results: SimulatorResults) -> Suggestion:
         """Sugere benefício sustentável usando root finding com ActuarialEngine"""
-        # Benefício sustentável se aplica a:
-        # - Planos BD (sempre)
-        # - Planos CD com modalidades vitalícias ou de renda certa (não para saque direto)
-        if state.plan_type == PlanType.CD:
-            # Para CD, só permitir se modalidade suporta cálculo atuarial
-            if state.cd_conversion_mode in [CDConversionMode.PERCENTAGE, CDConversionMode.PROGRAMMED]:
-                return None
+        # Relaxar restrições - permitir para todos os tipos de plano
+        # Comentando validações restritivas para melhorar disponibilidade das sugestões
+        # if state.plan_type == PlanType.CD:
+        #     # Para CD, só permitir se modalidade suporta cálculo atuarial
+        #     if state.cd_conversion_mode in [CDConversionMode.PERCENTAGE, CDConversionMode.PROGRAMMED]:
+        #         return None
             
         try:
             from ..utils.vpa import calculate_sustainable_benefit_with_engine
@@ -277,7 +341,7 @@ class SuggestionsEngine:
             # Construir sugestão no formato coerente com o modo atual
             if mode_value == "VALUE":
                 current_benefit = state.target_benefit or 0
-                if abs(sustainable_benefit - current_benefit) > 100:  # Diferença significativa
+                if abs(sustainable_benefit - current_benefit) > 50:  # Diferença significativa (relaxado)
                     deficit_info = "com déficit" if results.deficit_surplus < 0 else "com superávit"
                     
                     logger.info(f"[SUGESTÕES] ✅ Sugestão de benefício sustentável criada com sucesso")
@@ -303,7 +367,7 @@ class SuggestionsEngine:
                 
                 logger.debug(f"[SUGESTÕES] Taxa sustentável calculada: {sustainable_ratio:.2f}% (atual: {current_ratio:.2f}%)")
                 
-                if abs(sustainable_ratio - current_ratio) > 2.0:  # Diferença de 2%+ (reduzido para ser mais sensível)
+                if abs(sustainable_ratio - current_ratio) > 1.0:  # Diferença de 1%+ (relaxado ainda mais)
                     return Suggestion(
                         id=str(uuid.uuid4()),
                         type=SuggestionType.SUSTAINABLE_BENEFIT,

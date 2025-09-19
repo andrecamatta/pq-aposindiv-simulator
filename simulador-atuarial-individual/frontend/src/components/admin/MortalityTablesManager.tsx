@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Database, 
   Upload, 
@@ -889,7 +890,7 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
     </div>
   );
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop + Modal Container */}
       <div
@@ -985,7 +986,8 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
           </div>
         </>
       )}
-    </>
+    </>,
+    document.body
   );
 };
 

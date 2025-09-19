@@ -3,6 +3,7 @@ import { BarChart3, Info } from 'lucide-react';
 import type { SimulatorState, MortalityTable } from '../../types';
 import { Card, CardHeader, CardTitle, CardContent } from '../../design-system/components';
 import { useFormHandler } from '../../hooks';
+import MortalityTableSelector from '../selectors/MortalityTableSelector';
 
 interface ActuarialBasisCardProps {
   state: SimulatorState;
@@ -41,18 +42,12 @@ const ActuarialBasisCard: React.FC<ActuarialBasisCardProps> = ({
               <span className="hidden">Tábua utilizada para cálculos de probabilidade de sobrevivência</span>
             </span>
           </label>
-          <select
+          <MortalityTableSelector
             value={state.mortality_table}
-            onChange={(e) => handleInputChange('mortality_table', e.target.value)}
-            className="w-full px-4 py-4 text-base border-2 border-slate-200 rounded-xl bg-white hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all shadow-sm"
+            mortalityTables={mortalityTables}
+            onChange={(value) => handleInputChange('mortality_table', value)}
             disabled={loading}
-          >
-            {mortalityTables.map((table) => (
-              <option key={table.code} value={table.code}>
-                {table.code} {table.regulatory_approved && '✓'}
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         {/* Método de Cálculo */}

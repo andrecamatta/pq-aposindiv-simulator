@@ -78,8 +78,7 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
     <Card className="border-gray-200">
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2 text-xl">
-          <Settings className="w-5 h-5 text-gray-600" />
-          <span>Configurações Técnicas</span>
+          <span>Plano</span>
         </CardTitle>
       </CardHeader>
       

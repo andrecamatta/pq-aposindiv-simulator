@@ -39,7 +39,8 @@ class MortalityTableInitializer:
             "name": "AT-83 - Annuity Table 1983",
             "description": "Tábua histórica AT-83 (Annuity Table 1983)",
             "source": "pymort",
-            "source_id": "825",
+            "source_id_male": "826",
+            "source_id_female": "825", 
             "priority": 1,
             "is_official": True,
             "regulatory_approved": False
