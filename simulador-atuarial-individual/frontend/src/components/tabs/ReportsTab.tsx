@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { SimulatorResults, SimulatorState } from '../../types';
 import { Card, CardHeader, CardTitle, CardContent, Button } from '../../design-system/components';
-import { formatCurrencyBR, formatDecimalToPercentageBR } from '../../utils/formatBR';
+import { formatCurrencyBR, formatDecimalToPercentageBR, formatSimplePercentageBR } from '../../utils/formatBR';
+import { reportsService } from '../../services/reportsService';
 
 interface ReportsTabProps {
   results: SimulatorResults | null;
@@ -10,13 +11,57 @@ interface ReportsTabProps {
 }
 
 const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
-  const handleDownload = (_format: string) => {
-    // TODO: Implementar download dos relatórios
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const [downloadingCSV, setDownloadingCSV] = useState(false);
+
+  const handleDownload = async (format: string) => {
+    if (!results) return;
+
+    try {
+      // Set appropriate loading state
+      if (format.includes('pdf')) {
+        setDownloadingPDF(true);
+      } else if (format === 'data-excel') {
+        setDownloadingExcel(true);
+      } else if (format === 'data-csv') {
+        setDownloadingCSV(true);
+      }
+
+      if (format === 'executive-pdf') {
+        await reportsService.downloadExecutivePDF({
+          state: state,
+          results: results
+        });
+      } else if (format === 'technical-pdf') {
+        await reportsService.downloadTechnicalPDF({
+          state: state,
+          results: results
+        });
+      } else if (format === 'data-excel') {
+        await reportsService.downloadDataExcel({
+          state: state,
+          results: results
+        });
+      } else if (format === 'data-csv') {
+        await reportsService.downloadDataCSV({
+          state: state,
+          results: results
+        });
+      } else {
+        // TODO: Implementar outros formatos (email)
+        console.log(`Download ${format} não implementado ainda`);
+      }
+    } catch (error) {
+      console.error('Erro no download:', error);
+      alert(error instanceof Error ? error.message : 'Erro ao baixar relatório');
+    } finally {
+      setDownloadingPDF(false);
+      setDownloadingExcel(false);
+      setDownloadingCSV(false);
+    }
   };
 
-  const handlePreview = (_format: string) => {
-    // TODO: Implementar preview dos relatórios
-  };
 
   return (
     <div className="space-y-6">
@@ -48,6 +93,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
         </Card>
       ) : (
         <>
+
           {/* Reports Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Relatório Executivo */}
@@ -76,20 +122,13 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                   </div>
                   
                   <div className="flex gap-2 pt-3">
-                    <Button 
-                      size="sm" 
-                      variant="ghost"
-                      onClick={() => handlePreview('executive-pdf')}
-                      className="text-pink-700 hover:bg-pink-100"
-                    >
-                      Preview
-                    </Button>
-                    <Button 
+                    <Button
                       size="sm"
                       onClick={() => handleDownload('executive-pdf')}
-                      className="bg-pink-500 hover:bg-pink-600 text-white"
+                      className="bg-pink-500 hover:bg-pink-600 text-white w-full"
+                      disabled={downloadingPDF}
                     >
-                      PDF
+                      {downloadingPDF ? 'Gerando PDF...' : 'Baixar PDF'}
                     </Button>
                   </div>
                 </div>
@@ -122,20 +161,13 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                   </div>
                   
                   <div className="flex gap-2 pt-3">
-                    <Button 
-                      size="sm" 
-                      variant="ghost"
-                      onClick={() => handlePreview('technical-pdf')}
-                      className="text-pink-700 hover:bg-pink-100"
-                    >
-                      Preview
-                    </Button>
-                    <Button 
+                    <Button
                       size="sm"
                       onClick={() => handleDownload('technical-pdf')}
-                      className="bg-pink-500 hover:bg-pink-600 text-white"
+                      className="bg-pink-500 hover:bg-pink-600 text-white w-full"
+                      disabled={downloadingPDF}
                     >
-                      PDF
+                      {downloadingPDF ? 'Gerando PDF...' : 'Baixar PDF'}
                     </Button>
                   </div>
                 </div>
@@ -168,19 +200,21 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
                   </div>
                   
                   <div className="flex gap-2 pt-3">
-                    <Button 
+                    <Button
                       size="sm"
                       onClick={() => handleDownload('data-excel')}
                       className="bg-green-500 hover:bg-green-600 text-white"
+                      disabled={downloadingExcel || downloadingPDF || downloadingCSV}
                     >
-                      Excel
+                      {downloadingExcel ? 'Gerando Excel...' : 'Excel'}
                     </Button>
-                    <Button 
+                    <Button
                       size="sm"
                       onClick={() => handleDownload('data-csv')}
                       className="bg-blue-500 hover:bg-blue-600 text-white"
+                      disabled={downloadingCSV || downloadingPDF || downloadingExcel}
                     >
-                      CSV
+                      {downloadingCSV ? 'Gerando CSV...' : 'CSV'}
                     </Button>
                   </div>
                 </div>
@@ -225,30 +259,61 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
             <CardContent className="p-6">
               <h3 className="text-lg font-semibold text-pink-900 mb-4">📋 Status da Simulação</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
-                  <p className="text-xs text-pink-600 uppercase font-medium mb-1">RMBA</p>
-                  <p className="text-sm font-bold text-pink-900">
-                    {formatCurrencyBR(results.rmba, 0)}
-                  </p>
-                </div>
-                <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
-                  <p className="text-xs text-pink-600 uppercase font-medium mb-1">RMBC</p>
-                  <p className="text-sm font-bold text-pink-900">
-                    {formatCurrencyBR(results.rmbc, 0)}
-                  </p>
-                </div>
-                <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
-                  <p className="text-xs text-pink-600 uppercase font-medium mb-1">Superávit</p>
-                  <p className="text-sm font-bold text-pink-900">
-                    {formatDecimalToPercentageBR(results.superavit_percentage, 1)}
-                  </p>
-                </div>
-                <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
-                  <p className="text-xs text-pink-600 uppercase font-medium mb-1">Data</p>
-                  <p className="text-sm font-bold text-pink-900">
-                    {new Date().toLocaleDateString('pt-BR')}
-                  </p>
-                </div>
+                {state.plan_type === 'CD' ? (
+                  <>
+                    <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
+                      <p className="text-xs text-pink-600 uppercase font-medium mb-1">Saldo Final</p>
+                      <p className="text-sm font-bold text-pink-900">
+                        {formatCurrencyBR(results.individual_balance || 0, 0)}
+                      </p>
+                    </div>
+                    <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
+                      <p className="text-xs text-pink-600 uppercase font-medium mb-1">Renda Mensal</p>
+                      <p className="text-sm font-bold text-pink-900">
+                        {formatCurrencyBR(results.monthly_income_cd || 0, 0)}
+                      </p>
+                    </div>
+                    <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
+                      <p className="text-xs text-pink-600 uppercase font-medium mb-1">Taxa Reposição</p>
+                      <p className="text-sm font-bold text-pink-900">
+                        {formatSimplePercentageBR(results.replacement_ratio, 1)}
+                      </p>
+                    </div>
+                    <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
+                      <p className="text-xs text-pink-600 uppercase font-medium mb-1">Data</p>
+                      <p className="text-sm font-bold text-pink-900">
+                        {new Date().toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
+                      <p className="text-xs text-pink-600 uppercase font-medium mb-1">RMBA</p>
+                      <p className="text-sm font-bold text-pink-900">
+                        {formatCurrencyBR(results.rmba, 0)}
+                      </p>
+                    </div>
+                    <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
+                      <p className="text-xs text-pink-600 uppercase font-medium mb-1">RMBC</p>
+                      <p className="text-sm font-bold text-pink-900">
+                        {formatCurrencyBR(results.rmbc, 0)}
+                      </p>
+                    </div>
+                    <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
+                      <p className="text-xs text-pink-600 uppercase font-medium mb-1">Superávit</p>
+                      <p className="text-sm font-bold text-pink-900">
+                        {formatDecimalToPercentageBR(results.deficit_surplus_percentage, 1)}
+                      </p>
+                    </div>
+                    <div className="text-center bg-white/60 rounded-lg p-3 border border-pink-200/50">
+                      <p className="text-xs text-pink-600 uppercase font-medium mb-1">Data</p>
+                      <p className="text-sm font-bold text-pink-900">
+                        {new Date().toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>

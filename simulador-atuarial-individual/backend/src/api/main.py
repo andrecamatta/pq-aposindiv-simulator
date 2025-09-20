@@ -15,6 +15,7 @@ from ..utils.error_handling import handle_api_errors
 from ..utils.state_updater import state_action_handler
 from ..utils.response_formatter import response_formatter
 from .mortality_tables import router as mortality_tables_router
+from .reports_router import router as reports_router
 
 app = FastAPI(
     title="Simulador Atuarial Individual",
@@ -75,6 +76,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(mortality_tables_router)
+app.include_router(reports_router)
 
 # Engines globais
 actuarial_engine = ActuarialEngine()
@@ -223,11 +225,11 @@ async def get_default_state():
         "contribution_rate": 8.0,
         "mortality_table": "BR_EMS_2021",
         "discount_rate": 0.05,
-        "salary_growth_real": 0.02,
+        "salary_growth_real": 0.01,
         "benefit_indexation": "none",
         "contribution_indexation": "salary",
         "use_ettj": False,
-        "admin_fee_rate": 0.01,
+        "admin_fee_rate": 0.015,
         "loading_fee_rate": 0.0,
         "payment_timing": "postecipado",
         "salary_months_per_year": 13,
@@ -286,23 +288,23 @@ async def get_life_expectancy(
         age: Idade atual
         gender: Gênero ('M' ou 'F')
         mortality_table: Código da tábua de mortalidade
-        aggravation: Agravamento percentual (-10% a +20%, default 0%)
+        aggravation: Suavização percentual (-10% a +20%, default 0%)
     
     Returns:
         Dict com expectativa de vida em anos e idade esperada de morte
     """
-    # Converter agravamento de percentual para fator
+    # Converter suavização de percentual para fator
     aggravation_factor = 1.0 + (aggravation / 100.0)
-    
-    # Obter dados da tábua de mortalidade (já aplicando o agravamento)
+
+    # Obter dados da tábua de mortalidade (já aplicando a suavização)
     table_data = get_mortality_table(mortality_table, gender, aggravation)
     
-    # Calcular expectativa de vida (agravamento já aplicado na tábua)
+    # Calcular expectativa de vida (suavização já aplicada na tábua)
     life_expectancy = calculate_life_expectancy(
         age=age,
         gender=gender,
         mortality_table=table_data,
-        aggravation_factor=1.0  # Sem agravamento adicional, já aplicado na tábua
+        aggravation_factor=1.0  # Sem suavização adicional, já aplicada na tábua
     )
     
     # Calcular idade esperada de morte
@@ -316,7 +318,8 @@ async def get_life_expectancy(
             "parameters": {
                 "gender": gender,
                 "mortality_table": mortality_table,
-                "aggravation_percent": aggravation
+                "smoothing_percent": aggravation,
+                "aggravation_percent": aggravation  # Mantido por compatibilidade
             }
         },
         message="Expectativa de vida calculada com sucesso"

@@ -56,6 +56,7 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
 
   const cdConversionOptions = useMemo(() => [
     { value: 'ACTUARIAL', label: 'Cálculo Atuarial (Vitalícia)' },
+    { value: 'ACTUARIAL_EQUIVALENT', label: 'Equivalência Atuarial Anual' },
     { value: 'CERTAIN_5Y', label: 'Renda Certa por 5 anos' },
     { value: 'CERTAIN_10Y', label: 'Renda Certa por 10 anos' },
     { value: 'CERTAIN_15Y', label: 'Renda Certa por 15 anos' },
@@ -136,8 +137,8 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
             <div className="mt-6">
               <RangeSlider
                 label={
-                  <span title="Margem de segurança atuarial. Valores positivos tornam o cálculo mais conservador, negativos menos conservador. Padrão de mercado SUSEP.">
-                    Agravamento da Tábua
+                  <span title="Ajuste de suavização dos qx. Valores positivos reduzem a mortalidade projetada, negativos a intensificam.">
+                    Suavização da Tábua
                   </span>
                 }
                 value={state.mortality_aggravation || 0}

@@ -184,7 +184,7 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
           padding: 20,
           font: {
             size: 14,
-            weight: '500' as const,
+            weight: 500,
           },
         },
       },

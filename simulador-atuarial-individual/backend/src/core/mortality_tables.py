@@ -133,30 +133,26 @@ _MORTALITY_CACHE = MortalityTableCache()
 
 def apply_mortality_aggravation(mortality_table: np.ndarray, aggravation_pct: float) -> np.ndarray:
     """
-    Aplica agravamento percentual à tábua de mortalidade seguindo padrão de mercado.
-    
-    IMPORTANTE: No contexto atuarial brasileiro (SUSEP), agravamento é usado como 
-    margem de segurança/prudência. Valores positivos tornam o cálculo mais conservador.
-    
-    Comportamento implementado (padrão de mercado):
-    - Agravamento POSITIVO: Reduz mortalidade → Mais benefícios → Maior RMBA → MENOR superávit (mais conservador)
-    - Agravamento NEGATIVO: Aumenta mortalidade → Menos benefícios → Menor RMBA → MAIOR superávit (menos conservador)
-    
+    Aplica suavização percentual à tábua de mortalidade.
+
+    Por convenção do projeto, valores positivos representam suavização (redução dos
+    qx), alongando a sobrevivência e aumentando reservas. Valores negativos
+    intensificam a mortalidade.
+
     Args:
         mortality_table: Array numpy com probabilidades de morte anuais (qx)
-        aggravation_pct: Percentual de agravamento (-10 a +20)
-    
+        aggravation_pct: Percentual de suavização (-10 a +20)
+
     Returns:
         Array numpy com probabilidades ajustadas
     """
     if aggravation_pct == 0.0:
         return mortality_table.copy()
-    
-    # CORREÇÃO: Inverter sinal para seguir padrão de mercado (margem de segurança)
-    # Agravamento positivo = mais conservador = menor mortalidade = mais benefícios futuros
+
+    # Suavização positiva = menor mortalidade = mais benefícios futuros
     aggravation_factor = 1 - (aggravation_pct / 100)  # Sinal invertido
     adjusted_table = mortality_table * aggravation_factor
-    
+
     # Garantir que qx permaneça no intervalo válido [0, 1]
     adjusted_table = np.clip(adjusted_table, 0.0, 1.0)
     
@@ -164,8 +160,8 @@ def apply_mortality_aggravation(mortality_table: np.ndarray, aggravation_pct: fl
 
 
 def get_mortality_table(table_code: str, gender: str, aggravation_pct: float = 0.0) -> np.ndarray:
-    """Obtém tábua de mortalidade do banco de dados com agravamento opcional"""
-    # Cache considerando o agravamento
+    """Obtém tábua de mortalidade do banco de dados com suavização opcional"""
+    # Cache considerando o percentual de suavização
     cache_key = (table_code, gender, aggravation_pct)
     
     # Tentar obter do cache otimizado
@@ -173,8 +169,8 @@ def get_mortality_table(table_code: str, gender: str, aggravation_pct: float = 0
     if cached_table is not None:
         return cached_table
     
-    # Obter a tábua base do banco (sem agravamento)
-    base_cache_key = (table_code, gender, 0.0)  # Sempre agravamento zero para tábua base
+    # Obter a tábua base do banco (sem suavização)
+    base_cache_key = (table_code, gender, 0.0)  # Sempre suavização zero para tábua base
     
     base_table = _MORTALITY_CACHE.get(base_cache_key)
     if base_table is None:
@@ -186,7 +182,7 @@ def get_mortality_table(table_code: str, gender: str, aggravation_pct: float = 0
         # Armazenar tábua base no cache com TTL maior (2 horas)
         _MORTALITY_CACHE.set(base_cache_key, base_table, ttl=7200)
     
-    # Aplicar agravamento à tábua base
+    # Aplicar suavização à tábua base
     adjusted_table = apply_mortality_aggravation(base_table, aggravation_pct)
     
     # Armazenar no cache com TTL padrão (1 hora)

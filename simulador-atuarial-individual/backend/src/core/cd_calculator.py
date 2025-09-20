@@ -4,7 +4,7 @@ Extrai lógica específica CD do ActuarialEngine
 """
 
 import numpy as np
-from typing import Dict, TYPE_CHECKING
+from typing import Dict, List, TYPE_CHECKING
 from .projections import (
     calculate_salary_projections,
     calculate_contribution_projections,
@@ -14,7 +14,8 @@ from .projections import (
 from ..utils.rates import annual_to_monthly_rate
 
 if TYPE_CHECKING:
-    from ..models.database import SimulatorState, CDConversionMode
+    from ..models.database import SimulatorState
+    from ..models.participant import CDConversionMode
     from .actuarial_engine import ActuarialContext
 
 
@@ -59,12 +60,12 @@ class CDCalculator:
     ) -> Dict:
         """
         Calcula projeções específicas para CD - foco na evolução do saldo
-        
+
         Args:
             state: Estado do simulador
             context: Contexto atuarial CD
             mortality_table: Tábua de mortalidade
-            
+
         Returns:
             Dicionário com projeções CD
         """
@@ -86,7 +87,7 @@ class CDCalculator:
         
         # 5. EVOLUÇÃO DO SALDO CD - CORE LOGIC
         monthly_balances, monthly_benefits = self._calculate_balance_evolution(
-            state, context, monthly_contributions, monthly_income, total_months, months_to_retirement
+            state, context, monthly_contributions, monthly_income, total_months, months_to_retirement, mortality_table
         )
         
         # Saldo final na aposentadoria
@@ -105,7 +106,13 @@ class CDCalculator:
         yearly_data = convert_monthly_to_yearly_projections(monthly_data, total_months)
         yearly_data["monthly_data"] = monthly_data
         yearly_data["final_balance"] = final_balance
-        
+
+        # 7. Gerar vetores por idade para frontend
+        age_projections = self._generate_age_projections(
+            state, context, monthly_salaries, monthly_benefits, total_months
+        )
+        yearly_data.update(age_projections)
+
         return yearly_data
     
     def calculate_monthly_income(
@@ -130,21 +137,24 @@ class CDCalculator:
         if balance <= 0:
             return 0.0
         
-        from ..models.database import CDConversionMode
+        from ..models.participant import CDConversionMode
         
         conversion_mode = state.cd_conversion_mode or CDConversionMode.ACTUARIAL
         
         if conversion_mode == CDConversionMode.ACTUARIAL:
             return self._calculate_actuarial_annuity(balance, state, context, mortality_table)
-        
-        elif conversion_mode in [CDConversionMode.CERTAIN_5Y, CDConversionMode.CERTAIN_10Y, 
+
+        elif conversion_mode == CDConversionMode.ACTUARIAL_EQUIVALENT:
+            return self._calculate_actuarial_equivalent_annuity(balance, state, context, mortality_table, 0)
+
+        elif conversion_mode in [CDConversionMode.CERTAIN_5Y, CDConversionMode.CERTAIN_10Y,
                                 CDConversionMode.CERTAIN_15Y, CDConversionMode.CERTAIN_20Y]:
             return self._calculate_certain_annuity(balance, state, context, conversion_mode)
-        
+
         elif conversion_mode == CDConversionMode.PERCENTAGE:
             percentage = state.cd_withdrawal_percentage or 5.0
-            return (balance * (percentage / 100)) / 12
-        
+            return self._calculate_percentage_withdrawal(balance, context, percentage)
+
         else:  # PROGRAMMED - simplificado
             return balance / (20 * 12)  # 20 anos default
     
@@ -163,9 +173,11 @@ class CDCalculator:
         total_contributions = sum(projections["contributions"])
         total_benefits = sum(projections["benefits"])
         
-        # Salário final para cálculo de taxa de reposição
-        active_salaries = [s for s in projections["monthly_data"]["salaries"] if s > 0]
-        final_monthly_salary_base = active_salaries[-1] if active_salaries else state.salary
+        # Salário base final sem pagamentos extras (13º, 14º)
+        months_to_retirement = max(0, (state.retirement_age - state.age) * 12)
+        salary_growth_monthly = annual_to_monthly_rate(state.salary_growth_real)
+        salary_growth_factor = (1 + salary_growth_monthly) ** max(months_to_retirement - 1, 0)
+        final_monthly_salary_base = state.salary * salary_growth_factor
         
         # Taxa de reposição baseada na renda CD calculada
         replacement_ratio = (monthly_income / final_monthly_salary_base * 100) if final_monthly_salary_base > 0 else 0
@@ -211,7 +223,7 @@ class CDCalculator:
         if balance <= 0 or monthly_income <= 0:
             return 0.0
         
-        from ..models.database import CDConversionMode
+        from ..models.participant import CDConversionMode
         
         conversion_mode = state.cd_conversion_mode or CDConversionMode.ACTUARIAL
         
@@ -243,10 +255,6 @@ class CDCalculator:
         target_monthly_benefit = state.target_benefit if state.target_benefit else 0.0
         deficit_surplus = monthly_income - target_monthly_benefit
         
-        print(f"[CD_DEFICIT_DEBUG] Renda real: R$ {monthly_income:.2f}")
-        print(f"[CD_DEFICIT_DEBUG] Renda desejada: R$ {target_monthly_benefit:.2f}")  
-        print(f"[CD_DEFICIT_DEBUG] Déficit/Superávit: R$ {deficit_surplus:.2f}")
-        
         return deficit_surplus
     
     def analyze_conversion_modes(
@@ -268,7 +276,7 @@ class CDCalculator:
         Returns:
             Análise de modalidades
         """
-        from ..models.database import CDConversionMode
+        from ..models.participant import CDConversionMode
         
         modes_analysis = {}
         
@@ -306,22 +314,32 @@ class CDCalculator:
     def _calculate_balance_evolution(
         self,
         state: 'SimulatorState',
-        context: 'ActuarialContext', 
+        context: 'ActuarialContext',
         monthly_contributions: list,
         monthly_income: float,
         total_months: int,
-        months_to_retirement: int
+        months_to_retirement: int,
+        mortality_table: np.ndarray = None
     ) -> tuple:
         """Calcula evolução do saldo e benefícios mensais"""
         monthly_balances = []
         monthly_benefits = []
         accumulated_balance = state.initial_balance
-        
+
         # Determinar período de benefícios
-        from ..models.database import CDConversionMode
+        from ..models.participant import CDConversionMode
         conversion_mode = state.cd_conversion_mode or CDConversionMode.ACTUARIAL
         benefit_period_months = self._get_benefit_period_months(conversion_mode)
-        
+
+        # Armazena rendas recalculadas conforme modalidade exige
+        annual_monthly_incomes = {}
+
+        # Para modalidades dinâmicas, não usar valor fixo inicial
+        if conversion_mode in [CDConversionMode.PERCENTAGE, CDConversionMode.ACTUARIAL_EQUIVALENT]:
+            current_year_income = 0  # Será recalculado no primeiro mês
+        else:
+            current_year_income = monthly_income  # Modalidades com valor fixo
+
         for month in range(total_months):
             # Durante acumulação: capitalizar com taxa de acumulação
             if month < months_to_retirement:
@@ -333,40 +351,70 @@ class CDCalculator:
             else:
                 # Durante aposentadoria
                 months_since_retirement = month - months_to_retirement
-                
+                years_since_retirement = months_since_retirement // 12
+                month_in_retirement_year = months_since_retirement % 12
+
                 # No primeiro mês, registrar pico ANTES do primeiro saque
                 if months_since_retirement == 0:
+                    accumulated_balance *= (1 - context.admin_fee_monthly)
                     monthly_balances.append(max(0, accumulated_balance))
-                
+
+                # Para equivalência atuarial, recalcular renda a cada ano
+                if conversion_mode == CDConversionMode.ACTUARIAL_EQUIVALENT and mortality_table is not None:
+                    # Recalcular renda no início de cada novo ano de aposentadoria
+                    if month_in_retirement_year == 0 and years_since_retirement not in annual_monthly_incomes:
+                        current_year_income = self._calculate_actuarial_equivalent_annuity(
+                            accumulated_balance, state, context, mortality_table, years_since_retirement
+                        )
+                        annual_monthly_incomes[years_since_retirement] = current_year_income
+                    elif years_since_retirement in annual_monthly_incomes:
+                        current_year_income = annual_monthly_incomes[years_since_retirement]
+                elif conversion_mode == CDConversionMode.PERCENTAGE:
+                    # Recalcular renda no início de cada ano baseado no saldo atual
+                    if month_in_retirement_year == 0:
+                        percentage = state.cd_withdrawal_percentage or 5.0
+                        current_year_income = self._calculate_percentage_withdrawal(
+                            accumulated_balance,
+                            context,
+                            percentage
+                        )
+                        annual_monthly_incomes[years_since_retirement] = current_year_income
+                    elif years_since_retirement in annual_monthly_incomes:
+                        current_year_income = annual_monthly_incomes[years_since_retirement]
+
                 # Verificar se ainda está no período de benefícios
                 if benefit_period_months is not None and months_since_retirement >= benefit_period_months:
                     # Período acabou, apenas capitalizar
                     accumulated_balance *= (1 + getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly))
+                    accumulated_balance *= (1 - context.admin_fee_monthly)
                     monthly_benefits.append(0.0)
                 else:
                     # Ainda no período de benefícios
                     current_month_in_year = month % 12
-                    monthly_benefit_payment = monthly_income
-                    
+
+                    # Usar renda do ano corrente (recalculada para equivalência atuarial)
+                    monthly_benefit_payment = current_year_income
+
                     # Aplicar pagamentos extras (13º, 14º, etc.)
                     extra_payments = context.benefit_months_per_year - 12
                     if extra_payments > 0:
                         if current_month_in_year == 11:  # Dezembro
                             if extra_payments >= 1:
-                                monthly_benefit_payment += monthly_income
+                                monthly_benefit_payment += current_year_income
                         if current_month_in_year == 0:  # Janeiro
                             if extra_payments >= 2:
-                                monthly_benefit_payment += monthly_income
-                    
+                                monthly_benefit_payment += current_year_income
+
                     # Consumir saldo
                     accumulated_balance -= monthly_benefit_payment
-                    
+
                     # Capitalizar saldo restante
                     conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
                     accumulated_balance *= (1 + conversion_rate_monthly)
-                    
+                    accumulated_balance *= (1 - context.admin_fee_monthly)
+
                     monthly_benefits.append(monthly_benefit_payment)
-                
+
                 # Para meses após o primeiro mês da aposentadoria
                 if months_since_retirement > 0:
                     monthly_balances.append(max(0, accumulated_balance))
@@ -382,11 +430,14 @@ class CDCalculator:
     ) -> float:
         """Calcula anuidade vitalícia atuarial"""
         conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
-        
+        # Taxa efetiva considerando admin fee sobre saldo
+        effective_rate = (1 + conversion_rate_monthly) / (1 + context.admin_fee_monthly) - 1
+        effective_rate = max(effective_rate, -0.99)
+
         annuity_factor = 0.0
         cumulative_survival = 1.0
         max_months = min(50 * 12, (110 - state.retirement_age) * 12)
-        
+
         for month in range(max_months):
             retirement_age_years = state.retirement_age + (month / 12)
             age_index = int(retirement_age_years)
@@ -397,12 +448,77 @@ class CDCalculator:
                 p_x_monthly = 1 - q_x_monthly
                 cumulative_survival *= p_x_monthly
                 
-                pv_factor = 1 / ((1 + conversion_rate_monthly) ** month) if conversion_rate_monthly > 0 else 1
+                pv_factor = 1 / ((1 + effective_rate) ** month) if effective_rate > -1 else 1
                 annuity_factor += cumulative_survival * pv_factor
             else:
                 break
-        
+
+        # Ajustar fator para múltiplos pagamentos anuais (13º, 14º, etc.)
+        benefit_months_per_year = getattr(context, 'benefit_months_per_year', 12) or 12
+        if benefit_months_per_year > 12:
+            annuity_factor *= (benefit_months_per_year / 12.0)
+
         return balance / annuity_factor if annuity_factor > 0 else 0
+
+    def _calculate_actuarial_equivalent_annuity(
+        self,
+        balance: float,
+        state: 'SimulatorState',
+        context: 'ActuarialContext',
+        mortality_table: np.ndarray,
+        years_since_retirement: int
+    ) -> float:
+        """
+        Calcula equivalência atuarial anual - recalcula a renda com base no saldo remanescente
+
+        Args:
+            balance: Saldo atual disponível
+            state: Estado do simulador
+            context: Contexto atuarial
+            mortality_table: Tábua de mortalidade
+            years_since_retirement: Anos transcorridos desde a aposentadoria
+
+        Returns:
+            Renda mensal recalculada para este ano
+        """
+        if balance <= 0:
+            return 0.0
+
+        # Idade atual (considerando anos de aposentadoria transcorridos)
+        current_age = state.retirement_age + years_since_retirement
+        conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
+        # Taxa efetiva considerando admin fee sobre saldo
+        effective_rate = (1 + conversion_rate_monthly) / (1 + context.admin_fee_monthly) - 1
+        effective_rate = max(effective_rate, -0.99)
+
+        # Calcular fator de anuidade vitalícia a partir da idade atual
+        annuity_factor = 0.0
+        cumulative_survival = 1.0
+        max_months = min(50 * 12, (110 - current_age) * 12)
+
+        for month in range(max_months):
+            age_years = current_age + (month / 12)
+            age_index = int(age_years)
+
+            if age_index < len(mortality_table):
+                q_x_annual = mortality_table[age_index]
+                q_x_monthly = 1 - ((1 - q_x_annual) ** (1/12))
+                p_x_monthly = 1 - q_x_monthly
+                cumulative_survival *= p_x_monthly
+
+                pv_factor = 1 / ((1 + effective_rate) ** month) if effective_rate > -1 else 1
+                annuity_factor += cumulative_survival * pv_factor
+            else:
+                break
+
+        # Calcular renda mensal para este ano baseada no saldo atual
+        benefit_months_per_year = getattr(context, 'benefit_months_per_year', 12) or 12
+        if benefit_months_per_year > 12:
+            annuity_factor *= (benefit_months_per_year / 12.0)
+
+        annual_monthly_income = balance / annuity_factor if annuity_factor > 0 else 0
+
+        return annual_monthly_income
     
     def _calculate_certain_annuity(
         self, 
@@ -412,7 +528,7 @@ class CDCalculator:
         conversion_mode: 'CDConversionMode'
     ) -> float:
         """Calcula renda certa por N anos"""
-        from ..models.database import CDConversionMode
+        from ..models.participant import CDConversionMode
         
         years_map = {
             CDConversionMode.CERTAIN_5Y: 5,
@@ -424,14 +540,17 @@ class CDCalculator:
         years = years_map[conversion_mode]
         conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
         benefit_months_per_year = context.benefit_months_per_year
-        
+        # Taxa efetiva considerando admin fee sobre saldo
+        effective_rate = (1 + conversion_rate_monthly) / (1 + context.admin_fee_monthly) - 1
+        effective_rate = max(effective_rate, -0.99)
+
         # Calcular valor presente dos pagamentos considerando pagamentos extras
         pv_total = 0.0
-        
+
         for year in range(years):
             for month in range(12):
                 months_from_start = year * 12 + month
-                pv_factor = 1 / ((1 + conversion_rate_monthly) ** months_from_start)
+                pv_factor = 1 / ((1 + effective_rate) ** months_from_start) if effective_rate > -1 else 1
                 
                 # Pagamento normal mensal
                 pv_total += pv_factor
@@ -445,9 +564,24 @@ class CDCalculator:
                     if month == 0 and year > 0:  # Janeiro - 14º salário
                         if extra_payments >= 2:
                             pv_total += pv_factor
-        
+
         return balance / pv_total if pv_total > 0 else 0
-    
+
+    def _calculate_percentage_withdrawal(
+        self,
+        balance: float,
+        context: 'ActuarialContext',
+        percentage: float
+    ) -> float:
+        """Calcula retirada mensal proporcional ao saldo remanescente."""
+        if balance <= 0 or percentage <= 0:
+            return 0.0
+
+        benefit_months_per_year = getattr(context, 'benefit_months_per_year', 12) or 12
+        annual_withdrawal = balance * (percentage / 100.0)
+        monthly_withdrawal = annual_withdrawal / max(benefit_months_per_year, 1)
+        return monthly_withdrawal
+
     def _simulate_benefit_duration(
         self,
         state: 'SimulatorState',
@@ -457,7 +591,7 @@ class CDCalculator:
         mortality_table: np.ndarray
     ) -> float:
         """Simula duração dos benefícios mês a mês"""
-        from ..models.database import CDConversionMode
+        from ..models.participant import CDConversionMode
         
         conversion_mode = state.cd_conversion_mode or CDConversionMode.ACTUARIAL
         conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
@@ -487,17 +621,27 @@ class CDCalculator:
             
             # Calcular pagamento mensal (incluindo extras)
             current_month_in_year = months_count % 12
-            monthly_payment = monthly_income
-            
+            base_monthly_income = monthly_income
+
+            if conversion_mode == CDConversionMode.PERCENTAGE:
+                percentage = state.cd_withdrawal_percentage or 5.0
+                base_monthly_income = self._calculate_percentage_withdrawal(
+                    max(remaining_balance, 0.0),
+                    context,
+                    percentage
+                )
+
+            monthly_payment = base_monthly_income
+
             extra_payments = context.benefit_months_per_year - 12
             if extra_payments > 0:
                 if current_month_in_year == 11:  # Dezembro
                     if extra_payments >= 1:
-                        monthly_payment += monthly_income
+                        monthly_payment += base_monthly_income
                 if current_month_in_year == 0 and months_count > 0:  # Janeiro
                     if extra_payments >= 2:
-                        monthly_payment += monthly_income
-            
+                        monthly_payment += base_monthly_income
+
             # Descontar pagamento e capitalizar
             remaining_balance -= monthly_payment
             remaining_balance *= (1 + conversion_rate_monthly)
@@ -518,7 +662,7 @@ class CDCalculator:
     
     def _get_benefit_period_months(self, conversion_mode: 'CDConversionMode') -> int:
         """Retorna período de benefícios em meses ou None se vitalício"""
-        from ..models.database import CDConversionMode
+        from ..models.participant import CDConversionMode
         
         if conversion_mode in [CDConversionMode.CERTAIN_5Y, CDConversionMode.CERTAIN_10Y, 
                                CDConversionMode.CERTAIN_15Y, CDConversionMode.CERTAIN_20Y]:
@@ -534,10 +678,11 @@ class CDCalculator:
     
     def _get_conversion_mode_description(self, mode: 'CDConversionMode') -> str:
         """Retorna descrição da modalidade de conversão"""
-        from ..models.database import CDConversionMode
+        from ..models.participant import CDConversionMode
         
         descriptions = {
             CDConversionMode.ACTUARIAL: "Renda vitalícia baseada em tábua de mortalidade",
+            CDConversionMode.ACTUARIAL_EQUIVALENT: "Equivalência atuarial - renda recalculada anualmente",
             CDConversionMode.CERTAIN_5Y: "Renda garantida por 5 anos",
             CDConversionMode.CERTAIN_10Y: "Renda garantida por 10 anos",
             CDConversionMode.CERTAIN_15Y: "Renda garantida por 15 anos",
@@ -546,3 +691,67 @@ class CDCalculator:
             CDConversionMode.PROGRAMMED: "Saque programado customizável"
         }
         return descriptions.get(mode, "Modalidade não definida")
+
+    def _generate_age_projections(
+        self,
+        state: 'SimulatorState',
+        context: 'ActuarialContext',
+        monthly_salaries: List[float],
+        monthly_benefits: List[float],
+        total_months: int
+    ) -> Dict:
+        """
+        Gera vetores de projeção por idade para o frontend
+
+        Args:
+            state: Estado do simulador
+            context: Contexto atuarial
+            monthly_salaries: Salários mensais calculados
+            monthly_benefits: Benefícios mensais calculados (já com cessação aplicada)
+            total_months: Total de meses de projeção
+
+        Returns:
+            Dicionário com vetores por idade
+        """
+        projection_ages = []
+        projected_salaries_by_age = []
+        projected_benefits_by_age = []
+
+        # Gerar lista de idades (apenas anos completos)
+        for month in range(0, total_months, 12):  # A cada 12 meses (início de cada ano)
+            age = state.age + (month // 12)
+            projection_ages.append(age)
+
+            # Para benefícios e salários, calcular valores representativos do ano
+            if month < len(monthly_salaries):
+                monthly_salary = monthly_salaries[month]
+
+                # Para benefícios, calcular a média dos 12 meses do ano (ou até o final se não há 12 meses)
+                year_end_month = min(month + 12, len(monthly_benefits))
+                year_benefits = monthly_benefits[month:year_end_month]
+
+                if year_benefits:
+                    # Calcular benefício médio mensal do ano
+                    avg_monthly_benefit = sum(year_benefits) / len(year_benefits)
+
+                else:
+                    avg_monthly_benefit = 0
+
+                # Converter para valores anuais considerando múltiplos pagamentos
+                # Para salários: multiplicar pela quantidade de salários por ano
+                annual_salary = monthly_salary * context.salary_months_per_year if monthly_salary > 0 else 0
+
+                # Para benefícios: usar média mensal * quantidade de benefícios por ano
+                annual_benefit = avg_monthly_benefit * context.benefit_months_per_year if avg_monthly_benefit > 0 else 0
+
+                projected_salaries_by_age.append(annual_salary)
+                projected_benefits_by_age.append(annual_benefit)
+            else:
+                projected_salaries_by_age.append(0.0)
+                projected_benefits_by_age.append(0.0)
+
+        return {
+            "projection_ages": projection_ages,
+            "projected_salaries_by_age": projected_salaries_by_age,
+            "projected_benefits_by_age": projected_benefits_by_age
+        }

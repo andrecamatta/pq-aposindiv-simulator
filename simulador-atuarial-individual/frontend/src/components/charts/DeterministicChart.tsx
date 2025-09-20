@@ -33,30 +33,10 @@ const DeterministicChart: React.FC<DeterministicChartProps> = ({ results, curren
   // Determinar labels conforme o tipo de plano
   const isCDPlan = planType === 'CD';
   const reserveLabel = isCDPlan ? 'Saldo Individual CD' : 'Reservas Acumuladas (Determinística)';
-  const benefitLabel = isCDPlan ? 'Renda CD Anual' : 'Benefícios Anuais Projetados';
   
   const data = {
     labels: ageLabels,
     datasets: [
-      {
-        label: 'Salários Anuais (Valores Reais)',
-        data: results.projected_salaries || [],
-        borderColor: '#13a4ec', // primary color
-        backgroundColor: '#13a4ec',
-        tension: 0.4,
-        fill: false,
-        pointRadius: 2,
-      },
-      {
-        label: benefitLabel,
-        data: results.projected_benefits || [],
-        borderColor: '#34D399', // softer emerald-400
-        backgroundColor: 'transparent',
-        borderDash: [5, 5],
-        tension: 0.4,
-        fill: false,
-        pointRadius: 2,
-      },
       {
         label: reserveLabel,
         data: results.accumulated_reserves || [],
@@ -115,7 +95,7 @@ const DeterministicChart: React.FC<DeterministicChartProps> = ({ results, curren
       y: {
         title: {
           display: true,
-          text: 'Valores Anuais e Reservas (R$)',
+          text: 'Reservas/Saldo (R$)',
         },
         grid: getZeroLineGridConfig(),
         ticks: {

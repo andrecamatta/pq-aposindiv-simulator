@@ -1,7 +1,7 @@
 export type BenefitTargetMode = "VALUE" | "REPLACEMENT_RATE";
 export type PaymentTiming = "postecipado" | "antecipado";
 export type PlanType = "BD" | "CD";
-export type CDConversionMode = "ACTUARIAL" | "CERTAIN_5Y" | "CERTAIN_10Y" | "CERTAIN_15Y" | "CERTAIN_20Y" | "PERCENTAGE" | "PROGRAMMED";
+export type CDConversionMode = "ACTUARIAL" | "ACTUARIAL_EQUIVALENT" | "CERTAIN_5Y" | "CERTAIN_10Y" | "CERTAIN_15Y" | "CERTAIN_20Y" | "PERCENTAGE" | "PROGRAMMED";
 
 export interface SimulatorState {
   // Dados do participante
@@ -29,7 +29,7 @@ export interface SimulatorState {
   
   // Base atuarial
   mortality_table: string;
-  mortality_aggravation: number;  // Agravamento percentual da tábua (-10% a +20%)
+  mortality_aggravation: number;  // Suavização percentual da tábua (-10% a +20%)
   discount_rate: number;
   salary_growth_real: number;
   
@@ -83,6 +83,11 @@ export interface SimulatorResults {
   projected_contributions: number[];
   survival_probabilities: number[];
   accumulated_reserves: number[];
+
+  // Vetores por idade para gráfico de evolução salarial/benefícios
+  projection_ages?: number[];            // Idades correspondentes
+  projected_salaries_by_age?: number[];  // Salários anuais por idade
+  projected_benefits_by_age?: number[];  // Benefícios anuais por idade
   
   // Projeções atuariais para gráfico separado
   projected_vpa_benefits: number[];

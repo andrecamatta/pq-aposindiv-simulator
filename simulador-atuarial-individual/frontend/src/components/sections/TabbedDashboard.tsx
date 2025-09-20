@@ -109,79 +109,9 @@ const TabbedDashboard: React.FC<TabbedDashboardProps> = ({
           />
         );
       case 'results':
-        return (
-          <div>
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Análise Rápida</h3>
-            {results ? (
-              <div className="space-y-4 text-sm text-gray-700">
-                <div>
-                  {state.plan_type === 'CD' ? (
-                    <>
-                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2">Saldo & Rendimento</h4>
-                      <div className="space-y-1">
-                        <p>Saldo Acumulado: {formatCurrencyBR(results.individual_balance || 0)}</p>
-                        <p>Rendimento Total: {formatCurrencyBR(results.accumulated_return || 0)}</p>
-                        <p>Renda Mensal CD: {formatCurrencyBR(results.monthly_income_cd || 0)}</p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2">Reservas Técnicas</h4>
-                      <div className="space-y-1">
-                        <p>RMBA: {formatCurrencyBR(results.rmba)}</p>
-                        <p>RMBC: {formatCurrencyBR(results.rmbc)}</p>
-                        <p className={`font-medium ${results.deficit_surplus >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {results.deficit_surplus >= 0 ? 'Superávit' : 'Déficit'}: {formatCurrencyBR(Math.abs(results.deficit_surplus))}
-                        </p>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-600">Configure os parâmetros para ver os resultados.</p>
-            )}
-          </div>
-        );
+        return null;
       case 'sensitivity':
-        return (
-          <div>
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Análise de Sensibilidade</h3>
-            {results ? (
-              <div className="space-y-4 text-sm text-gray-700">
-                <div>
-                  <h4 className="text-xs font-semibold uppercase tracking-wide mb-2">Sobre a Análise</h4>
-                  <div className="space-y-2">
-                    <p>A análise de sensibilidade mostra como mudanças nas premissas atuariais impactam as métricas principais.</p>
-                    <p>Gráficos tornado facilitam a identificação dos fatores de maior impacto no resultado.</p>
-                  </div>
-                </div>
-                
-                {state.plan_type === 'BD' && (
-                  <div>
-                    <h4 className="text-xs font-semibold uppercase tracking-wide mb-2">Plano BD - RMBA</h4>
-                    <div className="space-y-1">
-                      <p>• <span className="font-medium text-red-600">Vermelho:</span> Aumenta RMBA (piora equilíbrio)</p>
-                      <p>• <span className="font-medium text-green-600">Verde:</span> Reduz RMBA (melhora equilíbrio)</p>
-                    </div>
-                  </div>
-                )}
-
-                {state.plan_type === 'CD' && (
-                  <div>
-                    <h4 className="text-xs font-semibold uppercase tracking-wide mb-2">Plano CD - Renda</h4>
-                    <div className="space-y-1">
-                      <p>• <span className="font-medium text-green-600">Verde:</span> Aumenta renda mensal</p>
-                      <p>• <span className="font-medium text-red-600">Vermelho:</span> Reduz renda mensal</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-600">Execute a simulação para ver a análise de sensibilidade.</p>
-            )}
-          </div>
-        );
+        return null;
       case 'technical':
         return null;
       case 'tables':

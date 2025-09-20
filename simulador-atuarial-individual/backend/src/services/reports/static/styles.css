@@ -1,0 +1,414 @@
+/* CSS para geração de PDFs executivos com WeasyPrint */
+
+/* Configurações de página */
+@page {
+    size: A4;
+    margin: 2cm 1.5cm;
+
+    @top-center {
+        content: "Simulador Atuarial Individual";
+        font-size: 10px;
+        color: #666;
+        font-family: Arial, sans-serif;
+    }
+
+    @bottom-center {
+        content: "Página " counter(page) " de " counter(pages);
+        font-size: 10px;
+        color: #666;
+        font-family: Arial, sans-serif;
+    }
+}
+
+/* Reset e configurações básicas */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Arial', 'Helvetica', sans-serif;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #333;
+    background: white;
+}
+
+/* Tipografia */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 0.5em;
+}
+
+h1 {
+    font-size: 18px;
+    text-align: center;
+    margin-bottom: 1em;
+    padding-bottom: 0.5em;
+    border-bottom: 2px solid #3498db;
+}
+
+h2 {
+    font-size: 16px;
+    margin-top: 1.5em;
+    margin-bottom: 0.8em;
+    color: #2980b9;
+}
+
+h3 {
+    font-size: 14px;
+    margin-top: 1em;
+    margin-bottom: 0.6em;
+}
+
+h4 {
+    font-size: 12px;
+    margin-bottom: 0.4em;
+}
+
+p {
+    margin-bottom: 0.8em;
+    text-align: justify;
+}
+
+/* Layout principal */
+.page-break {
+    page-break-after: always;
+}
+
+.no-break {
+    page-break-inside: avoid;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 2em;
+    padding-bottom: 1em;
+    border-bottom: 2px solid #3498db;
+}
+
+.header h1 {
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+.header .subtitle {
+    font-size: 12px;
+    color: #7f8c8d;
+    margin-top: 0.5em;
+}
+
+/* Informações do participante */
+.participant-info {
+    background: #f8f9fa;
+    padding: 1em;
+    border-radius: 8px;
+    margin-bottom: 1.5em;
+    border-left: 4px solid #3498db;
+}
+
+.participant-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1em;
+}
+
+.participant-grid p {
+    margin-bottom: 0.4em;
+    font-size: 10px;
+}
+
+.participant-grid strong {
+    color: #2c3e50;
+}
+
+/* KPIs Grid */
+.kpi-section {
+    margin: 1.5em 0;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1em;
+    margin: 1em 0;
+}
+
+.kpi-card {
+    border: 1px solid #e1e8ed;
+    border-radius: 6px;
+    padding: 1em;
+    text-align: center;
+    background: #f8f9fa;
+    position: relative;
+}
+
+.kpi-card h3 {
+    font-size: 11px;
+    color: #7f8c8d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5em;
+    font-weight: 600;
+}
+
+.kpi-value {
+    font-size: 16px;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 0.3em;
+}
+
+.kpi-value.positive {
+    color: #27ae60;
+}
+
+.kpi-value.negative {
+    color: #e74c3c;
+}
+
+.kpi-card small {
+    font-size: 9px;
+    color: #95a5a6;
+    display: block;
+}
+
+/* Situação geral */
+.situation-banner {
+    padding: 1em;
+    border-radius: 6px;
+    margin: 1em 0;
+    font-weight: bold;
+    text-align: center;
+}
+
+.situation-banner.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.situation-banner.info {
+    background: #cce7ff;
+    color: #004085;
+    border: 1px solid #a6d2ff;
+}
+
+.situation-banner.warning {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+}
+
+.situation-banner.danger {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* Gráficos */
+.chart-container {
+    text-align: center;
+    margin: 1.5em 0;
+    page-break-inside: avoid;
+}
+
+.chart-container h3 {
+    margin-bottom: 1em;
+    font-size: 13px;
+}
+
+.chart-container img {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #e1e8ed;
+    border-radius: 4px;
+}
+
+/* Tabelas */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+    font-size: 10px;
+    page-break-inside: avoid;
+}
+
+th, td {
+    border: 1px solid #ddd;
+    padding: 0.5em;
+    text-align: left;
+}
+
+th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    color: #2c3e50;
+    text-transform: uppercase;
+    font-size: 9px;
+    letter-spacing: 0.3px;
+}
+
+tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+tr:hover {
+    background-color: #f5f5f5;
+}
+
+/* Recomendações */
+.recommendations-section {
+    margin: 2em 0;
+}
+
+.recommendation {
+    margin: 1em 0;
+    padding: 1em;
+    border-radius: 6px;
+    border-left: 4px solid;
+    page-break-inside: avoid;
+}
+
+.recommendation h4 {
+    margin-bottom: 0.5em;
+    font-size: 12px;
+}
+
+.recommendation p {
+    margin-bottom: 0;
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+.recommendation.success {
+    background: #d4edda;
+    border-left-color: #28a745;
+    color: #155724;
+}
+
+.recommendation.info {
+    background: #cce7ff;
+    border-left-color: #17a2b8;
+    color: #004085;
+}
+
+.recommendation.warning {
+    background: #fff3cd;
+    border-left-color: #ffc107;
+    color: #856404;
+}
+
+.recommendation.danger {
+    background: #f8d7da;
+    border-left-color: #dc3545;
+    color: #721c24;
+}
+
+/* Conclusão */
+.conclusion {
+    background: #f8f9fa;
+    padding: 1.5em;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    margin: 2em 0;
+}
+
+.conclusion h3 {
+    color: #2c3e50;
+    margin-bottom: 1em;
+    font-size: 14px;
+}
+
+.conclusion p {
+    font-size: 11px;
+    line-height: 1.5;
+    margin-bottom: 1em;
+}
+
+/* Nota técnica */
+.technical-note {
+    background: #f8f9fa;
+    border-left: 4px solid #6c757d;
+    padding: 1em;
+    margin: 2em 0;
+    font-size: 9px;
+    color: #6c757d;
+}
+
+.technical-note h4 {
+    color: #495057;
+    margin-bottom: 0.5em;
+    font-size: 11px;
+}
+
+.technical-note p {
+    margin-bottom: 0.5em;
+    line-height: 1.4;
+}
+
+/* Grid de análise */
+.analysis-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5em;
+    margin: 1.5em 0;
+}
+
+.analysis-card {
+    background: white;
+    border: 1px solid #e1e8ed;
+    border-radius: 6px;
+    padding: 1em;
+}
+
+.analysis-card h4 {
+    color: #2980b9;
+    margin-bottom: 0.8em;
+    font-size: 12px;
+    border-bottom: 1px solid #ecf0f1;
+    padding-bottom: 0.3em;
+}
+
+/* Utilities */
+.text-center {
+    text-align: center;
+}
+
+.text-right {
+    text-align: right;
+}
+
+.font-bold {
+    font-weight: bold;
+}
+
+.text-muted {
+    color: #6c757d;
+}
+
+.mb-1 { margin-bottom: 0.5em; }
+.mb-2 { margin-bottom: 1em; }
+.mb-3 { margin-bottom: 1.5em; }
+
+.mt-1 { margin-top: 0.5em; }
+.mt-2 { margin-top: 1em; }
+.mt-3 { margin-top: 1.5em; }
+
+/* Print optimizations */
+@media print {
+    body {
+        font-size: 10px;
+    }
+
+    .chart-container img {
+        max-height: 400px;
+    }
+
+    .kpi-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}

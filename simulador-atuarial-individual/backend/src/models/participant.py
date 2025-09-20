@@ -31,6 +31,7 @@ class PlanType(str, Enum):
 
 class CDConversionMode(str, Enum):
     ACTUARIAL = "ACTUARIAL"        # Anuidade vitalícia atuarial
+    ACTUARIAL_EQUIVALENT = "ACTUARIAL_EQUIVALENT"  # Equivalência atuarial anual
     CERTAIN_5Y = "CERTAIN_5Y"      # Renda certa por 5 anos
     CERTAIN_10Y = "CERTAIN_10Y"    # Renda certa por 10 anos
     CERTAIN_15Y = "CERTAIN_15Y"    # Renda certa por 15 anos
@@ -66,7 +67,7 @@ class SimulatorState(BaseModel):
     
     # Base atuarial (pré-definida + editável)
     mortality_table: str       # "BR_EMS_2021", "AT_2000", "SOA_2017", "CUSTOM"
-    mortality_aggravation: float = 0.0  # Agravamento percentual da tábua (-10% a +20%)
+    mortality_aggravation: float = 0.0  # Suavização percentual da tábua (-10% a +20%)
     discount_rate: float       # Taxa de desconto atuarial (ex: 0.06 = 6% a.a.)
     salary_growth_real: float  # Crescimento salarial real (ex: 0.02 = 2% a.a.)
     
@@ -104,7 +105,7 @@ class SimulatorState(BaseModel):
     @field_validator('mortality_aggravation')
     def validate_mortality_aggravation(cls, v):
         if v < -10 or v > 20:
-            raise ValueError('Agravamento deve estar entre -10% e +20%')
+            raise ValueError('Suavização deve estar entre -10% e +20%')
         return v
     
     @field_validator('target_benefit', 'target_replacement_rate', mode='before')

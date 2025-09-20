@@ -197,9 +197,9 @@ class StateValidator:
         """
         errors = []
         
-        # Agravamento de mortalidade
+        # Suavização de mortalidade
         if state.mortality_aggravation < -50 or state.mortality_aggravation > 50:
-            errors.append("Agravamento de mortalidade deve estar entre -50% e +50%")
+            errors.append("Suavização de mortalidade deve estar entre -50% e +50%")
         
         # Validação básica de tábua de mortalidade
         if not state.mortality_table or len(state.mortality_table.strip()) == 0:

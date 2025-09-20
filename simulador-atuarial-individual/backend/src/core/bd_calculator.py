@@ -19,7 +19,9 @@ from ..utils import (
     calculate_sustainable_benefit,
     get_timing_adjustment,
     calculate_discount_factor,
-    calculate_actuarial_present_value
+    calculate_actuarial_present_value,
+    get_payment_survival_probability,
+    calculate_life_annuity_factor
 )
 
 if TYPE_CHECKING:
@@ -84,7 +86,13 @@ class BDCalculator:
         
         yearly_data = convert_monthly_to_yearly_projections(monthly_data, total_months)
         yearly_data["monthly_data"] = monthly_data
-        
+
+        # 8. Gerar vetores por idade para frontend
+        age_projections = self._generate_age_projections(
+            state, context, monthly_salaries, monthly_benefits, total_months
+        )
+        yearly_data.update(age_projections)
+
         return yearly_data
     
     def calculate_rmba(
@@ -157,8 +165,12 @@ class BDCalculator:
         
         for month_idx, benefit in enumerate(monthly_data["benefits"]):
             if benefit > 0:  # Só benefícios positivos
-                survival_prob = monthly_data["survival_probs"][month_idx]
-                
+                survival_prob = get_payment_survival_probability(
+                    monthly_data["survival_probs"],
+                    month_idx,
+                    context.payment_timing
+                )
+
                 discount_factor = calculate_discount_factor(
                     context.discount_rate_monthly,
                     month_idx,
@@ -189,17 +201,70 @@ class BDCalculator:
             Custo Normal anual
         """
         months_to_retirement = context.months_to_retirement
-        
+
+        if months_to_retirement <= 0:
+            return 0.0
+
+        monthly_data = projections.get("monthly_data", {})
+        survival_probs = monthly_data.get("survival_probs", [])
+
         if state.calculation_method == "PUC":
-            # Projected Unit Credit - acumulação mensal do benefício
-            monthly_benefit_accrual = (context.monthly_salary * (state.accrual_rate / 100)) / 12
-            pv_factor = 1 / ((1 + context.discount_rate_monthly) ** months_to_retirement)
-            return monthly_benefit_accrual * pv_factor * 12
-        else:  # EAN
-            # Entry Age Normal - distribuir custo total pelos meses de contribuição
-            total_cost = self.calculate_rmba(state, context, projections)
-            monthly_cost = total_cost / months_to_retirement if months_to_retirement > 0 else 0
-            return monthly_cost * 12
+            # Projected Unit Credit: VPA do benefício incremental deste ano
+            projected_final_salary = context.monthly_salary * (
+                (1 + context.salary_growth_real_monthly) ** months_to_retirement
+            )
+            annual_benefit_increment = projected_final_salary * (state.accrual_rate / 100)
+            monthly_benefit_increment = annual_benefit_increment / max(context.benefit_months_per_year, 1)
+
+            # Taxa efetiva considerando que a taxa admin incide sobre o saldo
+            # Taxa efetiva = (1 + retorno) / (1 + taxa_admin) - 1
+            effective_discount_rate = (1 + context.discount_rate_monthly) / (1 + context.admin_fee_monthly) - 1
+            effective_discount_rate = max(effective_discount_rate, -0.99)
+
+            annuity_factor = calculate_life_annuity_factor(
+                survival_probs,
+                effective_discount_rate,
+                context.payment_timing,
+                start_month=months_to_retirement
+            )
+
+            return monthly_benefit_increment * annuity_factor
+
+        # Entry Age Normal: custo uniforme proporcional ao salário esperado
+        monthly_salaries = monthly_data.get("salaries", [])
+        monthly_benefits = monthly_data.get("benefits", [])
+
+        # VPA dos benefícios futuros (incluindo fase pós-aposentadoria)
+        vpa_benefits = calculate_actuarial_present_value(
+            monthly_benefits,
+            survival_probs,
+            context.discount_rate_monthly,
+            context.payment_timing,
+            start_month=context.months_to_retirement
+        )
+
+        # VPA dos salários futuros até a aposentadoria
+        apv_future_salaries = calculate_actuarial_present_value(
+            monthly_salaries,
+            survival_probs,
+            context.discount_rate_monthly,
+            context.payment_timing,
+            start_month=0,
+            end_month=months_to_retirement
+        )
+
+        if apv_future_salaries <= 0:
+            return 0.0
+
+        # Recursos já existentes (saldo inicial) reduzem o passivo a financiar
+        resources_available = state.initial_balance if hasattr(state, 'initial_balance') else 0.0
+
+        # Custo total a financiar via contribuições niveladas
+        total_cost_to_fund = max(vpa_benefits - resources_available, 0.0)
+
+        level_rate = total_cost_to_fund / apv_future_salaries
+        annual_salary_base = context.monthly_salary * context.salary_months_per_year
+        return annual_salary_base * level_rate
     
     def calculate_key_metrics(
         self, 
@@ -221,16 +286,14 @@ class BDCalculator:
         total_contributions = sum(projections["contributions"])
         total_benefits = sum(projections["benefits"])
         
-        # Salário final projetado mensal
         monthly_data = projections["monthly_data"]
-        months_to_retirement = len([s for s in monthly_data["salaries"] if s > 0])
-        
-        if months_to_retirement > 0:
-            final_salary_monthly_base = context.monthly_salary * (
-                (1 + context.salary_growth_real_monthly) ** (months_to_retirement - 1)
-            )
-        else:
+        months_to_retirement = context.months_to_retirement
+
+        if context.is_already_retired:
             final_salary_monthly_base = context.monthly_salary
+        else:
+            salary_growth_factor = (1 + context.salary_growth_real_monthly) ** max(months_to_retirement - 1, 0)
+            final_salary_monthly_base = context.monthly_salary * salary_growth_factor
         
         # Benefício mensal base para comparação consistente - compatível com string ou enum
         if str(state.benefit_target_mode) == "REPLACEMENT_RATE":
@@ -362,9 +425,10 @@ class BDCalculator:
         
         if state.benefit_target_mode == BenefitTargetMode.REPLACEMENT_RATE:
             replacement_rate = state.target_replacement_rate if state.target_replacement_rate is not None else 70.0
-            active_salaries = [s for s in monthly_salaries if s > 0]
-            final_salary = active_salaries[-1] if active_salaries else context.monthly_salary
-            return final_salary * (replacement_rate / 100)
+            months_to_retirement = context.months_to_retirement
+            salary_growth_factor = (1 + context.salary_growth_real_monthly) ** max(months_to_retirement - 1, 0)
+            final_salary_base = context.monthly_salary * salary_growth_factor
+            return final_salary_base * (replacement_rate / 100)
         else:  # VALUE
             return state.target_benefit if state.target_benefit is not None else 0
     
@@ -426,3 +490,57 @@ class BDCalculator:
                 break
         
         return target_benefit_apv
+
+    def _generate_age_projections(
+        self,
+        state: 'SimulatorState',
+        context: 'ActuarialContext',
+        monthly_salaries: list,
+        monthly_benefits: list,
+        total_months: int
+    ) -> Dict:
+        """
+        Gera vetores de projeção por idade para o frontend (BD)
+
+        Args:
+            state: Estado do simulador
+            context: Contexto atuarial
+            monthly_salaries: Salários mensais calculados
+            monthly_benefits: Benefícios mensais calculados
+            total_months: Total de meses de projeção
+
+        Returns:
+            Dicionário com vetores por idade
+        """
+        projection_ages = []
+        projected_salaries_by_age = []
+        projected_benefits_by_age = []
+
+        # Gerar lista de idades (apenas anos completos)
+        for month in range(0, total_months, 12):  # A cada 12 meses (início de cada ano)
+            age = state.age + (month // 12)
+            projection_ages.append(age)
+
+            # Para benefícios e salários, usar valor do primeiro mês do ano (mês base)
+            if month < len(monthly_salaries):
+                monthly_salary = monthly_salaries[month]
+                monthly_benefit = monthly_benefits[month]
+
+                # Converter para valores anuais considerando múltiplos pagamentos
+                # Para salários: multiplicar pela quantidade de salários por ano
+                annual_salary = monthly_salary * context.salary_months_per_year if monthly_salary > 0 else 0
+
+                # Para benefícios: multiplicar pela quantidade de benefícios por ano
+                annual_benefit = monthly_benefit * context.benefit_months_per_year if monthly_benefit > 0 else 0
+
+                projected_salaries_by_age.append(annual_salary)
+                projected_benefits_by_age.append(annual_benefit)
+            else:
+                projected_salaries_by_age.append(0.0)
+                projected_benefits_by_age.append(0.0)
+
+        return {
+            "projection_ages": projection_ages,
+            "projected_salaries_by_age": projected_salaries_by_age,
+            "projected_benefits_by_age": projected_benefits_by_age
+        }

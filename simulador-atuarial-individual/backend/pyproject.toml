@@ -21,6 +21,10 @@ dependencies = [
     "pymort>=0.2.0",
     "openpyxl>=3.1.0",
     "requests>=2.31.0",
+    "reportlab>=4.4.4",
+    "matplotlib>=3.10.6",
+    "weasyprint>=66.0",
+    "pillow>=11.3.0",
 ]
 
 [project.optional-dependencies]

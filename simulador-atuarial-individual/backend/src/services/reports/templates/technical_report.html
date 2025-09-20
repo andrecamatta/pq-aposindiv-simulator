@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório Técnico Atuarial - Simulação Individual</title>
+    <style>
+        /* CSS inline para garantir compatibilidade com WeasyPrint */
+        @page {
+            size: A4;
+            margin: 2cm 1.5cm;
+            @top-center {
+                content: "{{ config.company_name }} - Relatório Técnico";
+                font-size: 10px;
+                color: #666;
+            }
+            @bottom-center {
+                content: "Página " counter(page) " de " counter(pages);
+                font-size: 10px;
+                color: #666;
+            }
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            line-height: 1.3;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+
+        .page-break { page-break-after: always; }
+        .no-break { page-break-inside: avoid; }
+
+        h1 {
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 1em;
+            padding-bottom: 0.5em;
+            border-bottom: 2px solid #2c5aa0;
+            color: #2c3e50;
+        }
+
+        h2 {
+            font-size: 14px;
+            margin: 1.2em 0 0.6em 0;
+            color: #2c5aa0;
+            border-left: 4px solid #2c5aa0;
+            padding-left: 0.5em;
+        }
+
+        h3 {
+            font-size: 12px;
+            margin: 1em 0 0.5em 0;
+            color: #2c3e50;
+        }
+
+        h4 {
+            font-size: 11px;
+            margin-bottom: 0.4em;
+            color: #2c3e50;
+        }
+
+        .header-section {
+            background: #f8f9fa;
+            padding: 1em;
+            border-radius: 6px;
+            margin-bottom: 1.5em;
+            border-left: 4px solid #2c5aa0;
+        }
+
+        .technical-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1em;
+            margin: 1em 0;
+        }
+
+        .technical-grid p {
+            margin: 0.3em 0;
+            font-size: 9px;
+        }
+
+        .methodology-section {
+            background: #fff;
+            border: 1px solid #e1e8ed;
+            border-radius: 6px;
+            padding: 1em;
+            margin: 1em 0;
+        }
+
+        .formula {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 0.8em;
+            margin: 0.5em 0;
+            font-family: 'Courier New', monospace;
+            font-size: 9px;
+            text-align: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+            font-size: 8px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 0.4em;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 8px;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .assumptions-table {
+            font-size: 9px;
+        }
+
+        .projections-table {
+            font-size: 7px;
+        }
+
+        .projections-table th,
+        .projections-table td {
+            padding: 0.2em;
+            text-align: right;
+        }
+
+        .chart-container {
+            text-align: center;
+            margin: 1em 0;
+            page-break-inside: avoid;
+        }
+
+        .chart-container img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #e1e8ed;
+            border-radius: 4px;
+        }
+
+        .kpi-technical {
+            background: #f8f9fa;
+            border: 1px solid #e1e8ed;
+            border-radius: 6px;
+            padding: 0.8em;
+            margin: 0.5em 0;
+            text-align: center;
+        }
+
+        .kpi-technical h4 {
+            font-size: 9px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 0.3em;
+        }
+
+        .kpi-technical .value {
+            font-size: 12px;
+            font-weight: bold;
+            color: #2c5aa0;
+        }
+
+        .sensitivity-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.8em;
+            margin: 1em 0;
+        }
+
+        .diagnostic {
+            padding: 0.8em;
+            border-radius: 4px;
+            margin: 0.5em 0;
+            border-left: 4px solid;
+        }
+
+        .diagnostic.good {
+            background: #d4edda;
+            color: #155724;
+            border-left-color: #28a745;
+        }
+
+        .diagnostic.warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left-color: #ffc107;
+        }
+
+        .diagnostic.critical {
+            background: #f8d7da;
+            color: #721c24;
+            border-left-color: #dc3545;
+        }
+
+        .technical-note {
+            background: #f8f9fa;
+            border-left: 4px solid #6c757d;
+            padding: 0.8em;
+            margin: 1em 0;
+            font-size: 8px;
+            color: #6c757d;
+        }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1em;
+        }
+    </style>
+</head>
+<body>
+    <!-- Página 1: Capa e Metodologia -->
+    <div class="header">
+        <h1>RELATÓRIO TÉCNICO ATUARIAL<br>SIMULAÇÃO INDIVIDUAL</h1>
+        <div class="subtitle">
+            <strong>Tipo de Plano:</strong> {{ 'Contribuição Definida (CD)' if is_cd else 'Benefício Definido (BD)' }}<br>
+            <strong>Método de Cálculo:</strong> {{ state.calculation_method or 'PUC' }}<br>
+            <strong>Data da Análise:</strong> {{ generation_date }}<br>
+            <strong>Participante:</strong> {{ 'Masculino' if state.gender == 'M' else 'Feminino' }}, {{ state.age }} anos
+        </div>
+    </div>
+
+    <!-- Premissas Técnicas Detalhadas -->
+    <div class="header-section no-break">
+        <h2>📋 Base Técnica e Premissas Atuariais</h2>
+        <div class="technical-grid">
+            <div>
+                <h4>Dados do Participante</h4>
+                <p><strong>Idade Atual:</strong> {{ state.age }} anos</p>
+                <p><strong>Gênero:</strong> {{ 'Masculino' if state.gender == 'M' else 'Feminino' }}</p>
+                <p><strong>Idade de Aposentadoria:</strong> {{ state.retirement_age }} anos</p>
+                <p><strong>Tempo até Aposentadoria:</strong> {{ state.retirement_age - state.age }} anos</p>
+                <p><strong>Salário Mensal Atual:</strong> {{ state.salary | currency }}</p>
+                <p><strong>Salários por Ano:</strong> {{ state.salary_months_per_year or 13 }}x</p>
+                {% if state.initial_balance %}
+                <p><strong>Saldo Inicial:</strong> {{ state.initial_balance | currency }}</p>
+                {% endif %}
+            </div>
+            <div>
+                <h4>Premissas Atuariais</h4>
+                <p><strong>Tábua de Mortalidade:</strong> {{ state.mortality_table }}</p>
+                {% if state.mortality_aggravation %}
+                <p><strong>Suavização:</strong> {{ state.mortality_aggravation | percentage }}</p>
+                {% endif %}
+                <p><strong>Taxa de Desconto:</strong> {{ (state.discount_rate * 100) | percentage }} a.a.</p>
+                <p><strong>Crescimento Salarial Real:</strong> {{ (state.salary_growth_real * 100) | percentage }} a.a.</p>
+                <p><strong>Taxa de Contribuição:</strong> {{ state.contribution_rate | percentage }}</p>
+                {% if state.admin_fee_rate %}
+                <p><strong>Taxa de Administração:</strong> {{ (state.admin_fee_rate * 100) | percentage }} a.a.</p>
+                {% endif %}
+                <p><strong>Regime de Pagamento:</strong> {{ state.payment_timing.title() }}</p>
+                <p><strong>Benefícios por Ano:</strong> {{ state.benefit_months_per_year or 13 }}x</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Metodologia Atuarial -->
+    <div class="methodology-section no-break">
+        <h2>🔬 Metodologia Atuarial</h2>
+
+        <h3>Método de Cálculo: {{ state.calculation_method or 'PUC' }}</h3>
+        {% if state.calculation_method == 'PUC' or not state.calculation_method %}
+        <p><strong>Projected Unit Credit (PUC):</strong> Método que projeta os benefícios futuros com base no salário final esperado e calcula o valor presente das obrigações.</p>
+
+        <div class="formula">
+            <strong>Reserva Matemática de Benefícios a Conceder (RMBA):</strong><br>
+            RMBA = Σ [Benefício × P(sobrevivência) × v^t]
+        </div>
+
+        <div class="formula">
+            <strong>Custo Normal Anual:</strong><br>
+            CN = (RMBA_final - RMBA_atual) / anos_restantes
+        </div>
+        {% endif %}
+
+        {% if is_cd %}
+        <h3>Modalidade CD: {{ state.cd_conversion_mode or 'ACTUARIAL' }}</h3>
+        {% if state.cd_conversion_mode == 'ACTUARIAL_EQUIVALENT' %}
+        <p><strong>Equivalência Atuarial:</strong> Benefício recalculado anualmente com base no saldo remanescente e expectativa de vida atuarial.</p>
+
+        <div class="formula">
+            <strong>Benefício Anual CD (Equivalência Atuarial):</strong><br>
+            Benefício = Saldo_Remanescente / Expectativa_Vida_Atuarial
+        </div>
+        {% else %}
+        <div class="formula">
+            <strong>Benefício Mensal CD:</strong><br>
+            Benefício = (Saldo_Final × Taxa_Conversão) / 12
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <h3>Taxas e Fatores Utilizados</h3>
+        <table class="assumptions-table">
+            <thead>
+                <tr>
+                    <th>Premissa</th>
+                    <th>Valor</th>
+                    <th>Observações</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Taxa de Desconto</td>
+                    <td>{{ (state.discount_rate * 100) | percentage }} a.a.</td>
+                    <td>Taxa real, livre de inflação</td>
+                </tr>
+                <tr>
+                    <td>Crescimento Salarial</td>
+                    <td>{{ (state.salary_growth_real * 100) | percentage }} a.a.</td>
+                    <td>Crescimento real acima da inflação</td>
+                </tr>
+                <tr>
+                    <td>Mortalidade</td>
+                    <td>{{ state.mortality_table }}</td>
+                    <td>{% if state.mortality_aggravation %}Com suavização de {{ state.mortality_aggravation | percentage }}{% else %}Sem suavização{% endif %}</td>
+                </tr>
+                <tr>
+                    <td>Invalidez</td>
+                    <td>Não considerada</td>
+                    <td>Simplificação metodológica</td>
+                </tr>
+                <tr>
+                    <td>Rotatividade</td>
+                    <td>Não considerada</td>
+                    <td>Participante permanece até aposentadoria</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- Página 2: Resultados Técnicos -->
+    <h2>📊 Resultados Técnicos Detalhados</h2>
+
+    <!-- KPIs Técnicos -->
+    <div class="sensitivity-grid">
+        {% if is_cd %}
+        <div class="kpi-technical">
+            <h4>Saldo Acumulado Final</h4>
+            <div class="value">{{ (results.individual_balance or 0) | currency(0) }}</div>
+        </div>
+        <div class="kpi-technical">
+            <h4>Contribuições Totais</h4>
+            <div class="value">{{ (results.total_contributions or 0) | currency(0) }}</div>
+        </div>
+        <div class="kpi-technical">
+            <h4>Rendimentos Acumulados</h4>
+            <div class="value">{{ ((results.individual_balance or 0) - (results.total_contributions or 0)) | currency(0) }}</div>
+        </div>
+        {% else %}
+        <div class="kpi-technical">
+            <h4>RMBA</h4>
+            <div class="value">{{ (results.rmba or 0) | currency(0) }}</div>
+        </div>
+        <div class="kpi-technical">
+            <h4>RMBC</h4>
+            <div class="value">{{ (results.rmbc or 0) | currency(0) }}</div>
+        </div>
+        <div class="kpi-technical">
+            <h4>Custo Normal</h4>
+            <div class="value">{{ (results.normal_cost or 0) | currency(0) }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Gráfico Principal -->
+    {% if charts.reserve_evolution %}
+    <div class="chart-container no-break">
+        <h3>{{ 'Evolução do Saldo Individual (CD)' if is_cd else 'Evolução das Reservas Matemáticas (BD)' }}</h3>
+        <img src="{{ charts.reserve_evolution }}" alt="Evolução das Reservas">
+    </div>
+    {% endif %}
+
+    <!-- Análise de Adequação -->
+    <div class="methodology-section">
+        <h3>🎯 Análise de Adequação e Sustentabilidade</h3>
+
+        {% if is_cd %}
+        {% set replacement_ratio = results.replacement_ratio or 0 %}
+        <div class="diagnostic {{ 'good' if replacement_ratio >= 70 else 'warning' if replacement_ratio >= 50 else 'critical' }}">
+            <h4>Taxa de Reposição: {{ replacement_ratio | percentage(1) }}</h4>
+            <p>
+                {% if replacement_ratio >= 70 %}
+                Adequada: Taxa de reposição atende aos padrões internacionais recomendados (≥70%).
+                {% elif replacement_ratio >= 50 %}
+                Atenção: Taxa de reposição moderada, pode requerer complementação.
+                {% else %}
+                Crítica: Taxa de reposição abaixo do recomendado, requer revisão da estratégia.
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="diagnostic {{ 'good' if state.contribution_rate >= 10 else 'warning' }}">
+            <h4>Taxa de Contribuição: {{ state.contribution_rate | percentage }}</h4>
+            <p>
+                {% if state.contribution_rate >= 10 %}
+                Adequada: Taxa de contribuição consistente com práticas de mercado.
+                {% else %}
+                Atenção: Taxa de contribuição pode ser insuficiente para metas de longo prazo.
+                {% endif %}
+            </p>
+        </div>
+        {% else %}
+        {% set deficit_surplus = results.deficit_surplus or 0 %}
+        <div class="diagnostic {{ 'good' if deficit_surplus >= 0 else 'warning' if deficit_surplus > -100000 else 'critical' }}">
+            <h4>Situação Atuarial: {{ 'Superávit' if deficit_surplus >= 0 else 'Déficit' }} de {{ deficit_surplus | currency(0) }}</h4>
+            <p>
+                {% if deficit_surplus >= 0 %}
+                Situação equilibrada: Reservas suficientes para cobertura das obrigações atuariais.
+                {% elif deficit_surplus > -100000 %}
+                Déficit moderado: Requer monitoramento e possíveis ajustes graduais.
+                {% else %}
+                Déficit significativo: Ação imediata necessária para equilíbrio atuarial.
+                {% endif %}
+            </p>
+        </div>
+
+        {% set req_contrib_rate = results.required_contribution_rate or 0 %}
+        {% set current_contrib_rate = state.contribution_rate or 8 %}
+        <div class="diagnostic {{ 'good' if req_contrib_rate <= current_contrib_rate * 1.1 else 'warning' if req_contrib_rate <= current_contrib_rate * 1.3 else 'critical' }}">
+            <h4>Taxa de Contribuição Necessária: {{ req_contrib_rate | percentage(1) }}</h4>
+            <p>
+                Atual: {{ current_contrib_rate | percentage(1) }} |
+                Diferença: {{ (req_contrib_rate - current_contrib_rate) | percentage(1) }}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- Página 3: Projeções Detalhadas -->
+    <h2>📈 Projeções Atuariais Detalhadas</h2>
+
+    <!-- Tabela de Projeções -->
+    <div class="no-break">
+        <h3>Projeções Anuais - Horizonte de {{ state.projection_years or 30 }} Anos</h3>
+        <table class="projections-table">
+            <thead>
+                <tr>
+                    <th>Ano</th>
+                    <th>Idade</th>
+                    <th>Salário</th>
+                    {% if is_cd %}
+                    <th>Contribuição</th>
+                    <th>Saldo</th>
+                    <th>Rendimento</th>
+                    {% else %}
+                    <th>Benefício</th>
+                    <th>RMBA</th>
+                    <th>Contribuição</th>
+                    {% endif %}
+                    <th>Sobrevivência</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set proj_length = results.projection_years | safe_length %}
+                {% if proj_length > 0 %}
+                    {% for i in range(proj_length) %}
+                    <tr>
+                        <td>{{ results.projection_years[i] if results.projection_years and i < results.projection_years | safe_length else (2024 + i) }}</td>
+                        <td>{{ state.age + i }}</td>
+                        <td>{{ results.projected_salaries[i] | currency(0) if results.projected_salaries and i < (results.projected_salaries | safe_length) else '-' }}</td>
+                        {% if is_cd %}
+                        <td>{{ results.projected_contributions[i] | currency(0) if results.projected_contributions and i < (results.projected_contributions | safe_length) else '-' }}</td>
+                        <td>{{ results.accumulated_reserves[i] | currency(0) if results.accumulated_reserves and i < (results.accumulated_reserves | safe_length) else '-' }}</td>
+                        <td>{{ ((results.accumulated_reserves[i] or 0) * (state.accrual_rate or 5) / 100) | currency(0) if results.accumulated_reserves and i < (results.accumulated_reserves | safe_length) else '-' }}</td>
+                        {% else %}
+                        <td>{{ results.projected_benefits[i] | currency(0) if results.projected_benefits and i < (results.projected_benefits | safe_length) else '-' }}</td>
+                        <td>{{ results.projected_rmba_evolution[i] | currency(0) if results.projected_rmba_evolution and i < (results.projected_rmba_evolution | safe_length) else '-' }}</td>
+                        <td>{{ results.projected_contributions[i] | currency(0) if results.projected_contributions and i < (results.projected_contributions | safe_length) else '-' }}</td>
+                        {% endif %}
+                        <td>{{ ((results.survival_probabilities[i] or 0) * 100) | percentage(1) if results.survival_probabilities and i < (results.survival_probabilities | safe_length) else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="{% if is_cd %}6{% else %}6{% endif %}" style="text-align: center; color: #666;">
+                            Dados de projeção não disponíveis
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Análise de Sensibilidade Detalhada -->
+    {% if charts.sensitivity_analysis %}
+    <div class="chart-container no-break">
+        <h3>Análise de Sensibilidade - Impacto das Premissas</h3>
+        <img src="{{ charts.sensitivity_analysis }}" alt="Análise de Sensibilidade">
+        <p style="font-size: 8px; color: #666; margin-top: 0.5em;">
+            Variação dos resultados conforme alteração das principais premissas atuariais (±20%)
+        </p>
+    </div>
+    {% endif %}
+
+    <div class="page-break"></div>
+
+    <!-- Página 4: Diagnósticos e Conclusões Técnicas -->
+    <h2>🔍 Diagnósticos Técnicos e Recomendações</h2>
+
+    <!-- Validação das Premissas -->
+    <div class="methodology-section">
+        <h3>Validação da Base Técnica</h3>
+
+        <div class="two-column">
+            <div>
+                <h4>Premissas Demográficas</h4>
+                <div class="diagnostic good">
+                    <p><strong>Tábua de Mortalidade:</strong> {{ state.mortality_table }} é apropriada para a população brasileira e está atualizada.</p>
+                </div>
+
+                <div class="diagnostic {{ 'warning' if state.mortality_aggravation else 'good' }}">
+                    <p><strong>Suavização:</strong>
+                    {% if state.mortality_aggravation %}
+                    Aplicada {{ state.mortality_aggravation | percentage }} - verificar justificativa técnica.
+                    {% else %}
+                    Não aplicada - adequado para população padrão.
+                    {% endif %}
+                    </p>
+                </div>
+            </div>
+
+            <div>
+                <h4>Premissas Econômicas</h4>
+                <div class="diagnostic {{ 'good' if state.discount_rate >= 0.04 and state.discount_rate <= 0.08 else 'warning' }}">
+                    <p><strong>Taxa de Desconto:</strong> {{ (state.discount_rate * 100) | percentage }}
+                    {% if state.discount_rate >= 0.04 and state.discount_rate <= 0.08 %}
+                    está dentro da faixa recomendada (4-8% a.a. real).
+                    {% else %}
+                    deve ser revisada conforme cenário econômico atual.
+                    {% endif %}
+                    </p>
+                </div>
+
+                <div class="diagnostic {{ 'good' if state.salary_growth_real >= 0.01 and state.salary_growth_real <= 0.04 else 'warning' }}">
+                    <p><strong>Crescimento Salarial:</strong> {{ (state.salary_growth_real * 100) | percentage }}
+                    {% if state.salary_growth_real >= 0.01 and state.salary_growth_real <= 0.04 %}
+                    consistente com expectativas de produtividade.
+                    {% else %}
+                    pode ser otimista/conservador demais.
+                    {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recomendações Técnicas -->
+    <div class="methodology-section">
+        <h3>Recomendações Técnicas</h3>
+
+        {% if is_cd %}
+        <h4>Plano de Contribuição Definida</h4>
+        <ul style="font-size: 9px; margin-left: 1em;">
+            <li><strong>Monitoramento:</strong> Revisar rentabilidade anualmente e ajustar estratégia de investimento se necessário</li>
+            <li><strong>Contribuições:</strong> Considerar aumentos graduais da taxa de contribuição para melhorar adequação</li>
+            <li><strong>Modalidade:</strong> {{ 'Equivalência atuarial oferece proteção contra longevidade' if state.cd_conversion_mode == 'ACTUARIAL_EQUIVALENT' else 'Considerar modalidade de equivalência atuarial para proteção contra longevidade' }}</li>
+            <li><strong>Educação:</strong> Implementar programa de educação financeira para participantes</li>
+        </ul>
+        {% else %}
+        <h4>Plano de Benefício Definido</h4>
+        <ul style="font-size: 9px; margin-left: 1em;">
+            <li><strong>Equilíbrio:</strong> {{ 'Manter monitoramento regular das reservas' if results.deficit_surplus >= 0 else 'Implementar plano de equacionamento do déficit atuarial' }}</li>
+            <li><strong>Contribuições:</strong> {{ 'Taxa atual adequada' if results.required_contribution_rate <= state.contribution_rate * 1.1 else 'Considerar aumento gradual da taxa de contribuição' }}</li>
+            <li><strong>Premissas:</strong> Revisar anualmente as premissas atuariais, especialmente em cenários de mudança econômica</li>
+            <li><strong>Gestão de Riscos:</strong> Diversificar investimentos e implementar hedge para riscos de longevidade</li>
+        </ul>
+        {% endif %}
+
+        <h4>Recomendações Gerais</h4>
+        <ul style="font-size: 9px; margin-left: 1em;">
+            <li><strong>Avaliação Atuarial:</strong> Realizar avaliações anuais com atuário qualificado</li>
+            <li><strong>Estresse Testing:</strong> Implementar testes de estresse para cenários adversos</li>
+            <li><strong>Compliance:</strong> Manter conformidade com regulamentações da PREVIC/SUSEP</li>
+            <li><strong>Transparência:</strong> Comunicar resultados aos participantes de forma clara e regular</li>
+        </ul>
+    </div>
+
+    <!-- Gráfico de Fluxo de Caixa -->
+    {% if charts.cash_flow %}
+    <div class="chart-container no-break">
+        <h3>Fluxo de Caixa Projetado</h3>
+        <img src="{{ charts.cash_flow }}" alt="Fluxo de Caixa">
+    </div>
+    {% endif %}
+
+    <!-- Conclusão Técnica -->
+    <div class="methodology-section">
+        <h3>Conclusão Técnica</h3>
+        {% if is_cd %}
+        <p style="font-size: 10px;">
+            A simulação do plano de contribuição definida projeta acumulação de <strong>{{ (results.individual_balance or 0) | currency(0) }}</strong>
+            até a aposentadoria, resultando em taxa de reposição de <strong>{{ (results.replacement_ratio or 0) | percentage(1) }}</strong>.
+            {% set repl_ratio = results.replacement_ratio or 0 %}
+            {% if repl_ratio >= 70 %}
+            O resultado indica adequação da estratégia atual de contribuição e acumulação.
+            {% else %}
+            Recomenda-se revisão da estratégia para melhorar a adequação do benefício futuro.
+            {% endif %}
+        </p>
+        {% else %}
+        <p style="font-size: 10px;">
+            A avaliação atuarial do plano de benefício definido indica RMBA de <strong>{{ (results.rmba or 0) | currency(0) }}</strong>
+            {% set def_surplus = results.deficit_surplus or 0 %}
+            e {{ 'superávit' if def_surplus >= 0 else 'déficit' }} de <strong>{{ def_surplus | currency(0) }}</strong>.
+            {% set req_rate = results.required_contribution_rate or 0 %}
+            {% set curr_rate = state.contribution_rate or 8 %}
+            A taxa de contribuição necessária para equilíbrio é de <strong>{{ req_rate | percentage(1) }}</strong>,
+            {{ 'abaixo' if req_rate <= curr_rate else 'acima' }} da taxa atual de <strong>{{ curr_rate | percentage(1) }}</strong>.
+        </p>
+        {% endif %}
+
+        <p style="font-size: 10px;">
+            As premissas utilizadas estão em linha com as práticas atuariais vigentes e a metodologia
+            {{ state.calculation_method or 'PUC' }} é apropriada para o tipo de plano. Recomenda-se
+            monitoramento periódico e reavaliação anual das premissas e resultados.
+        </p>
+    </div>
+
+    <!-- Nota Técnica Final -->
+    <div class="technical-note">
+        <h4>📋 Nota Técnica e Limitações</h4>
+        <p>
+            <strong>Metodologia:</strong> Cálculos baseados em princípios atuariais reconhecidos internacionalmente,
+            utilizando metodologia {{ state.calculation_method or 'PUC' }} e tábua {{ state.mortality_table }}.
+        </p>
+        <p>
+            <strong>Limitações:</strong> Resultados válidos para as premissas especificadas. Variações nas
+            condições econômicas, demográficas ou regulatórias podem impactar significativamente os resultados.
+        </p>
+        <p>
+            <strong>Responsabilidade:</strong> Esta simulação tem caráter ilustrativo. Para decisões definitivas,
+            recomenda-se consulta a atuário qualificado e conformidade com regulamentações aplicáveis.
+        </p>
+        <p>
+            <strong>Geração:</strong> Relatório gerado em {{ generation_date }} •
+            Tempo de processamento: {{ (results.computation_time_ms or 0) | round(0) }}ms •
+            Simulador Atuarial Individual v1.0 • ID: {{ report_id[:8] }}
+        </p>
+    </div>
+</body>
+</html>

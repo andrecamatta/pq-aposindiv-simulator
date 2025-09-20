@@ -36,8 +36,9 @@ def calculate_salary_projections(
         if context.is_already_retired:
             monthly_salary = 0.0
         elif month < months_to_retirement:  # Fase ativa
-            # Crescimento mensal composto do salário base
-            base_monthly_salary = context.monthly_salary * ((1 + context.salary_growth_real_monthly) ** month)
+            # Crescimento anual aplicado no início de cada ano
+            year_number = month // 12
+            base_monthly_salary = context.monthly_salary * ((1 + state.salary_growth_real) ** year_number)
             
             # Lógica de pagamentos: todos os 12 meses têm pagamento base
             # Meses específicos têm pagamentos extras (13º, 14º, etc.)

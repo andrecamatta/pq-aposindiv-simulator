@@ -1,7 +1,7 @@
-export type { 
-  SimulatorState, 
-  SimulatorResults, 
-  MortalityTable, 
+export type {
+  SimulatorState,
+  SimulatorResults,
+  MortalityTable,
   WebSocketMessage,
   Suggestion,
   SuggestionType,
@@ -9,5 +9,9 @@ export type {
   SuggestionsRequest,
   SuggestionsResponse,
   ApplySuggestionRequest,
-  ApplySuggestionResponse
+  ApplySuggestionResponse,
+  BenefitTargetMode,
+  PaymentTiming,
+  PlanType,
+  CDConversionMode
 } from './simulator.types';

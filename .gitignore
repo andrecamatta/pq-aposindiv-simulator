@@ -238,5 +238,9 @@ dist-ssr
 ehthumbs.db
 Thumbs.db
 
+# Backup files
+*.bak
+*_OLD_INCORRECT*
+
 # Playwright
 .playwright-mcp/

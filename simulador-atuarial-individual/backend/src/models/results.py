@@ -5,11 +5,11 @@ from datetime import datetime
 
 class SimulatorResults(BaseModel):
     """Resultados calculados da simulação"""
-    # Reservas Matemáticas (BD)
+    # Reservas Matemáticas (BD) - campos essenciais
     rmba: float                # Reserva de Benefícios a Conceder
     rmbc: float                # Reserva de Benefícios Concedidos
-    normal_cost: float         # Custo Normal anual
-    
+    normal_cost: Optional[float] = 0.0         # Custo Normal anual
+
     # Campos específicos para CD (Contribuição Definida)
     individual_balance: Optional[float] = None       # Saldo individual acumulado
     net_accumulated_value: Optional[float] = None    # Valor líquido (saldo - custos admin)
@@ -19,65 +19,70 @@ class SimulatorResults(BaseModel):
     conversion_factor: Optional[float] = None        # Fator de conversão utilizado
     administrative_cost_total: Optional[float] = None  # Custos administrativos totais
     benefit_duration_years: Optional[float] = None   # Duração dos benefícios em anos (CD)
-    
-    # Análise de Suficiência
-    deficit_surplus: float     # Déficit(-) ou Superávit(+) em R$
+
+    # Análise de Suficiência - campos essenciais
+    deficit_surplus: Optional[float] = 0.0     # Déficit(-) ou Superávit(+) em R$
     deficit_surplus_percentage: float  # Percentual do déficit/superávit
-    required_contribution_rate: float  # Taxa necessária para déficit zero (%)
-    
-    # Projeções anuais (vetores para gráficos)
-    projection_years: List[int]
-    projected_salaries: List[float]
-    projected_benefits: List[float]
-    projected_contributions: List[float]
-    survival_probabilities: List[float]
-    accumulated_reserves: List[float]
-    
-    # Projeções atuariais para gráfico separado
-    projected_vpa_benefits: List[float]    # VPA dos benefícios por ano
-    projected_vpa_contributions: List[float]  # VPA das contribuições por ano
-    projected_rmba_evolution: List[float]     # Evolução da RMBA por ano (pessoas ativas)
-    projected_rmbc_evolution: List[float]     # Evolução da RMBC por ano (pessoas aposentadas)
-    
-    # Métricas-chave
-    total_contributions: float  # Contribuições totais projetadas
-    total_benefits: float      # Benefícios totais projetados
-    replacement_ratio: float   # Taxa de reposição (%)
-    target_replacement_ratio: float   # Taxa de reposição alvo (%)
-    sustainable_replacement_ratio: float  # Taxa de reposição sustentável (%)
+    required_contribution_rate: Optional[float] = 0.0  # Taxa necessária para déficit zero (%)
+
+    # Projeções anuais (vetores para gráficos) - opcionais com valores padrão
+    projection_years: Optional[List[int]] = None
+    projected_salaries: Optional[List[float]] = None
+    projected_benefits: Optional[List[float]] = None
+    projected_contributions: Optional[List[float]] = None
+    survival_probabilities: Optional[List[float]] = None
+    accumulated_reserves: Optional[List[float]] = None
+
+    # Vetores por idade para gráfico de evolução salarial/benefícios
+    projection_ages: Optional[List[int]] = None            # Idades correspondentes
+    projected_salaries_by_age: Optional[List[float]] = None  # Salários mensais por idade
+    projected_benefits_by_age: Optional[List[float]] = None  # Benefícios mensais por idade
+
+    # Projeções atuariais para gráfico separado - opcionais
+    projected_vpa_benefits: Optional[List[float]] = None    # VPA dos benefícios por ano
+    projected_vpa_contributions: Optional[List[float]] = None  # VPA das contribuições por ano
+    projected_rmba_evolution: Optional[List[float]] = None     # Evolução da RMBA por ano (pessoas ativas)
+    projected_rmbc_evolution: Optional[List[float]] = None     # Evolução da RMBC por ano (pessoas aposentadas)
+
+    # Métricas-chave - essencial apenas replacement_ratio
+    total_contributions: Optional[float] = 0.0  # Contribuições totais projetadas
+    total_benefits: Optional[float] = 0.0      # Benefícios totais projetados
+    replacement_ratio: float   # Taxa de reposição (%) - essencial
+    target_replacement_ratio: Optional[float] = 0.0   # Taxa de reposição alvo (%)
+    sustainable_replacement_ratio: Optional[float] = 0.0  # Taxa de reposição sustentável (%)
     funding_ratio: Optional[float] = None  # Cobertura patrimonial
-    
-    # Análise detalhada de sensibilidade (RMBA - original)
-    sensitivity_discount_rate: Dict[float, float]  # Taxa → Impacto RMBA
-    sensitivity_mortality: Dict[str, float]        # Tabela → Impacto RMBA  
-    sensitivity_retirement_age: Dict[int, float]   # Idade → Impacto RMBA
-    sensitivity_salary_growth: Dict[float, float]  # Taxa → Impacto RMBA
-    sensitivity_inflation: Dict[float, float]      # Taxa → Impacto RMBA
-    
-    # Análise detalhada de sensibilidade (Déficit/Superávit - novo)
-    sensitivity_deficit_discount_rate: Dict[float, float]  # Taxa → Impacto Déficit
-    sensitivity_deficit_mortality: Dict[str, float]        # Tabela → Impacto Déficit  
-    sensitivity_deficit_retirement_age: Dict[int, float]   # Idade → Impacto Déficit
-    sensitivity_deficit_salary_growth: Dict[float, float]  # Taxa → Impacto Déficit
-    sensitivity_deficit_inflation: Dict[float, float]      # Taxa → Impacto Déficit
-    
-    # Decomposição atuarial detalhada
-    actuarial_present_value_benefits: float        # VPA dos benefícios futuros
-    actuarial_present_value_salary: float          # VPA dos salários futuros
-    service_cost_breakdown: Dict[str, float]       # Decomposição do custo normal
-    liability_duration: float                      # Duration dos passivos
-    convexity: float                              # Convexidade para análise de risco
-    
-    # Análise de cenários
-    best_case_scenario: Dict[str, float]          # Cenário otimista (5%)
-    worst_case_scenario: Dict[str, float]         # Cenário pessimista (95%)
-    confidence_intervals: Dict[str, Tuple[float, float]]  # Intervalos de confiança
-    
-    # Metadados técnicos
-    calculation_timestamp: datetime
-    computation_time_ms: float
-    actuarial_method_details: Dict[str, str]      # Detalhes dos métodos utilizados
-    assumptions_validation: Dict[str, bool]       # Validação das premissas
+
+    # Análise detalhada de sensibilidade (RMBA - original) - todas opcionais
+    sensitivity_discount_rate: Optional[Dict[float, float]] = None  # Taxa → Impacto RMBA
+    sensitivity_mortality: Optional[Dict[str, float]] = None        # Tabela → Impacto RMBA
+    sensitivity_retirement_age: Optional[Dict[int, float]] = None   # Idade → Impacto RMBA
+    sensitivity_salary_growth: Optional[Dict[float, float]] = None  # Taxa → Impacto RMBA
+    sensitivity_inflation: Optional[Dict[float, float]] = None      # Taxa → Impacto RMBA
+
+    # Análise detalhada de sensibilidade (Déficit/Superávit - novo) - todas opcionais
+    sensitivity_deficit_discount_rate: Optional[Dict[float, float]] = None  # Taxa → Impacto Déficit
+    sensitivity_deficit_mortality: Optional[Dict[str, float]] = None        # Tabela → Impacto Déficit
+    sensitivity_deficit_retirement_age: Optional[Dict[int, float]] = None   # Idade → Impacto Déficit
+    sensitivity_deficit_salary_growth: Optional[Dict[float, float]] = None  # Taxa → Impacto Déficit
+    sensitivity_deficit_inflation: Optional[Dict[float, float]] = None      # Taxa → Impacto Déficit
+
+    # Decomposição atuarial detalhada - todas opcionais
+    actuarial_present_value_benefits: Optional[float] = 0.0        # VPA dos benefícios futuros
+    actuarial_present_value_salary: Optional[float] = 0.0          # VPA dos salários futuros
+    service_cost_breakdown: Optional[Dict[str, float]] = None       # Decomposição do custo normal
+    liability_duration: Optional[float] = 0.0                      # Duration dos passivos
+    convexity: Optional[float] = 0.0                              # Convexidade para análise de risco
+
+    # Análise de cenários - todas opcionais
+    best_case_scenario: Optional[Dict[str, float]] = None          # Cenário otimista (5%)
+    worst_case_scenario: Optional[Dict[str, float]] = None         # Cenário pessimista (95%)
+    confidence_intervals: Optional[Dict[str, Tuple[float, float]]] = None  # Intervalos de confiança
+
+    # Metadados técnicos - todos opcionais
+    calculation_timestamp: Optional[datetime] = None
+    computation_time_ms: Optional[float] = 0.0
+    actuarial_method_details: Optional[Dict[str, str]] = None      # Detalhes dos métodos utilizados
+    assumptions_validation: Optional[Dict[str, bool]] = None       # Validação das premissas
     
     class Config:
         json_encoders = {

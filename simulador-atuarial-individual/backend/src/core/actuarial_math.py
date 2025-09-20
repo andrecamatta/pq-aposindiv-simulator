@@ -380,7 +380,7 @@ def calculate_life_expectancy(
         age: Idade atual
         gender: Gênero ('M' ou 'F')
         mortality_table: Lista de probabilidades de mortalidade por idade
-        aggravation_factor: Fator de agravamento da tábua (1.0 = sem agravamento)
+        aggravation_factor: Fator de suavização da tábua (1.0 = sem ajuste)
         max_age: Idade máxima para cálculo (default 120)
     
     Returns:
@@ -406,7 +406,7 @@ def calculate_life_expectancy(
         if mortality_prob is None or not (0 <= mortality_prob <= 1):
             break
         
-        # Aplicar agravamento
+        # Aplicar fator de suavização (valores <1 reduzem mortalidade, >1 intensificam)
         adjusted_mortality = min(mortality_prob * aggravation_factor, 1.0)
         
         # Calcular probabilidade de sobreviver mais um ano

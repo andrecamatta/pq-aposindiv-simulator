@@ -5,7 +5,7 @@ interface LifeExpectancyParams {
   age: number;
   gender: 'M' | 'F';
   mortalityTable: string;
-  aggravation: number;
+  aggravation: number; // Percentual de suavização aplicado na tábua
 }
 
 interface LifeExpectancyData {
@@ -15,7 +15,8 @@ interface LifeExpectancyData {
   parameters: {
     gender: string;
     mortality_table: string;
-    aggravation_percent: number;
+    smoothing_percent?: number;
+    aggravation_percent?: number;
   };
 }
 
@@ -47,7 +48,7 @@ export const useLifeExpectancy = (params: LifeExpectancyParams): UseLifeExpectan
         age: params.age.toString(),
         gender: params.gender,
         mortality_table: params.mortalityTable,
-        aggravation: params.aggravation.toString()
+        aggravation: params.aggravation.toString() // API espera o termo "aggravation"
       });
 
       const response = await fetch(`${API_BASE_URL}/life-expectancy?${queryParams}`);

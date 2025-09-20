@@ -161,6 +161,7 @@ export const formatBenefitModalityBR = (mode: string, planType: string): string 
   if (planType === 'CD') {
     const cdModalityMap: { [key: string]: string } = {
       'ACTUARIAL': 'Atuarial',
+      'ACTUARIAL_EQUIVALENT': 'Equivalência Atuarial',
       'CERTAIN_5Y': 'Certa 5 anos',
       'CERTAIN_10Y': 'Certa 10 anos',
       'CERTAIN_15Y': 'Certa 15 anos',
@@ -187,6 +188,19 @@ export const formatBenefitModalityBR = (mode: string, planType: string): string 
 export const formatDurationBR = (duration: number, decimals: number = 1): string => {
   const formatted = formatNumberBR(duration, decimals);
   return duration === 1 ? `${formatted} ano` : `${formatted} anos`;
+};
+
+/**
+ * Formata uma data para o padrão brasileiro
+ * @param date - Objeto Date a ser formatado
+ * @returns String formatada (ex: "15/03/2024")
+ */
+export const formatDateBR = (date: Date): string => {
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  }).format(date);
 };
 
 // Re-exportar com nomes mais curtos para compatibilidade

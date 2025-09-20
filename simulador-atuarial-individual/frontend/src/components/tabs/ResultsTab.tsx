@@ -1,7 +1,7 @@
 import React from 'react';
 import type { SimulatorResults, SimulatorState } from '../../types';
 import { formatCurrencyBR, formatSimplePercentageBR, formatIndexationBR, formatBenefitModalityBR } from '../../utils/formatBR';
-import { DeterministicChart, ActuarialChart, VPABarChart, SufficiencyBarChart, SufficiencyAnalysisChart, CDLifecycleChart, CDContributionImpactChart } from '../charts';
+import { DeterministicChart, ActuarialChart, VPABarChart, SufficiencyBarChart, SufficiencyAnalysisChart, CDLifecycleChart, CDContributionImpactChart, SalaryBenefitEvolutionChart } from '../charts';
 
 interface ResultsTabProps {
   results: SimulatorResults | null;
@@ -174,7 +174,7 @@ const ResultsTab: React.FC<ResultsTabProps> = ({ results, state, loading }) => {
               <div className="text-sm font-medium text-gray-900">{state.salary_months_per_year || 12}x</div>
             </div>
             <div className="rounded-md bg-gray-50 p-2">
-              <div className="text-[10px] uppercase tracking-wide text-gray-500">Agrav. Tábua</div>
+              <div className="text-[10px] uppercase tracking-wide text-gray-500">Suav. Tábua</div>
               <div className="text-sm font-medium text-gray-900">{(state.mortality_aggravation || 0) > 0 ? '+' : ''}{state.mortality_aggravation || 0}%</div>
             </div>
             {state.admin_fee_rate && state.admin_fee_rate > 0 ? (
@@ -258,42 +258,10 @@ const ResultsTab: React.FC<ResultsTabProps> = ({ results, state, loading }) => {
         </div>
       )}
 
-      {/* Interpretation Guide */}
+
+      {/* Gráfico de Evolução Salarial e Benefícios - Posicionado no final */}
       <div className="bg-white rounded-xl shadow-sm p-8">
-        <div>
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Interpretação dos Resultados</h3>
-            <div className="grid md:grid-cols-2 gap-6 text-sm text-gray-600">
-              {state.plan_type === 'CD' ? (
-                <>
-                  <div className="space-y-3">
-                    <p><strong>Saldo Acumulado:</strong> Valor total acumulado na conta individual até a aposentadoria.</p>
-                    <p><strong>Rendimento Total:</strong> Ganho obtido através dos investimentos ao longo do tempo.</p>
-                    <p><strong>Renda Mensal CD:</strong> Valor mensal que pode ser obtido na aposentadoria com base no saldo acumulado.</p>
-                  </div>
-                  <div className="space-y-3">
-                    <p><strong>Taxa de Acumulação:</strong> Rentabilidade esperada durante a fase de contribuição.</p>
-                    <p><strong>Taxa de Conversão:</strong> Taxa usada para converter o saldo em renda vitalícia.</p>
-                    <p><strong>Modalidade de Conversão:</strong> Forma escolhida para receber os benefícios (vitalícia, tempo determinado, etc.).</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="space-y-3">
-                    <p><strong>RMBA:</strong> Valor presente das obrigações futuras com participantes ativos.</p>
-                    <p><strong>RMBC:</strong> Valor das obrigações com participantes já aposentados.</p>
-                    <p><strong>Taxa de Reposição Alvo:</strong> Percentual que o benefício desejado representa do salário final.</p>
-                  </div>
-                  <div className="space-y-3">
-                    <p><strong>Taxa de Reposição Sustentável:</strong> Percentual que o benefício calculado representa do salário final, considerando as contribuições.</p>
-                    <p><strong>Superávit {'>'} 0:</strong> Reservas suficientes para cobrir as obrigações.</p>
-                    <p><strong>Superávit {'<'} 0:</strong> Déficit que requer aportes adicionais.</p>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        <SalaryBenefitEvolutionChart results={results} state={state} />
       </div>
     </div>
   );

@@ -116,7 +116,7 @@ class SuggestionsEngine:
     def _suggest_balance_plan(self, state: SimulatorState, results: SimulatorResults) -> Suggestion:
         """Sugere como balancear o plano (déficit zero)"""
         try:
-            from ..utils.vpa import calculate_optimal_contribution_rate
+            from ..utils import calculate_optimal_contribution_rate
             
             # Usar função centralizada que implementa fsolve
             optimal_rate = calculate_optimal_contribution_rate(state, self.actuarial_engine)
@@ -239,7 +239,7 @@ class SuggestionsEngine:
         #         return None
             
         try:
-            from ..utils.vpa import calculate_sustainable_benefit_with_engine
+            from ..core.calculations.vpa_calculations import calculate_sustainable_benefit_with_engine
             import logging
             
             logger = logging.getLogger(__name__)
@@ -445,7 +445,7 @@ class SuggestionsEngine:
     def _calculate_contribution_to_balance(self, state: SimulatorState, results: SimulatorResults) -> Suggestion:
         """Calcula contribuição necessária para zerar déficit usando fsolve"""
         try:
-            from ..utils.vpa import calculate_optimal_contribution_rate
+            from ..utils import calculate_optimal_contribution_rate
             
             optimal_rate = calculate_optimal_contribution_rate(state, self.actuarial_engine)
             
@@ -471,7 +471,7 @@ class SuggestionsEngine:
     def _calculate_retirement_age_to_balance(self, state: SimulatorState, results: SimulatorResults) -> Suggestion:
         """Calcula idade de aposentadoria necessária para zerar déficit usando fsolve"""
         try:
-            from ..utils.vpa import calculate_optimal_retirement_age
+            from ..utils import calculate_optimal_retirement_age
             
             optimal_age = calculate_optimal_retirement_age(state, self.actuarial_engine)
             
