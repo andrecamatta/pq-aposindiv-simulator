@@ -218,7 +218,7 @@ def create_rmba_sensitivity_calculator() -> SensitivityCalculator:
         )
         
         projections = engine._calculate_projections(state, context, mortality_table)
-        return engine._calculate_rmba(state, context, projections)
+        return engine.rmba_calculator.calculate_rmba(state, context, projections)
     
     return SensitivityCalculator(calculate_rmba_for_sensitivity)
 
@@ -244,7 +244,7 @@ def create_deficit_sensitivity_calculator() -> SensitivityCalculator:
         )
         
         projections = engine._calculate_projections(state, context, mortality_table)
-        rmba = engine._calculate_rmba(state, context, projections)
+        rmba = engine.rmba_calculator.calculate_rmba(state, context, projections)
         
         # Déficit/Superávit = Saldo Inicial - RMBA
         return state.initial_balance - rmba
