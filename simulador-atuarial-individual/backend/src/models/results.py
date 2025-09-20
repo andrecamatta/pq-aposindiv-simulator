@@ -1,6 +1,7 @@
-from pydantic import BaseModel
-from typing import List, Dict, Optional, Tuple
+from pydantic import BaseModel, field_validator
+from typing import List, Dict, Optional, Tuple, Any
 from datetime import datetime
+import math
 
 
 class SimulatorResults(BaseModel):
@@ -88,3 +89,25 @@ class SimulatorResults(BaseModel):
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
+
+    @field_validator('*', mode='before')
+    @classmethod
+    def sanitize_floats(cls, value: Any) -> Any:
+        """
+        Aplica sanitização automática a todos os campos float
+        Converte inf, -inf e nan para None para compatibilidade JSON
+        """
+        def sanitize_value(v: Any) -> Any:
+            if isinstance(v, float):
+                if math.isinf(v) or math.isnan(v):
+                    return None
+                return v
+            elif isinstance(v, list):
+                return [sanitize_value(item) for item in v]
+            elif isinstance(v, dict):
+                return {key: sanitize_value(val) for key, val in v.items()}
+            elif isinstance(v, tuple):
+                return tuple(sanitize_value(item) for item in v)
+            return v
+
+        return sanitize_value(value)

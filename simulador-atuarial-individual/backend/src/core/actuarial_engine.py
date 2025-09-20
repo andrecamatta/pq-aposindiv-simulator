@@ -6,6 +6,10 @@ from dataclasses import dataclass
 import time
 import logging
 
+from .logging_config import ActuarialLoggerMixin
+from .constants import (
+    MIN_RETIREMENT_YEARS, MSG_EXTENDED_PROJECTION, MSG_RETIREMENT_PROJECTION
+)
 from ..models import SimulatorState, SimulatorResults, BenefitTargetMode, PlanType, CDConversionMode
 from .mortality_tables import get_mortality_table, get_mortality_table_info
 from .financial_math import present_value, annuity_value
@@ -70,7 +74,7 @@ class ActuarialContext:
             # Pessoa já aposentada
             months_to_retirement = 0
             months_since_retirement = (state.age - state.retirement_age) * 12
-            print(f"[INFO] Pessoa já aposentada há {months_since_retirement/12:.1f} anos")
+            # Note: logging will be handled by the ActuarialEngine instance
         else:
             # Pessoa ainda ativa
             months_to_retirement = (state.retirement_age - state.age) * 12
@@ -82,17 +86,16 @@ class ActuarialContext:
             # Usar no máximo 30 anos de projeção ou até idade 95
             max_years_projection = min(30, 95 - state.age)
             total_months = max(12, max_years_projection * 12)  # Mínimo 1 ano
-            print(f"[INFO] Aposentado: projetando {total_months/12:.0f} anos de benefícios")
+            # Note: logging will be handled by the ActuarialEngine instance
         else:
             # Para ativos: garantir período adequado para aposentadoria
-            min_retirement_years = 25  # Mínimo 25 anos de aposentadoria
             projected_retirement_years = state.projection_years - (state.retirement_age - state.age)
             
-            if projected_retirement_years < min_retirement_years:
+            if projected_retirement_years < MIN_RETIREMENT_YEARS:
                 # Estender automaticamente para garantir período adequado
-                total_years = (state.retirement_age - state.age) + min_retirement_years
+                total_years = (state.retirement_age - state.age) + MIN_RETIREMENT_YEARS
                 total_months = total_years * 12
-                print(f"[INFO] Período estendido para {total_years} anos para análise adequada da aposentadoria")
+                # Note: logging will be handled by the ActuarialEngine instance
             else:
                 total_months = state.projection_years * 12
         
@@ -147,20 +150,7 @@ class ActuarialContext:
         )
 
 
-def sanitize_float_for_json(value: Any) -> Any:
-    """
-    Sanitiza valores float para serem compatíveis com JSON
-    Converte inf, -inf e nan para valores seguros
-    """
-    from .validators import CalculationValidator
-    
-    if isinstance(value, (int, float)):
-        return CalculationValidator.validate_financial_result(value)
-    elif isinstance(value, list):
-        return [sanitize_float_for_json(item) for item in value]
-    elif isinstance(value, dict):
-        return {key: sanitize_float_for_json(val) for key, val in value.items()}
-    return value
+# Função sanitize_float_for_json removida - sanitização automática via Pydantic
 
 
 class ActuarialEngine:
@@ -168,39 +158,46 @@ class ActuarialEngine:
     Motor de cálculos atuariais refatorado para orquestração
     Delega cálculos específicos para classes especializadas
     """
-    
-    def __init__(self):
+
+    def __init__(self,
+                 bd_calculator=None,
+                 cd_calculator=None,
+                 rmba_calculator=None,
+                 rmbc_calculator=None,
+                 normal_cost_calculator=None,
+                 projection_engine=None):
+        """
+        Inicializa engine com dependency injection para testabilidade
+
+        Args:
+            bd_calculator: Calculadora para planos BD
+            cd_calculator: Calculadora para planos CD
+            rmba_calculator: Calculadora para RMBA
+            rmbc_calculator: Calculadora para RMBC
+            normal_cost_calculator: Calculadora para Custo Normal
+            projection_engine: Engine de projeções
+        """
+        from .logging_config import ActuarialLoggerMixin
+        from .bd_calculator import BDCalculator
+        from .cd_calculator import CDCalculator
+        from .rmba_calculator import RMBACalculator
+        from .rmbc_calculator import RMBCCalculator
+        from .normal_cost_calculator import NormalCostCalculator
+        from .projection_engine import ProjectionEngine
+
         # Cache mantido para compatibilidade
         self.cache = {}
-        
-        # Inicializar calculadoras especializadas com lazy loading para evitar imports circulares
-        self._bd_calculator = None
-        self._cd_calculator = None
-        self._projection_engine = None
-    
-    @property
-    def bd_calculator(self):
-        """Lazy loading do BDCalculator"""
-        if self._bd_calculator is None:
-            from .bd_calculator import BDCalculator
-            self._bd_calculator = BDCalculator()
-        return self._bd_calculator
-    
-    @property
-    def cd_calculator(self):
-        """Lazy loading do CDCalculator"""
-        if self._cd_calculator is None:
-            from .cd_calculator import CDCalculator
-            self._cd_calculator = CDCalculator()
-        return self._cd_calculator
-    
-    @property
-    def projection_engine(self):
-        """Lazy loading do ProjectionEngine"""
-        if self._projection_engine is None:
-            from .projection_engine import ProjectionEngine
-            self._projection_engine = ProjectionEngine()
-        return self._projection_engine
+
+        # Dependency injection com fallback para instâncias padrão
+        self.bd_calculator = bd_calculator or BDCalculator()
+        self.cd_calculator = cd_calculator or CDCalculator()
+        self.rmba_calculator = rmba_calculator or RMBACalculator()
+        self.rmbc_calculator = rmbc_calculator or RMBCCalculator()
+        self.normal_cost_calculator = normal_cost_calculator or NormalCostCalculator()
+        self.projection_engine = projection_engine or ProjectionEngine()
+
+        # Configurar logging
+        self.logger = ActuarialLoggerMixin().logger
         
     def _calculate_cd_deficit_surplus(self, state: SimulatorState, monthly_income: float) -> float:
         """
@@ -249,10 +246,12 @@ class ActuarialEngine:
         # Calcular projeções temporais
         projections = self._calculate_projections(state, context, mortality_table)
         
-        # Calcular reservas matemáticas
-        rmba = self._calculate_rmba(state, context, projections)
-        rmbc = self._calculate_rmbc(state, context, projections)
-        normal_cost = self._calculate_normal_cost(state, context, projections)
+        # Calcular reservas matemáticas usando calculadoras especializadas
+        rmba = self.rmba_calculator.calculate_rmba(state, context, projections)
+        rmbc = self.rmbc_calculator.calculate_rmbc(state, context, projections)
+        normal_cost = self.normal_cost_calculator.calculate_normal_cost(
+            state, context, projections, projections["monthly_data"]["survival_probs"]
+        )
         
         # Calcular métricas-chave
         metrics = self._calculate_key_metrics(state, context, projections)
@@ -281,68 +280,68 @@ class ActuarialEngine:
         computation_time = (time.time() - start_time) * 1000
         
         return SimulatorResults(
-            # Reservas Matemáticas (sanitizadas)
-            rmba=sanitize_float_for_json(rmba),
-            rmbc=sanitize_float_for_json(rmbc),
-            normal_cost=sanitize_float_for_json(normal_cost),
-            
-            # Análise de Suficiência (sanitizada)
-            deficit_surplus=sanitize_float_for_json(sufficiency["deficit_surplus"]),
-            deficit_surplus_percentage=sanitize_float_for_json(sufficiency["deficit_surplus_percentage"]),
-            required_contribution_rate=sanitize_float_for_json(sufficiency["required_contribution_rate"]),
-            
+            # Reservas Matemáticas - automaticamente sanitizadas pelo Pydantic
+            rmba=rmba,
+            rmbc=rmbc,
+            normal_cost=normal_cost,
+
+            # Análise de Suficiência
+            deficit_surplus=sufficiency["deficit_surplus"],
+            deficit_surplus_percentage=sufficiency["deficit_surplus_percentage"],
+            required_contribution_rate=sufficiency["required_contribution_rate"],
+
             # Projeções
-            projection_years=sanitize_float_for_json(projections["years"]),
-            projected_salaries=sanitize_float_for_json(projections["salaries"]),
-            projected_benefits=sanitize_float_for_json(projections["benefits"]),
-            projected_contributions=sanitize_float_for_json(projections["contributions"]),
-            survival_probabilities=sanitize_float_for_json(projections["survival_probs"]),
-            accumulated_reserves=sanitize_float_for_json(projections["reserves"]),
+            projection_years=projections["years"],
+            projected_salaries=projections["salaries"],
+            projected_benefits=projections["benefits"],
+            projected_contributions=projections["contributions"],
+            survival_probabilities=projections["survival_probs"],
+            accumulated_reserves=projections["reserves"],
 
             # Vetores por idade para frontend
-            projection_ages=sanitize_float_for_json(projections.get("projection_ages")),
-            projected_salaries_by_age=sanitize_float_for_json(projections.get("projected_salaries_by_age")),
-            projected_benefits_by_age=sanitize_float_for_json(projections.get("projected_benefits_by_age")),
-            
+            projection_ages=projections.get("projection_ages"),
+            projected_salaries_by_age=projections.get("projected_salaries_by_age"),
+            projected_benefits_by_age=projections.get("projected_benefits_by_age"),
+
             # Projeções atuariais para gráfico separado
-            projected_vpa_benefits=sanitize_float_for_json(actuarial_projections["vpa_benefits"]),
-            projected_vpa_contributions=sanitize_float_for_json(actuarial_projections["vpa_contributions"]),
-            projected_rmba_evolution=sanitize_float_for_json(actuarial_projections["rmba_evolution"]),
-            projected_rmbc_evolution=sanitize_float_for_json(actuarial_projections["rmbc_evolution"]),
-            
-            # Métricas (sanitizadas)
-            total_contributions=sanitize_float_for_json(metrics["total_contributions"]),
-            total_benefits=sanitize_float_for_json(metrics["total_benefits"]),
-            replacement_ratio=sanitize_float_for_json(metrics["replacement_ratio"]),
-            target_replacement_ratio=sanitize_float_for_json(metrics["target_replacement_ratio"]),
-            sustainable_replacement_ratio=sanitize_float_for_json(metrics["sustainable_replacement_ratio"]),
+            projected_vpa_benefits=actuarial_projections["vpa_benefits"],
+            projected_vpa_contributions=actuarial_projections["vpa_contributions"],
+            projected_rmba_evolution=actuarial_projections["rmba_evolution"],
+            projected_rmbc_evolution=actuarial_projections["rmbc_evolution"],
+
+            # Métricas
+            total_contributions=metrics["total_contributions"],
+            total_benefits=metrics["total_benefits"],
+            replacement_ratio=metrics["replacement_ratio"],
+            target_replacement_ratio=metrics["target_replacement_ratio"],
+            sustainable_replacement_ratio=metrics["sustainable_replacement_ratio"],
             funding_ratio=None,
-            
+
             # Sensibilidade (RMBA - original)
-            sensitivity_discount_rate=sanitize_float_for_json(sensitivity["discount_rate"]),
-            sensitivity_mortality=sanitize_float_for_json(sensitivity["mortality"]),
-            sensitivity_retirement_age=sanitize_float_for_json(sensitivity["retirement_age"]),
-            sensitivity_salary_growth=sanitize_float_for_json(sensitivity["salary_growth"]),
-            sensitivity_inflation=sanitize_float_for_json(sensitivity["inflation"]),
-            
+            sensitivity_discount_rate=sensitivity["discount_rate"],
+            sensitivity_mortality=sensitivity["mortality"],
+            sensitivity_retirement_age=sensitivity["retirement_age"],
+            sensitivity_salary_growth=sensitivity["salary_growth"],
+            sensitivity_inflation=sensitivity["inflation"],
+
             # Sensibilidade (Déficit/Superávit - novo)
-            sensitivity_deficit_discount_rate=sanitize_float_for_json(sensitivity_deficit["discount_rate"]),
-            sensitivity_deficit_mortality=sanitize_float_for_json(sensitivity_deficit["mortality"]),
-            sensitivity_deficit_retirement_age=sanitize_float_for_json(sensitivity_deficit["retirement_age"]),
-            sensitivity_deficit_salary_growth=sanitize_float_for_json(sensitivity_deficit["salary_growth"]),
-            sensitivity_deficit_inflation=sanitize_float_for_json(sensitivity_deficit["inflation"]),
-            
+            sensitivity_deficit_discount_rate=sensitivity_deficit["discount_rate"],
+            sensitivity_deficit_mortality=sensitivity_deficit["mortality"],
+            sensitivity_deficit_retirement_age=sensitivity_deficit["retirement_age"],
+            sensitivity_deficit_salary_growth=sensitivity_deficit["salary_growth"],
+            sensitivity_deficit_inflation=sensitivity_deficit["inflation"],
+
             # Decomposição
-            actuarial_present_value_benefits=sanitize_float_for_json(decomposition["apv_benefits"]),
-            actuarial_present_value_salary=sanitize_float_for_json(decomposition["apv_future_contributions"]),
-            service_cost_breakdown=sanitize_float_for_json(decomposition["service_cost"]),
-            liability_duration=sanitize_float_for_json(decomposition["duration"]),
-            convexity=sanitize_float_for_json(decomposition["convexity"]),
-            
+            actuarial_present_value_benefits=decomposition["apv_benefits"],
+            actuarial_present_value_salary=decomposition["apv_future_contributions"],
+            service_cost_breakdown=decomposition["service_cost"],
+            liability_duration=decomposition["duration"],
+            convexity=decomposition["convexity"],
+
             # Cenários
-            best_case_scenario=sanitize_float_for_json(scenarios["best"]),
-            worst_case_scenario=sanitize_float_for_json(scenarios["worst"]),
-            confidence_intervals=sanitize_float_for_json(scenarios["confidence"]),
+            best_case_scenario=scenarios["best"],
+            worst_case_scenario=scenarios["worst"],
+            confidence_intervals=scenarios["confidence"],
             
             # Metadados
             calculation_timestamp=datetime.now(),
@@ -394,8 +393,7 @@ class ActuarialEngine:
         effective_return = (accumulated_return_value / total_contributions_value * 100) if total_contributions_value > 0 else 0.0
         conversion_factor_value = monthly_income / accumulated_balance if accumulated_balance > 0 else 0.0
         
-        # Sanitizar valores que podem conter inf/nan
-        benefit_duration_years = sanitize_float_for_json(benefit_duration_years)
+        # Valores serão automaticamente sanitizados pelo Pydantic
         
         return SimulatorResults(
             # Reservas Matemáticas (zeradas para CD)
@@ -446,30 +444,30 @@ class ActuarialEngine:
             funding_ratio=None,  # Não aplicável
             
             # Sensibilidade CD
-            sensitivity_discount_rate=sanitize_float_for_json(cd_sensitivity.get("accumulation_rate", cd_sensitivity.get("discount_rate", {}))),
-            sensitivity_mortality=sanitize_float_for_json(cd_sensitivity.get("mortality", {})),
-            sensitivity_retirement_age=sanitize_float_for_json(cd_sensitivity.get("retirement_age", {})),
-            sensitivity_salary_growth=sanitize_float_for_json(cd_sensitivity.get("salary_growth", {})),
+            sensitivity_discount_rate=cd_sensitivity.get("accumulation_rate", cd_sensitivity.get("discount_rate", {})),
+            sensitivity_mortality=cd_sensitivity.get("mortality", {}),
+            sensitivity_retirement_age=cd_sensitivity.get("retirement_age", {}),
+            sensitivity_salary_growth=cd_sensitivity.get("salary_growth", {}),
             sensitivity_inflation={},
             
             # Sensibilidade déficit para CD (usar mesmos valores por simplicidade)
-            sensitivity_deficit_discount_rate=sanitize_float_for_json(cd_sensitivity.get("accumulation_rate", cd_sensitivity.get("discount_rate", {}))),
-            sensitivity_deficit_mortality=sanitize_float_for_json(cd_sensitivity.get("mortality", {})),
-            sensitivity_deficit_retirement_age=sanitize_float_for_json(cd_sensitivity.get("retirement_age", {})),
-            sensitivity_deficit_salary_growth=sanitize_float_for_json(cd_sensitivity.get("salary_growth", {})),
+            sensitivity_deficit_discount_rate=cd_sensitivity.get("accumulation_rate", cd_sensitivity.get("discount_rate", {})),
+            sensitivity_deficit_mortality=cd_sensitivity.get("mortality", {}),
+            sensitivity_deficit_retirement_age=cd_sensitivity.get("retirement_age", {}),
+            sensitivity_deficit_salary_growth=cd_sensitivity.get("salary_growth", {}),
             sensitivity_deficit_inflation={},
             
             # Decomposição (simplificada para CD)
-            actuarial_present_value_benefits=sanitize_float_for_json(monthly_income * 12 * 15),  # Estimativa
-            actuarial_present_value_salary=sanitize_float_for_json(cd_metrics["total_contributions"]),
-            service_cost_breakdown=sanitize_float_for_json({"accumulated_balance": accumulated_balance}),
-            liability_duration=sanitize_float_for_json(0.0),
-            convexity=sanitize_float_for_json(0.0),
+            actuarial_present_value_benefits=monthly_income * 12 * 15,  # Estimativa
+            actuarial_present_value_salary=cd_metrics["total_contributions"],
+            service_cost_breakdown={"accumulated_balance": accumulated_balance},
+            liability_duration=0.0,
+            convexity=0.0,
             
             # Cenários (simplificados)
-            best_case_scenario=sanitize_float_for_json({"balance": accumulated_balance * 1.2}),
-            worst_case_scenario=sanitize_float_for_json({"balance": accumulated_balance * 0.8}),
-            confidence_intervals=sanitize_float_for_json({"balance": (accumulated_balance * 0.9, accumulated_balance * 1.1)}),
+            best_case_scenario={"balance": accumulated_balance * 1.2},
+            worst_case_scenario={"balance": accumulated_balance * 0.8},
+            confidence_intervals={"balance": (accumulated_balance * 0.9, accumulated_balance * 1.1)},
             
             # Metadados
             calculation_timestamp=datetime.now(),
@@ -621,12 +619,12 @@ class ActuarialEngine:
             
             # Aplicar taxa administrativa mensal sobre o saldo
             if month < 5:  # Log apenas os primeiros meses
-                print(f"[ENGINE_DEBUG] Mês {month}: saldo antes taxa adm: {accumulated}")
+                self.logger.debug(f"Mês {month}: saldo antes taxa adm: {accumulated}")
             
             accumulated *= (1 - context.admin_fee_monthly)
             
             if month < 5:
-                print(f"[ENGINE_DEBUG] Mês {month}: saldo após taxa adm: {accumulated}, taxa aplicada: {context.admin_fee_monthly}")
+                self.logger.debug(f"Mês {month}: saldo após taxa adm: {accumulated}, taxa aplicada: {context.admin_fee_monthly}")
             
             # Para aposentados: apenas descontar benefícios (sem contribuições)
             # Para ativos: acumular contribuições até aposentadoria, depois descontar benefícios
@@ -730,71 +728,6 @@ class ActuarialEngine:
             }
         }
     
-    def _calculate_rmba(self, state: SimulatorState, context: ActuarialContext, projections: Dict) -> float:
-        """Calcula Reserva Matemática de Benefícios a Conceder (RMBA)"""
-        # Para pessoas já aposentadas, RMBA = 0 (não há benefícios futuros a conceder)
-        if context.is_already_retired:
-            print(f"[RMBA_DEBUG] Pessoa aposentada: RMBA = 0")
-            return 0.0
-        
-        # Para pessoas ativas: RMBA = VPA(Benefícios) - VPA(Contribuições)
-        monthly_data = projections["monthly_data"]
-        
-        # Usar utilitário para calcular VPAs de benefícios e contribuições
-        # IMPORTANTE: Agora considera o impacto da taxa administrativa no VPA das contribuições
-        vpa_benefits, vpa_contributions = calculate_vpa_benefits_contributions(
-            monthly_data["benefits"],
-            monthly_data["contributions"],
-            monthly_data["survival_probs"],
-            context.discount_rate_monthly,
-            context.payment_timing,
-            context.months_to_retirement,
-            context.admin_fee_monthly  # Passa a taxa administrativa
-        )
-        
-        print(f"[RMBA_DEBUG] Pessoa ativa: VPA Benefícios = {vpa_benefits:.2f}, VPA Contrib = {vpa_contributions:.2f}")
-        
-        # LOGS DETALHADOS PARA AUDITORIA
-        print(f"[AUDITORIA] === DETALHAMENTO DOS VPAS ===")
-        print(f"[AUDITORIA] Parâmetros base:")
-        print(f"[AUDITORIA]   - Idade: {state.age} → {state.retirement_age} anos ({state.retirement_age - state.age} anos contribuição)")
-        print(f"[AUDITORIA]   - Salário mensal: R$ {state.salary:,.2f} ({state.salary_months_per_year}x/ano)")
-        print(f"[AUDITORIA]   - Contribuição: {state.contribution_rate}% = R$ {state.salary * state.contribution_rate / 100:,.2f}/mês")
-        benefit_display = format_currency_safe(state.target_benefit, "Taxa de Reposição")
-        print(f"[AUDITORIA]   - Benefício alvo: {benefit_display}/mês ({state.benefit_months_per_year}x/ano)")
-        print(f"[AUDITORIA]   - Taxa desconto: {state.discount_rate:.1%} a.a. = {context.discount_rate_monthly:.4%}/mês")
-        print(f"[AUDITORIA]   - Crescimento salarial: {state.salary_growth_real:.1%} a.a.")
-        print(f"[AUDITORIA]   - Taxa administrativa: {state.admin_fee_rate:.1%} a.a. = {context.admin_fee_monthly:.4%}/mês")
-        print(f"[AUDITORIA]   - Timing pagamentos: {state.payment_timing}")
-        print(f"[AUDITORIA]   - Meses até aposentadoria: {context.months_to_retirement}")
-        
-        # Análise das contribuições projetadas
-        total_months_contrib = context.months_to_retirement
-        contrib_inicial_liquida = state.salary * (state.contribution_rate/100) * (1 - context.admin_fee_monthly)
-        print(f"[AUDITORIA] Contribuições:")
-        print(f"[AUDITORIA]   - Contribuição inicial líquida: {format_currency_safe(contrib_inicial_liquida)}/mês")
-        print(f"[AUDITORIA]   - Total meses de contribuição: {total_months_contrib}")
-        
-        # Análise dos benefícios projetados usando formatador seguro
-        benefit_title, benefit_lines = format_audit_benefit_section(state)
-        print(f"[AUDITORIA] {benefit_title}")
-        for line in benefit_lines:
-            print(f"[AUDITORIA]{line}")
-        
-        # RMBA = VPA(Benefícios) - VPA(Contribuições)
-        rmba = vpa_benefits - vpa_contributions
-        
-        print(f"[AUDITORIA] Resultado final:")
-        print(f"[AUDITORIA]   - VPA Contribuições: {format_currency_safe(vpa_contributions)}")
-        print(f"[AUDITORIA]   - VPA Benefícios: {format_currency_safe(vpa_benefits)}")
-        print(f"[AUDITORIA]   - RMBA: {format_currency_safe(rmba)}")
-        print(f"[AUDITORIA]   - Superávit: {format_currency_safe(state.initial_balance - rmba)}")
-        print(f"[AUDITORIA] ================================")
-        
-        # VERIFICAÇÃO DE SANIDADE ECONÔMICA
-        self._validate_economic_sanity(state, vpa_benefits, vpa_contributions, rmba)
-        
-        return rmba
     
     def _validate_economic_sanity(self, state: SimulatorState, vpa_benefits: float, vpa_contributions: float, rmba: float) -> None:
         """
@@ -839,108 +772,11 @@ class ActuarialEngine:
         
         # Registrar warnings se houver
         if warnings:
-            print(f"[SANIDADE_ECONÔMICA] Alertas para validação:")
+            self.logger.warning("Alertas para validação:")
             for warning in warnings:
-                print(f"[SANIDADE_ECONÔMICA] {warning}")
+                self.logger.warning(warning)
     
-    def _calculate_rmbc(self, state: SimulatorState, context: ActuarialContext, projections: Dict) -> float:
-        """Calcula Reserva Matemática de Benefícios Concedidos (RMBC)"""
-        # Para pessoas ativas, RMBC = 0 
-        if not context.is_already_retired:
-            print(f"[RMBC_DEBUG] Pessoa ativa: RMBC = 0")
-            return 0.0
-        
-        # Para pessoas aposentadas: RMBC = VPA dos benefícios restantes
-        monthly_data = projections["monthly_data"]
-        
-        # Calcular VPA dos benefícios restantes usando sobrevivência e desconto
-        vpa_benefits = 0.0
-        
-        # Ajuste de timing usando utilitário
-        timing_adjustment = get_timing_adjustment(context.payment_timing)
-        
-        for month_idx, benefit in enumerate(monthly_data["benefits"]):
-            if benefit > 0:  # Só benefícios positivos
-                survival_prob = get_payment_survival_probability(
-                    monthly_data["survival_probs"],
-                    month_idx,
-                    context.payment_timing
-                )
-
-                # Calcular fator de desconto mensal
-                discount_factor = calculate_discount_factor(
-                    context.discount_rate_monthly,
-                    month_idx,
-                    timing_adjustment
-                )
-                
-                # VPA deste pagamento de benefício
-                present_value = (benefit * survival_prob) / discount_factor
-                vpa_benefits += present_value
-        
-        print(f"[RMBC_DEBUG] Pessoa aposentada: RMBC = {vpa_benefits:.2f}")
-        return vpa_benefits
     
-    def _calculate_normal_cost(self, state: SimulatorState, context: ActuarialContext, projections: Dict) -> float:
-        """Calcula Custo Normal anual usando base mensal"""
-        months_to_retirement = context.months_to_retirement
-
-        if months_to_retirement <= 0:
-            return 0.0
-
-        monthly_data = projections.get("monthly_data", {})
-        survival_probs = monthly_data.get("survival_probs", [])
-
-        if state.calculation_method == "PUC":
-            # Projected Unit Credit: VPA do benefício incremental deste ano
-            projected_final_salary = context.monthly_salary * (
-                (1 + context.salary_growth_real_monthly) ** months_to_retirement
-            )
-            annual_benefit_increment = projected_final_salary * (state.accrual_rate / 100)
-            monthly_benefit_increment = annual_benefit_increment / max(context.benefit_months_per_year, 1)
-
-            effective_discount_rate = (1 + context.discount_rate_monthly) * (1 - context.admin_fee_monthly) - 1
-            effective_discount_rate = max(effective_discount_rate, -0.99)
-
-            annuity_factor = calculate_life_annuity_factor(
-                survival_probs,
-                effective_discount_rate,
-                context.payment_timing,
-                start_month=months_to_retirement
-            )
-
-            return monthly_benefit_increment * annuity_factor
-
-        # Entry Age Normal: custo uniforme proporcional ao salário esperado
-        monthly_salaries = monthly_data.get("salaries", [])
-        monthly_benefits = monthly_data.get("benefits", [])
-
-        vpa_benefits = calculate_actuarial_present_value(
-            monthly_benefits,
-            survival_probs,
-            context.discount_rate_monthly,
-            context.payment_timing,
-            start_month=context.months_to_retirement
-        )
-
-        apv_future_salaries = calculate_actuarial_present_value(
-            monthly_salaries,
-            survival_probs,
-            context.discount_rate_monthly,
-            context.payment_timing,
-            start_month=0,
-            end_month=months_to_retirement
-        )
-
-        if apv_future_salaries <= 0:
-            return 0.0
-
-        resources_available = state.initial_balance if hasattr(state, 'initial_balance') else 0.0
-        total_cost_to_fund = max(vpa_benefits - resources_available, 0.0)
-
-        level_rate = total_cost_to_fund / apv_future_salaries
-        annual_salary_base = context.monthly_salary * context.salary_months_per_year
-        return annual_salary_base * level_rate
     
     def _calculate_key_metrics(self, state: SimulatorState, context: ActuarialContext, projections: Dict) -> Dict:
         """Calcula métricas-chave usando base atuarial consistente"""
@@ -1043,8 +879,8 @@ class ActuarialEngine:
     def _calculate_sufficiency_analysis(self, state: SimulatorState, context: ActuarialContext, projections: Dict, metrics: Dict) -> Dict:
         """Calcula análise de suficiência seguindo a fórmula: Saldo Inicial + (-RMBA) = Superávit"""
         
-        # Calcular RMBA usando a função dedicada para consistência
-        rmba = self._calculate_rmba(state, context, projections)
+        # Calcular RMBA usando calculadora especializada
+        rmba = self.rmba_calculator.calculate_rmba(state, context, projections)
         
         # Análise de suficiência: Saldo Inicial - RMBA = Superávit
         # Se RMBA for negativo (VPA Contrib > VPA Benefícios), isso indica superávit natural
