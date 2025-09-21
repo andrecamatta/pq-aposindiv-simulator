@@ -25,6 +25,7 @@ class SuggestionAction(str, Enum):
     UPDATE_REPLACEMENT_RATE = "update_replacement_rate"
     UPDATE_MULTIPLE_PARAMS = "update_multiple_params"  # Para múltiplas mudanças
     APPLY_SUSTAINABLE_BENEFIT = "apply_sustainable_benefit"
+    APPLY_SUSTAINABLE_REPLACEMENT_RATE = "apply_sustainable_replacement_rate"
 
 
 class Suggestion(BaseModel):

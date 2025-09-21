@@ -248,9 +248,11 @@ const TablesAnalysisTab: React.FC<TablesAnalysisTabProps> = ({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Análise de Tábuas</h2>
-        <p className="text-sm text-gray-600 mt-1">Compare tábuas de mortalidade e visualize diferentes indicadores atuariais</p>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          Análise de Tábuas
+        </h1>
+        <p className="text-gray-600">Compare tábuas de mortalidade e visualize diferentes indicadores atuariais.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">

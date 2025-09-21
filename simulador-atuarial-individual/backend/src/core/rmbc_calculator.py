@@ -82,7 +82,7 @@ class RMBCCalculator(ActuarialLoggerMixin):
             VPA dos benefícios restantes
         """
         # Importar aqui para evitar dependência circular
-        from ..utils import calculate_actuarial_present_value
+        from .calculations.vpa_calculations import calculate_actuarial_present_value
 
         # Para aposentados, começar do mês 0 (já estão recebendo)
         return calculate_actuarial_present_value(

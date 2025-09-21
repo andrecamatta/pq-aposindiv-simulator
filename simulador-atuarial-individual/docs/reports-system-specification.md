@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-Este documento especifica a implementação completa do sistema de relatórios para o Simulador Atuarial Individual, incluindo geração de PDFs executivos e técnicos, exportação de dados e sistema de preview.
+Este documento especifica a implementação completa do sistema de relatórios para o PrevLab, incluindo geração de PDFs executivos e técnicos, exportação de dados e sistema de preview.
 
 ## 1. Dependências e Configuração
 

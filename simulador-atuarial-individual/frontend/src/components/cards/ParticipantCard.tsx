@@ -1,15 +1,16 @@
 import React from 'react';
 import { Icon } from '../../design-system/components/Icon';
 import type { SimulatorState } from '../../types';
-import { 
-  Card, 
-  CardHeader, 
-  CardTitle, 
+import {
+  Card,
+  CardHeader,
+  CardTitle,
   CardContent,
   Input,
   Select,
   Tooltip,
-  Button
+  Button,
+  FormField
 } from '../../design-system/components';
 import { useFormHandler } from '../../hooks';
 import { parseIntegerValue, parseNumericValue } from '../../utils';
@@ -96,15 +97,14 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
               />
             )}
           </div>
-          {/* Idade */}
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-700">Idade Atual</span>
-              <Tooltip content="Idade do participante em anos completos">
-                <Icon name="help-circle" size="sm" className="text-gray-400 hover:text-gray-600 cursor-help" />
-              </Tooltip>
-            </div>
+          {/* Idade - Refatorado com FormField */}
+          <FormField
+            label="Idade Atual"
+            tooltip="Idade do participante em anos completos"
+            htmlFor="age"
+          >
             <Input
+              id="age"
               type="number"
               min={18}
               max={70}
@@ -113,17 +113,16 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
               disabled={loading}
               placeholder="Ex: 35"
             />
-          </div>
+          </FormField>
 
-        {/* Gênero */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-gray-700">Gênero</span>
-            <Tooltip content="Utilizado para seleção da tábua de mortalidade apropriada">
-              <Icon name="help-circle" size="sm" className="text-gray-400 hover:text-gray-600 cursor-help" />
-            </Tooltip>
-          </div>
+        {/* Gênero - Refatorado com FormField */}
+        <FormField
+          label="Gênero"
+          tooltip="Utilizado para seleção da tábua de mortalidade apropriada"
+          htmlFor="gender"
+        >
           <Select
+            id="gender"
             value={state.gender}
             onChange={(e) => handleInputChange('gender', e.target.value as 'M' | 'F')}
             disabled={loading}
@@ -132,17 +131,16 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
               { value: 'F', label: 'Feminino' }
             ]}
           />
-        </div>
+        </FormField>
 
-        {/* Salário Atual */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-gray-700">Salário Atual</span>
-            <Tooltip content="Salário mensal atual em reais">
-              <Icon name="help-circle" size="sm" className="text-gray-400 hover:text-gray-600 cursor-help" />
-            </Tooltip>
-          </div>
+        {/* Salário Atual - Refatorado com FormField */}
+        <FormField
+          label="Salário Atual"
+          tooltip="Salário mensal atual em reais"
+          htmlFor="salary"
+        >
           <Input
+            id="salary"
             type="number"
             min={0}
             step={100}
@@ -152,17 +150,16 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             placeholder="Ex: 8000"
             leftIcon={<Icon name="dollar-sign" size="sm" color="muted" />}
           />
-        </div>
+        </FormField>
 
-        {/* Saldo Inicial */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-gray-700">Saldo Inicial</span>
-            <Tooltip content="Reservas acumuladas até o momento">
-              <Icon name="help-circle" size="sm" className="text-gray-400 hover:text-gray-600 cursor-help" />
-            </Tooltip>
-          </div>
+        {/* Saldo Inicial - Refatorado com FormField */}
+        <FormField
+          label="Saldo Inicial"
+          tooltip="Reservas acumuladas até o momento"
+          htmlFor="initial_balance"
+        >
           <Input
+            id="initial_balance"
             type="number"
             min={0}
             step={1000}
@@ -172,17 +169,16 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             placeholder="Ex: 50000"
             leftIcon={<Icon name="dollar-sign" size="sm" color="muted" />}
           />
-        </div>
+        </FormField>
 
-        {/* Idade de Aposentadoria */}
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-gray-700">Idade de Aposentadoria</span>
-            <Tooltip content="Idade planejada para aposentadoria">
-              <Icon name="help-circle" size="sm" className="text-gray-400 hover:text-gray-600 cursor-help" />
-            </Tooltip>
-          </div>
+        {/* Idade de Aposentadoria - Refatorado com FormField */}
+        <FormField
+          label="Idade de Aposentadoria"
+          tooltip="Idade planejada para aposentadoria"
+          htmlFor="retirement_age"
+        >
           <Input
+            id="retirement_age"
             type="number"
             min={50}
             max={75}
@@ -191,7 +187,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             disabled={loading}
             placeholder="Ex: 65"
           />
-        </div>
+        </FormField>
         </div>
       </CardContent>
     </Card>

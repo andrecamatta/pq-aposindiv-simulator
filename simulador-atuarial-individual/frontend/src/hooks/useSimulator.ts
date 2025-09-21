@@ -9,6 +9,9 @@ export const useSimulator = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
+  const [lastPing, setLastPing] = useState<Date | null>(null);
+  const [responseTime, setResponseTime] = useState<number | undefined>(undefined);
   
   const wsClient = useRef<WebSocketClient | null>(null);
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -25,44 +28,70 @@ export const useSimulator = () => {
     queryFn: apiService.getMortalityTables,
   });
 
+  // Health check periódico
+  const performHealthCheck = useCallback(async () => {
+    try {
+      const startTime = performance.now();
+      await apiService.healthCheck();
+      const endTime = performance.now();
+      const responseTimeMs = Math.round(endTime - startTime);
+
+      setResponseTime(responseTimeMs);
+      setLastPing(new Date());
+      setConnectionStatus('connected');
+      setConnected(true);
+      return true;
+    } catch (error) {
+      setConnectionStatus('disconnected');
+      setConnected(false);
+      return false;
+    }
+  }, []);
+
   // Inicializar WebSocket
   useEffect(() => {
     if (!wsClient.current) {
       wsClient.current = new WebSocketClient();
-      
+
       // Configurar handlers
       wsClient.current.on('calculation_started', (data) => {
         setLoading(true);
         setError(null);
       });
-      
+
       wsClient.current.on('results_update', (data) => {
         setResults(data);
         setLoading(false);
       });
-      
+
       wsClient.current.on('sensitivity_update', () => {
         // Atualizar dados de sensibilidade se necessário
       });
-      
+
       wsClient.current.on('calculation_completed', () => {
         setLoading(false);
       });
-      
+
       wsClient.current.on('error', (data) => {
         setError(data.message || 'Erro desconhecido');
         setLoading(false);
       });
-      
+
       wsClient.current.on('pong', () => {
-        // Pong received
+        setLastPing(new Date());
       });
-      
+
       // Conectar
+      setConnectionStatus('connecting');
       wsClient.current.connect()
-        .then(() => setConnected(true))
+        .then(() => {
+          setConnected(true);
+          setConnectionStatus('connected');
+          performHealthCheck();
+        })
         .catch(() => {
           setConnected(false);
+          setConnectionStatus('disconnected');
         });
     }
 
@@ -72,7 +101,21 @@ export const useSimulator = () => {
         wsClient.current = null;
       }
     };
-  }, []);
+  }, [performHealthCheck]);
+
+  // Health check periódico
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (connectionStatus === 'connected') {
+        performHealthCheck();
+      }
+    }, 30000); // Check a cada 30 segundos
+
+    // Check inicial
+    performHealthCheck();
+
+    return () => clearInterval(interval);
+  }, [connectionStatus, performHealthCheck]);
 
   const lastCalculatedStateRef = useRef<string | null>(null);
 
@@ -196,6 +239,28 @@ export const useSimulator = () => {
     }
   }, [state, debouncedCalculate]);
 
+  // Forçar reconexão
+  const forceReconnect = useCallback(() => {
+    if (wsClient.current) {
+      wsClient.current.disconnect();
+    }
+    setConnectionStatus('connecting');
+
+    setTimeout(() => {
+      if (wsClient.current) {
+        wsClient.current.connect()
+          .then(() => {
+            setConnected(true);
+            setConnectionStatus('connected');
+            performHealthCheck();
+          })
+          .catch(() => {
+            setConnected(false);
+            setConnectionStatus('disconnected');
+          });
+      }
+    }, 100);
+  }, [performHealthCheck]);
 
   return {
     // Estado
@@ -204,16 +269,22 @@ export const useSimulator = () => {
     loading,
     error,
     connected,
-    
+
+    // Status de conexão
+    connectionStatus,
+    lastPing,
+    responseTime,
+
     // Dados auxiliares
     mortalityTables: mortalityTables || [],
-    
+
     // Ações
     updateState,
     resetToDefault,
     recalculate,
     ping,
-    
+    forceReconnect,
+
     // Utilities
     isReady: !!state && !!mortalityTables,
   };

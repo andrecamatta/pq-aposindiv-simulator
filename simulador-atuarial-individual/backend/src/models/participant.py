@@ -2,6 +2,7 @@ from pydantic import BaseModel, field_validator
 from typing import Optional, List, Dict
 from datetime import datetime
 from enum import Enum
+from ..utils.pydantic_validators import EnumMixin, create_enum_validator, get_enum_value
 
 
 class Gender(str, Enum):
@@ -40,7 +41,7 @@ class CDConversionMode(str, Enum):
     PROGRAMMED = "PROGRAMMED"      # Saque programado
 
 
-class SimulatorState(BaseModel):
+class SimulatorState(BaseModel, EnumMixin):
     """Estado reativo do simulador"""
     # Dados do participante (editáveis)
     age: int
@@ -116,3 +117,30 @@ class SimulatorState(BaseModel):
         if mode == BenefitTargetMode.REPLACEMENT_RATE and info.field_name == 'target_replacement_rate':
             return v if v is not None else None
         return v
+
+    # Validadores de enum robustos
+    @field_validator('gender', mode='before')
+    def validate_gender(cls, v):
+        return create_enum_validator(Gender)(cls, v)
+
+    @field_validator('plan_type', mode='before')
+    def validate_plan_type(cls, v):
+        return create_enum_validator(PlanType)(cls, v)
+
+    @field_validator('benefit_target_mode', mode='before')
+    def validate_benefit_target_mode(cls, v):
+        return create_enum_validator(BenefitTargetMode)(cls, v)
+
+    @field_validator('cd_conversion_mode', mode='before')
+    def validate_cd_conversion_mode(cls, v):
+        if v is None:
+            return v
+        return create_enum_validator(CDConversionMode)(cls, v)
+
+    @field_validator('payment_timing', mode='before')
+    def validate_payment_timing(cls, v):
+        return create_enum_validator(PaymentTiming)(cls, v)
+
+    @field_validator('calculation_method', mode='before')
+    def validate_calculation_method(cls, v):
+        return create_enum_validator(CalculationMethod)(cls, v)

@@ -64,20 +64,15 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
 
 
   return (
-    <div className="space-y-6">
-      {/* Hero Card */}
-      <Card className="bg-gradient-to-br from-pink-50 to-pink-100 border-pink-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-pink-200 to-pink-400 rounded-2xl flex items-center justify-center shadow-lg">
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-pink-900">Relatórios e Exportações</h2>
-              <p className="text-pink-600 text-base">Gere documentos profissionais com os resultados</p>
-            </div>
-          </CardTitle>
-        </CardHeader>
-      </Card>
+    <div className="space-y-8">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          Relatórios e Exportações
+        </h1>
+        <p className="text-gray-600">
+          Gere documentos profissionais com os resultados da simulação atuarial.
+        </p>
+      </div>
 
       {/* Status Card */}
       {!results ? (

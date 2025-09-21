@@ -17,6 +17,10 @@ interface TabbedDashboardProps {
   mortalityTables: MortalityTable[];
   onStateChange: (updates: Partial<SimulatorState>) => void;
   loading: boolean;
+  connectionStatus?: 'connected' | 'disconnected' | 'connecting';
+  lastPing?: Date;
+  responseTime?: number;
+  onReconnect?: () => void;
 }
 
 const TabbedDashboard: React.FC<TabbedDashboardProps> = ({
@@ -24,7 +28,11 @@ const TabbedDashboard: React.FC<TabbedDashboardProps> = ({
   results,
   mortalityTables,
   onStateChange,
-  loading
+  loading,
+  connectionStatus,
+  lastPing,
+  responseTime,
+  onReconnect
 }) => {
   const [activeTab, setActiveTab] = useState('participant');
 
@@ -131,9 +139,13 @@ const TabbedDashboard: React.FC<TabbedDashboardProps> = ({
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      <TabNavigation 
-        activeTab={activeTab} 
+      <TabNavigation
+        activeTab={activeTab}
         onTabChange={setActiveTab}
+        connectionStatus={connectionStatus}
+        lastPing={lastPing}
+        responseTime={responseTime}
+        onReconnect={onReconnect}
       />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

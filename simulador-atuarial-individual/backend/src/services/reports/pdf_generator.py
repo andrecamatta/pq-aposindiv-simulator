@@ -14,21 +14,19 @@ import tempfile
 
 from .models.report_models import ReportConfig, ReportRequest, ReportResponse
 from .chart_generator import ChartGenerator
+from .abstract_report_generator import AbstractReportGenerator
 from ...models.participant import SimulatorState
 from ...models.results import SimulatorResults
 
 
-class PDFGenerator:
+class PDFGenerator(AbstractReportGenerator):
     """Classe principal para geração de PDFs executivos"""
 
-    def __init__(self, config: Optional[ReportConfig] = None):
-        self.config = config or ReportConfig()
+    def __init__(self, config: Optional[ReportConfig] = None, cache_dir: Optional[Path] = None):
+        super().__init__(config, cache_dir)
+
         self.templates_dir = Path(__file__).parent / "templates"
         self.static_dir = Path(__file__).parent / "static"
-        self.cache_dir = Path(__file__).parent / "cache"
-
-        # Garantir que diretórios existem
-        self.cache_dir.mkdir(exist_ok=True)
 
         # Configurar Jinja2
         self.jinja_env = Environment(
@@ -42,50 +40,51 @@ class PDFGenerator:
         # Inicializar gerador de gráficos
         self.chart_generator = ChartGenerator(self.config)
 
+    @property
+    def supported_formats(self) -> list[str]:
+        """Formatos suportados pelo gerador PDF."""
+        return ['pdf', 'html']
+
+    @property
+    def default_content_type(self) -> str:
+        """Tipo MIME padrão para PDF."""
+        return "application/pdf"
+
     def generate_executive_pdf(self, request: ReportRequest) -> ReportResponse:
         """
-        Gerar PDF do relatório executivo
+        Método público para gerar PDF executivo (mantém compatibilidade).
+        Delega para o método base generate_report.
         """
-        start_time = time.time()
-        report_id = str(uuid.uuid4())
+        return self.generate_report(request)
 
-        try:
-            # Gerar gráficos
-            charts = self.chart_generator.generate_all_charts(request.results)
+    def _generate_specific_report(self, request: ReportRequest, report_id: str) -> ReportResponse:
+        """
+        Implementação específica da geração PDF.
+        """
+        # Gerar gráficos
+        charts = self.chart_generator.generate_all_charts(request.results)
 
-            # Renderizar HTML
-            html_content = self._render_executive_template(
-                request.state, request.results, charts
-            )
+        # Renderizar HTML
+        html_content = self._render_executive_template(
+            request.state, request.results, charts
+        )
 
-            # Gerar PDF
-            pdf_bytes = self._html_to_pdf(html_content)
+        # Gerar PDF
+        pdf_bytes = self._html_to_pdf(html_content)
 
-            # Salvar arquivo no cache
-            file_path = self.cache_dir / f"executive_report_{report_id}.pdf"
-            with open(file_path, 'wb') as f:
-                f.write(pdf_bytes)
+        # Salvar arquivo no cache
+        file_path = self.cache_dir / f"executive_report_{report_id}.pdf"
+        with open(file_path, 'wb') as f:
+            f.write(pdf_bytes)
 
-            generation_time = int((time.time() - start_time) * 1000)
-
-            return ReportResponse(
-                success=True,
-                message="Relatório executivo gerado com sucesso",
-                file_path=str(file_path),
-                file_size=len(pdf_bytes),
-                generation_time_ms=generation_time,
-                report_id=report_id,
-                content_type="application/pdf"
-            )
-
-        except Exception as e:
-            generation_time = int((time.time() - start_time) * 1000)
-            return ReportResponse(
-                success=False,
-                message=f"Erro ao gerar relatório: {str(e)}",
-                generation_time_ms=generation_time,
-                report_id=report_id
-            )
+        return self._create_success_response(
+            report_id=report_id,
+            generation_time_ms=0,  # Será calculado pela classe base
+            file_path=str(file_path),
+            file_size=len(pdf_bytes),
+            content_type=self.default_content_type,
+            message="Relatório executivo gerado com sucesso"
+        )
 
     def generate_technical_pdf(self, request: ReportRequest) -> ReportResponse:
         """

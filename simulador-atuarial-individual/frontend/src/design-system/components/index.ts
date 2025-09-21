@@ -24,6 +24,8 @@ export type { InputProps } from './Input';
 export { Select, selectVariants } from './Select';
 export type { SelectProps, SelectOption } from './Select';
 
+export { FormField } from './FormField';
+
 export { Textarea, textareaVariants } from './Textarea';
 export type { TextareaProps } from './Textarea';
 
@@ -61,5 +63,7 @@ export { default as Toast } from './Toast';
 export { ToastProvider, useToast } from './ToastProvider';
 export { default as TabNavigation, tabs } from './TabNavigation';
 export type { Tab } from './TabNavigation';
+export { default as ConnectionStatus } from './ConnectionStatus';
+export type { ConnectionState } from './ConnectionStatus';
 export { default as CurrencyInput } from './CurrencyInput';
 export { default as InfoTooltip } from './InfoTooltip';

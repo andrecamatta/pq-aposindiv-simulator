@@ -8,7 +8,7 @@ from typing import Dict, List, TYPE_CHECKING
 from ..utils.rates import annual_to_monthly_rate
 
 if TYPE_CHECKING:
-    from ..models.database import SimulatorState
+    from ..models.participant import SimulatorState
     from .actuarial_engine import ActuarialContext
 
 

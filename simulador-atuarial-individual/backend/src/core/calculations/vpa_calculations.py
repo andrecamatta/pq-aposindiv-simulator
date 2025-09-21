@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Import apenas para type hints, evita circular imports
 if TYPE_CHECKING:
-    from ...models.database import SimulatorState
+    from ...models.participant import SimulatorState
     from ..actuarial_engine import ActuarialEngine
 
 
@@ -498,7 +498,8 @@ def calculate_parameter_to_zero_deficit(
         if parameter_name == "target_benefit":
             test_state.target_benefit = float(parameter_value)
         elif parameter_name == "contribution_rate":
-            test_state.contribution_rate = float(parameter_value) / 100.0  # Converter % para decimal
+            # Trabalhamos sempre em pontos percentuais para manter consistência
+            test_state.contribution_rate = float(parameter_value)
         elif parameter_name == "retirement_age":
             test_state.retirement_age = int(parameter_value)
         elif parameter_name == "salary":
@@ -540,30 +541,59 @@ def calculate_parameter_to_zero_deficit(
 
         logger.debug(f"[FSOLVE] Testando bounds: f({bounds[0]}) = {f_min:.2f}, f({bounds[1]}) = {f_max:.2f}")
 
-        # Se não há mudança de sinal, não há raiz no intervalo
-        if f_min * f_max > 0:
-            logger.warning(f"[FSOLVE] ⚠️ Não há raiz nos bounds [{bounds[0]}, {bounds[1]}], ambos têm deficit do mesmo sinal")
-            # Retornar o valor que dá menor deficit absoluto
-            if abs(f_min) < abs(f_max):
-                return bounds[0]
-            else:
-                return bounds[1]
+        evaluation_points = [(bounds[0], f_min), (bounds[1], f_max)]
+        previous_value = bounds[0]
+        previous_result = f_min
+        bracket = None
 
-        # Usar root_scalar para otimização
-        result = root_scalar(
-            objective_function,
-            bracket=bounds,
-            method='brentq',
-            xtol=1e-3
-        )
-
-        if result.converged:
-            optimal_value = result.root
-            logger.info(f"[FSOLVE] ✅ Convergência: {parameter_name}={optimal_value:.3f}")
-            return optimal_value
+        if math.isfinite(f_min) and math.isfinite(f_max) and f_min * f_max <= 0:
+            bracket = (bounds[0], bounds[1])
         else:
-            logger.warning(f"[FSOLVE] ⚠️ Não convergiu, usando chute inicial")
-            return initial_guess
+            # Escanear o intervalo em busca de mudança de sinal
+            samples = 12
+            step = (bounds[1] - bounds[0]) / samples if samples > 0 else 0
+
+            for i in range(1, samples):
+                test_value = bounds[0] + step * i
+                result_value = objective_function(test_value)
+                evaluation_points.append((test_value, result_value))
+
+                if (
+                    math.isfinite(previous_result)
+                    and math.isfinite(result_value)
+                    and previous_result * result_value <= 0
+                ):
+                    bracket = (previous_value, test_value)
+                    break
+
+                previous_value = test_value
+                previous_result = result_value
+
+        if bracket:
+            result = root_scalar(
+                objective_function,
+                bracket=bracket,
+                method='brentq',
+                xtol=1e-3
+            )
+
+            if result.converged:
+                optimal_value = result.root
+                logger.info(f"[FSOLVE] ✅ Convergência: {parameter_name}={optimal_value:.3f}")
+                return optimal_value
+            logger.warning(f"[FSOLVE] ⚠️ Não convergiu no bracket {bracket}, usando melhor aproximação disponível")
+
+        # Sem bracket válido: selecionar o valor com menor déficit absoluto
+        finite_points = [p for p in evaluation_points if math.isfinite(p[1])]
+        if finite_points:
+            best_value, best_deficit = min(finite_points, key=lambda x: abs(x[1]))
+            logger.info(
+                f"[FSOLVE] ⚠️ Sem raiz clara; escolhendo {parameter_name}={best_value:.3f} (déficit={best_deficit:.2f})"
+            )
+            return best_value
+
+        logger.warning(f"[FSOLVE] ⚠️ Não foi possível avaliar ponto estável para {parameter_name}, usando chute inicial")
+        return initial_guess
 
     except Exception as e:
         logger.error(f"[FSOLVE] Erro na otimização: {e}")
@@ -575,7 +605,7 @@ def calculate_optimal_contribution_rate(state: "SimulatorState", engine: "Actuar
     return calculate_parameter_to_zero_deficit(
         state, engine, "contribution_rate",
         bounds=(1.0, 30.0),
-        initial_guess=state.contribution_rate * 100  # Converter para %
+        initial_guess=state.contribution_rate
     )
 
 
@@ -616,7 +646,7 @@ def calculate_sustainable_benefit_with_engine(
         # Criar cópia do estado com novo benefício
         test_state = copy.deepcopy(state)
         test_state.target_benefit = float(benefit_value)
-        test_state.benefit_target_mode = "VALUE"
+        test_state.benefit_target_mode = BenefitTargetMode.VALUE
 
         # Calcular usando engine atuarial existente
         try:

@@ -26,7 +26,7 @@ const DashboardSection: React.FC<DashboardSectionProps> = ({
       <div className="bg-white border-b border-gray-200 px-6 py-8">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Simulador Atuarial Individual
+            PrevLab
           </h1>
           <p className="text-gray-600 text-lg">
             Configure os parâmetros e visualize os resultados em tempo real

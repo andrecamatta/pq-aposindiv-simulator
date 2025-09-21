@@ -20,9 +20,13 @@ const SimulatorApp: React.FC = () => {
     loading,
     error,
     connected,
+    connectionStatus,
+    lastPing,
+    responseTime,
     mortalityTables,
     updateState,
     resetToDefault,
+    forceReconnect,
     isReady,
   } = useSimulator();
 
@@ -74,6 +78,10 @@ const SimulatorApp: React.FC = () => {
         mortalityTables={mortalityTables}
         onStateChange={updateState}
         loading={loading}
+        connectionStatus={connectionStatus}
+        lastPing={lastPing}
+        responseTime={responseTime}
+        onReconnect={forceReconnect}
       />
     </div>
   );

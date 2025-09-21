@@ -2,7 +2,7 @@
 // Professional color palette inspired by Stripe, Linear, and Airbnb
 
 export const colors = {
-  // Primary Brand Colors - Inspired by ActuarialSim reference
+  // Primary Brand Colors - Inspired by PrevLab branding
   primary: {
     50: '#eff8ff',
     100: '#ddf0ff',

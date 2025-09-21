@@ -1,5 +1,6 @@
 import React from 'react';
 import './TabNavigation.css';
+import ConnectionStatus, { type ConnectionState } from './ConnectionStatus';
 
 export interface Tab {
   id: string;
@@ -50,12 +51,20 @@ interface TabNavigationProps {
   className?: string;
   activeTab?: string;
   onTabChange?: (tabId: string) => void;
+  connectionStatus?: ConnectionState;
+  lastPing?: Date;
+  responseTime?: number;
+  onReconnect?: () => void;
 }
 
 const TabNavigation: React.FC<TabNavigationProps> = ({
   className = '',
   activeTab = 'technical',
   onTabChange,
+  connectionStatus = 'disconnected',
+  lastPing,
+  responseTime,
+  onReconnect,
 }) => {
   return (
     <header className={`bg-white shadow-sm ${className}`}>
@@ -64,37 +73,45 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
           <div className="flex items-center gap-3">
             <img
               src="/logo.png"
-              alt="ActuarialSim Logo"
+              alt="PrevLab Logo"
               className="h-8 w-auto max-w-[40px] object-contain"
             />
             <h1 className="text-xl font-semibold text-gray-800">
-              ActuarialSim
+              PrevLab
             </h1>
           </div>
-          <nav className="tab-navigation">
-            <ul>
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.id;
-                return (
-                  <li key={tab.id}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (onTabChange) {
-                          onTabChange(tab.id);
-                        }
-                      }}
-                      className={isActive ? 'active' : ''}
-                    >
-                      <span className="material-icons">{tab.icon}</span>
-                      {tab.label}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
+          <div className="flex items-center gap-4">
+            <nav className="tab-navigation">
+              <ul>
+                {tabs.map((tab) => {
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <li key={tab.id}>
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (onTabChange) {
+                            onTabChange(tab.id);
+                          }
+                        }}
+                        className={isActive ? 'active' : ''}
+                      >
+                        <span className="material-icons">{tab.icon}</span>
+                        {tab.label}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+            <ConnectionStatus
+              status={connectionStatus}
+              lastPing={lastPing || undefined}
+              responseTime={responseTime}
+              onReconnect={onReconnect}
+            />
+          </div>
         </div>
       </div>
     </header>

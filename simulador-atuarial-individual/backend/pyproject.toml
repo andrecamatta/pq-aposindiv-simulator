@@ -1,7 +1,7 @@
 [project]
-name = "simulador-atuarial-individual"
+name = "prevlab"
 version = "0.1.0"
-description = "Simulador Atuarial Interativo Individual"
+description = "PrevLab - Plataforma de Simulação Atuarial"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.104.1",

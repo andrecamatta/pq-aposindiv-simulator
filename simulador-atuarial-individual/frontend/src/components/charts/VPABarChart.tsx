@@ -23,10 +23,47 @@ const VPABarChart: React.FC<VPABarChartProps> = ({ results }) => {
     );
   }
 
+  // Dados recebidos validados
+
   // Decomposição da RMBA: VPA Benefícios - VPA Contribuições Futuras = RMBA
-  const vpaBenefits = isNaN(results.actuarial_present_value_benefits) ? 0 : results.actuarial_present_value_benefits;
-  const vpaContributions = isNaN(results.actuarial_present_value_salary) ? 0 : results.actuarial_present_value_salary;
-  const rmba = isNaN(results.rmba) ? 0 : results.rmba;
+  // Validação robusta dos dados
+  const rawVpaBenefits = results.actuarial_present_value_benefits;
+  const rawVpaContributions = results.actuarial_present_value_salary;
+  const rawRmba = results.rmba;
+
+  // Se os valores específicos não estão disponíveis, mas temos RMBA, vamos calcular aproximações
+  let vpaBenefits = 0;
+  let vpaContributions = 0;
+
+  if (rawVpaBenefits && !isNaN(rawVpaBenefits) && rawVpaBenefits > 0) {
+    vpaBenefits = rawVpaBenefits;
+  }
+
+  if (rawVpaContributions && !isNaN(rawVpaContributions) && rawVpaContributions > 0) {
+    vpaContributions = rawVpaContributions;
+  }
+
+  // Se não temos os dados diretos mas temos RMBA, mostrar explicação
+  const hasValidVPAData = vpaBenefits > 0 || vpaContributions > 0;
+  const rmba = rawRmba && !isNaN(rawRmba) ? rawRmba : 0;
+
+  // Valores processados e validados
+
+  // Se não temos dados VPA válidos, exibir uma mensagem mais informativa
+  if (!hasValidVPAData && rmba !== 0) {
+    return (
+      <div className="h-64 flex items-center justify-center">
+        <div className="text-center">
+          <Icon name="bar-chart" size="xl" className="text-gray-400 mb-4" />
+          <div className="space-y-2">
+            <p className="text-gray-700 font-medium">Decomposição da RMBA</p>
+            <p className="text-sm text-gray-500">RMBA calculada: {formatCurrencyBR(rmba)}</p>
+            <p className="text-xs text-gray-400">Aguardando cálculo dos componentes VPA</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   const chartData = [vpaBenefits, -vpaContributions, rmba];
 

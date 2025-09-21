@@ -204,19 +204,156 @@ class ActuarialEngine:
         Calcula déficit/superávit para planos CD comparando:
         - Benefício mensal real resultante da conversão atuarial
         - Benefício mensal desejado pelo participante
-        
+
         Retorna:
-        - Valor positivo = Superávit (renda real > desejada)  
+        - Valor positivo = Superávit (renda real > desejada)
         - Valor negativo = Déficit (renda real < desejada)
         """
         target_monthly_benefit = state.target_benefit if state.target_benefit else 0.0
-        
+
         # Déficit/Superávit = Renda Real - Renda Desejada
         # Se positivo: sistema consegue gerar mais que o desejado (superávit)
         # Se negativo: sistema não consegue gerar o desejado (déficit)
         deficit_surplus = monthly_income - target_monthly_benefit
-        
+
         return deficit_surplus
+
+    def _calculate_cd_deficit_surplus_percentage(self, state: SimulatorState, monthly_income: float) -> float:
+        """
+        Calcula percentual do déficit/superávit em relação ao benefício desejado para CD.
+
+        Args:
+            state: Estado do simulador
+            monthly_income: Renda mensal real do CD
+
+        Returns:
+            Percentual do déficit/superávit (positivo = superávit, negativo = déficit)
+        """
+        target_monthly_benefit = state.target_benefit if state.target_benefit else 0.0
+
+        if target_monthly_benefit <= 0:
+            return 0.0
+
+        deficit_surplus = monthly_income - target_monthly_benefit
+        percentage = (deficit_surplus / target_monthly_benefit) * 100
+
+        # Sanitizar resultado
+        if math.isnan(percentage) or math.isinf(percentage):
+            return 0.0
+
+        return percentage
+
+    def _calculate_cd_required_contribution_rate(self, state: SimulatorState, context: ActuarialContext,
+                                                projections: Dict, monthly_income: float,
+                                                accumulated_balance: float) -> float:
+        """
+        Calcula taxa de contribuição necessária para atingir o benefício desejado em CD.
+
+        Args:
+            state: Estado do simulador
+            context: Contexto atuarial
+            projections: Projeções calculadas
+            monthly_income: Renda mensal atual do CD
+            accumulated_balance: Saldo acumulado atual
+
+        Returns:
+            Taxa de contribuição adicional necessária (%)
+        """
+        target_monthly_benefit = state.target_benefit if state.target_benefit else 0.0
+
+        if target_monthly_benefit <= monthly_income or target_monthly_benefit <= 0:
+            return 0.0  # Não precisa de contribuição adicional
+
+        # Calcular saldo necessário para gerar o benefício desejado
+        mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
+
+        # Estimar saldo necessário invertendo o cálculo de renda mensal
+        conversion_mode = state.cd_conversion_mode or CDConversionMode.ACTUARIAL
+
+        if conversion_mode == CDConversionMode.ACTUARIAL:
+            # Calcular fator de anuidade vitalícia para estimar saldo necessário
+            annuity_factor = self._calculate_cd_annuity_factor(state, context, mortality_table)
+            required_balance = target_monthly_benefit * annuity_factor if annuity_factor > 0 else 0
+        elif conversion_mode in [CDConversionMode.CERTAIN_5Y, CDConversionMode.CERTAIN_10Y,
+                                CDConversionMode.CERTAIN_15Y, CDConversionMode.CERTAIN_20Y]:
+            # Para renda certa, usar cálculo de valor presente
+            years_map = {
+                CDConversionMode.CERTAIN_5Y: 5,
+                CDConversionMode.CERTAIN_10Y: 10,
+                CDConversionMode.CERTAIN_15Y: 15,
+                CDConversionMode.CERTAIN_20Y: 20
+            }
+            years = years_map[conversion_mode]
+            conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
+
+            # Calcular valor presente dos pagamentos
+            total_payments = years * context.benefit_months_per_year
+            if conversion_rate_monthly > 0:
+                pv_factor = sum(1 / ((1 + conversion_rate_monthly) ** month) for month in range(int(total_payments)))
+                required_balance = target_monthly_benefit * pv_factor
+            else:
+                required_balance = target_monthly_benefit * total_payments
+        else:
+            # Para outras modalidades, usar estimativa baseada em 20 anos
+            required_balance = target_monthly_benefit * 12 * 20
+
+        # Calcular contribuição adicional necessária
+        additional_balance_needed = required_balance - accumulated_balance
+
+        if additional_balance_needed <= 0:
+            return 0.0
+
+        # Calcular VPA dos salários futuros para determinar taxa adicional necessária
+        total_future_salaries = sum(projections.get("salaries", []))
+
+        if total_future_salaries <= 0:
+            return 0.0
+
+        required_additional_rate = (additional_balance_needed / total_future_salaries) * 100
+
+        # Sanitizar e limitar resultado
+        if math.isnan(required_additional_rate) or math.isinf(required_additional_rate):
+            return 0.0
+
+        return min(required_additional_rate, 50.0)  # Máximo 50%
+
+    def _calculate_cd_annuity_factor(self, state: SimulatorState, context: ActuarialContext,
+                                   mortality_table: np.ndarray) -> float:
+        """
+        Calcula fator de anuidade vitalícia para CD.
+
+        Returns:
+            Fator de anuidade (valor presente de R$ 1 mensal vitalício)
+        """
+        conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
+
+        annuity_factor = 0.0
+        cumulative_survival = 1.0
+
+        # Calcular até 50 anos após aposentadoria
+        max_months = min(50 * 12, (110 - state.retirement_age) * 12)
+
+        for month in range(max_months):
+            retirement_age_years = state.retirement_age + (month / 12)
+            age_index = int(retirement_age_years)
+
+            if age_index < len(mortality_table):
+                q_x_annual = mortality_table[age_index]
+                if 0 <= q_x_annual <= 1:
+                    q_x_monthly = 1 - ((1 - q_x_annual) ** (1/12))
+                    p_x_monthly = 1 - q_x_monthly
+                    cumulative_survival *= p_x_monthly
+                else:
+                    cumulative_survival = 0.0
+                    break
+
+                # Valor presente da anuidade mensal
+                pv_factor = 1 / ((1 + conversion_rate_monthly) ** month) if conversion_rate_monthly > 0 else 1
+                annuity_factor += cumulative_survival * pv_factor
+            else:
+                break
+
+        return annuity_factor
         
     def calculate_individual_simulation(self, state: SimulatorState) -> SimulatorResults:
         """Calcula simulação atuarial individual completa - BD ou CD"""
@@ -225,72 +362,56 @@ class ActuarialEngine:
         # Validar entrada
         self._validate_state(state)
         
-        # Delegar para método específico baseado no tipo de plano
+        # Delegar para calculadoras especializadas baseado no tipo de plano
         if state.plan_type == PlanType.BD:
-            return self._calculate_bd_simulation(state, start_time)
+            return self._calculate_bd_simulation_with_calculator(state, start_time)
         else:  # PlanType.CD
-            return self._calculate_cd_simulation(state, start_time)
+            return self._calculate_cd_simulation_with_calculator(state, start_time)
     
-    def _calculate_bd_simulation(self, state: SimulatorState, start_time: float) -> SimulatorResults:
-        """Calcula simulação para plano BD (Benefício Definido) - comportamento atual"""
-        # Criar contexto atuarial com taxas mensais
+    def _calculate_bd_simulation_with_calculator(self, state: SimulatorState, start_time: float) -> SimulatorResults:
+        """Calcula simulação BD delegando completamente para BDCalculator especializada"""
+        # Criar contexto atuarial
         context = ActuarialContext.from_state(state)
-        
-        logger = logging.getLogger(__name__)
-        logger.debug("Taxa administrativa anual: %s", state.admin_fee_rate)
-        logger.debug("Taxa administrativa mensal: %s", context.admin_fee_monthly)
-        
-        # Obter tábua de mortalidade com suavização
-        mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
-        
-        # Calcular projeções temporais
-        projections = self._calculate_projections(state, context, mortality_table)
-        
-        # Calcular reservas matemáticas usando calculadoras especializadas
-        rmba = self.rmba_calculator.calculate_rmba(state, context, projections)
-        rmbc = self.rmbc_calculator.calculate_rmbc(state, context, projections)
-        normal_cost = self.normal_cost_calculator.calculate_normal_cost(
-            state, context, projections, projections["monthly_data"]["survival_probs"]
-        )
-        
-        # Calcular métricas-chave
-        metrics = self._calculate_key_metrics(state, context, projections)
-        
+
+        # Delegar cálculo completo para calculadora BD especializada
+        bd_results = self.bd_calculator.calculate_bd_simulation(state, context)
         # Análise de sensibilidade usando calculadoras consolidadas
         from .sensitivity import create_rmba_sensitivity_calculator, create_deficit_sensitivity_calculator
-        
+
         rmba_calculator = create_rmba_sensitivity_calculator()
         deficit_calculator = create_deficit_sensitivity_calculator()
-        
+
         sensitivity = rmba_calculator.calculate_sensitivity(state)
         sensitivity_deficit = deficit_calculator.calculate_sensitivity(state)
-        
+
         # Decomposição atuarial
-        decomposition = self._calculate_actuarial_decomposition(state, context, projections)
-        
-        # Análise de suficiência
-        sufficiency = self._calculate_sufficiency_analysis(state, context, projections, metrics)
-        
+        decomposition = self._calculate_actuarial_decomposition(state, context, bd_results["projections"])
+
         # Análise de cenários
         scenarios = self._calculate_scenarios(state)
-        
+
         # Projeções atuariais para gráfico separado
-        actuarial_projections = self._calculate_actuarial_projections(state, context, projections)
-        
+        actuarial_projections = self._calculate_actuarial_projections(state, context, bd_results["projections"])
+
         computation_time = (time.time() - start_time) * 1000
-        
+
+        # Extrair dados das calculadoras especializadas
+        projections = bd_results["projections"]
+        metrics = bd_results["metrics"]
+        sufficiency_analysis = bd_results["sufficiency_analysis"]
+
         return SimulatorResults(
-            # Reservas Matemáticas - automaticamente sanitizadas pelo Pydantic
-            rmba=rmba,
-            rmbc=rmbc,
-            normal_cost=normal_cost,
+            # Resultados das calculadoras especializadas
+            rmba=bd_results["rmba"],
+            rmbc=bd_results["rmbc"],
+            normal_cost=bd_results["normal_cost"],
 
             # Análise de Suficiência
-            deficit_surplus=sufficiency["deficit_surplus"],
-            deficit_surplus_percentage=sufficiency["deficit_surplus_percentage"],
-            required_contribution_rate=sufficiency["required_contribution_rate"],
+            deficit_surplus=sufficiency_analysis["deficit_surplus"],
+            deficit_surplus_percentage=sufficiency_analysis["deficit_surplus_percentage"],
+            required_contribution_rate=sufficiency_analysis["required_contribution_rate"],
 
-            # Projeções
+            # Projeções temporais
             projection_years=projections["years"],
             projected_salaries=projections["salaries"],
             projected_benefits=projections["benefits"],
@@ -298,7 +419,87 @@ class ActuarialEngine:
             survival_probabilities=projections["survival_probs"],
             accumulated_reserves=projections["reserves"],
 
-            # Vetores por idade para frontend
+            # Vetores por idade
+            projection_ages=projections.get("projection_ages"),
+            projected_salaries_by_age=projections.get("projected_salaries_by_age"),
+            projected_benefits_by_age=projections.get("projected_benefits_by_age"),
+
+            # Projeções atuariais específicas BD
+            projected_vpa_benefits=actuarial_projections["vpa_benefits"],
+            projected_vpa_contributions=actuarial_projections["vpa_contributions"],
+            projected_rmba_evolution=actuarial_projections["rmba_evolution"],
+            projected_rmbc_evolution=actuarial_projections["rmbc_evolution"],
+
+            # Métricas das calculadoras
+            total_contributions=metrics["total_contributions"],
+            total_benefits=metrics["total_benefits"],
+            replacement_ratio=metrics["replacement_ratio"],
+            target_replacement_ratio=metrics["target_replacement_ratio"],
+            sustainable_replacement_ratio=metrics["sustainable_replacement_ratio"],
+            funding_ratio=metrics.get("funding_ratio", 100.0),
+
+            # Sensibilidade BD
+            sensitivity_discount_rate=sensitivity.get("discount_rate", {}),
+            sensitivity_mortality=sensitivity.get("mortality", {}),
+            sensitivity_retirement_age=sensitivity.get("retirement_age", {}),
+            sensitivity_salary_growth=sensitivity.get("salary_growth", {}),
+            sensitivity_inflation=sensitivity.get("inflation", {}),
+
+            # Sensibilidade déficit
+            sensitivity_deficit_discount_rate=sensitivity_deficit.get("discount_rate", {}),
+            sensitivity_deficit_mortality=sensitivity_deficit.get("mortality", {}),
+            sensitivity_deficit_retirement_age=sensitivity_deficit.get("retirement_age", {}),
+            sensitivity_deficit_salary_growth=sensitivity_deficit.get("salary_growth", {}),
+            sensitivity_deficit_inflation=sensitivity_deficit.get("inflation", {}),
+
+            # Decomposição atuarial
+            actuarial_present_value_benefits=decomposition.get("apv_benefits", 0.0),
+            actuarial_present_value_salary=decomposition.get("apv_future_contributions", 0.0),
+            service_cost_breakdown=decomposition.get("cost_breakdown", {}),
+            liability_duration=decomposition.get("duration", 0.0),
+            convexity=decomposition.get("convexity", 0.0),
+
+            # Cenários
+            best_case_scenario=scenarios.get("best_case", {}),
+            worst_case_scenario=scenarios.get("worst_case", {}),
+            confidence_intervals=scenarios.get("confidence_intervals", {}),
+
+            # Metadados
+            calculation_timestamp=datetime.now(),
+            computation_time_ms=computation_time,
+            actuarial_method_details={"method": state.calculation_method},
+            assumptions_validation={"valid": True}
+        )
+        # Análise de suficiência usando resultados da calculadora BD
+        sufficiency_analysis = bd_results["sufficiency_analysis"]
+
+        # Debug temporário - verificar chaves disponíveis
+        print(f"DEBUG: bd_results keys: {list(bd_results.keys())}")
+        print(f"DEBUG: sufficiency_analysis keys: {list(sufficiency_analysis.keys())}")
+        deficit_surplus_percentage_value = sufficiency_analysis.get('deficit_surplus_percentage', 0.0)
+        print(f"DEBUG: deficit_surplus_percentage value: {deficit_surplus_percentage_value}")
+        print(f"DEBUG: deficit_surplus_percentage type: {type(deficit_surplus_percentage_value)}")
+
+        return SimulatorResults(
+            # Resultados das calculadoras especializadas - delegação real
+            rmba=bd_results["rmba"],
+            rmbc=bd_results["rmbc"],
+            normal_cost=bd_results["normal_cost"],
+
+            # Análise de Suficiência das calculadoras
+            deficit_surplus=sufficiency_analysis["deficit_surplus"],
+            deficit_surplus_percentage=float(deficit_surplus_percentage_value),
+            required_contribution_rate=sufficiency_analysis["required_contribution_rate"],
+
+            # Projeções das calculadoras
+            projection_years=projections["years"],
+            projected_salaries=projections["salaries"],
+            projected_benefits=projections["benefits"],
+            projected_contributions=projections["contributions"],
+            survival_probabilities=projections["survival_probs"],
+            accumulated_reserves=projections["reserves"],
+
+            # Vetores por idade das calculadoras
             projection_ages=projections.get("projection_ages"),
             projected_salaries_by_age=projections.get("projected_salaries_by_age"),
             projected_benefits_by_age=projections.get("projected_benefits_by_age"),
@@ -309,27 +510,27 @@ class ActuarialEngine:
             projected_rmba_evolution=actuarial_projections["rmba_evolution"],
             projected_rmbc_evolution=actuarial_projections["rmbc_evolution"],
 
-            # Métricas
+            # Métricas das calculadoras BD
             total_contributions=metrics["total_contributions"],
             total_benefits=metrics["total_benefits"],
             replacement_ratio=metrics["replacement_ratio"],
             target_replacement_ratio=metrics["target_replacement_ratio"],
             sustainable_replacement_ratio=metrics["sustainable_replacement_ratio"],
-            funding_ratio=None,
+            funding_ratio=metrics.get("funding_ratio", 100.0),
 
-            # Sensibilidade (RMBA - original)
-            sensitivity_discount_rate=sensitivity["discount_rate"],
-            sensitivity_mortality=sensitivity["mortality"],
-            sensitivity_retirement_age=sensitivity["retirement_age"],
-            sensitivity_salary_growth=sensitivity["salary_growth"],
-            sensitivity_inflation=sensitivity["inflation"],
+            # Sensibilidade BD
+            sensitivity_discount_rate=sensitivity.get("discount_rate", {}),
+            sensitivity_mortality=sensitivity.get("mortality", {}),
+            sensitivity_retirement_age=sensitivity.get("retirement_age", {}),
+            sensitivity_salary_growth=sensitivity.get("salary_growth", {}),
+            sensitivity_inflation=sensitivity.get("inflation", {}),
 
-            # Sensibilidade (Déficit/Superávit - novo)
-            sensitivity_deficit_discount_rate=sensitivity_deficit["discount_rate"],
-            sensitivity_deficit_mortality=sensitivity_deficit["mortality"],
-            sensitivity_deficit_retirement_age=sensitivity_deficit["retirement_age"],
-            sensitivity_deficit_salary_growth=sensitivity_deficit["salary_growth"],
-            sensitivity_deficit_inflation=sensitivity_deficit["inflation"],
+            # Sensibilidade déficit BD
+            sensitivity_deficit_discount_rate=sensitivity_deficit.get("discount_rate", {}),
+            sensitivity_deficit_mortality=sensitivity_deficit.get("mortality", {}),
+            sensitivity_deficit_retirement_age=sensitivity_deficit.get("retirement_age", {}),
+            sensitivity_deficit_salary_growth=sensitivity_deficit.get("salary_growth", {}),
+            sensitivity_deficit_inflation=sensitivity_deficit.get("inflation", {}),
 
             # Decomposição
             actuarial_present_value_benefits=decomposition["apv_benefits"],
@@ -350,7 +551,7 @@ class ActuarialEngine:
             assumptions_validation={"valid": True}
         )
 
-    def _calculate_cd_simulation(self, state: SimulatorState, start_time: float) -> SimulatorResults:
+    def _calculate_cd_simulation_with_calculator(self, state: SimulatorState, start_time: float) -> SimulatorResults:
         """Calcula simulação para plano CD (Contribuição Definida)"""
         # Criar contexto atuarial adaptado para CD
         context = self._create_cd_context(state)
@@ -359,11 +560,12 @@ class ActuarialEngine:
         # Obter tábua de mortalidade com suavização
         mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
         
-        # Calcular projeções CD - foco na evolução do saldo
-        projections = self._calculate_cd_projections(state, context, mortality_table)
+        # Delegar cálculo CD para calculadora especializada
+        cd_results = self.cd_calculator.calculate_cd_simulation(state, context)
         
-        # Calcular saldo final acumulado na aposentadoria
-        accumulated_balance = projections["final_balance"]
+        # Extrair resultados da calculadora CD
+        projections = cd_results["projections"]
+        accumulated_balance = cd_results["final_balance"]
         
         # Calcular renda mensal baseada na modalidade de conversão
         monthly_income = self._calculate_cd_monthly_income(state, context, accumulated_balance, mortality_table)
@@ -413,8 +615,8 @@ class ActuarialEngine:
             
             # Análise de Suficiência para CD
             deficit_surplus=self._calculate_cd_deficit_surplus(state, monthly_income),
-            deficit_surplus_percentage=0.0,  # Por enquanto não calculado para CD
-            required_contribution_rate=0.0,  # Por enquanto não calculado para CD
+            deficit_surplus_percentage=self._calculate_cd_deficit_surplus_percentage(state, monthly_income),
+            required_contribution_rate=self._calculate_cd_required_contribution_rate(state, context, projections, monthly_income, accumulated_balance),
             
             # Projeções CD
             projection_years=projections["years"],
@@ -422,7 +624,7 @@ class ActuarialEngine:
             projected_benefits=projections["benefits"],  # Renda projetada na aposentadoria
             projected_contributions=projections["contributions"],
             survival_probabilities=projections["survival_probs"],
-            accumulated_reserves=projections["balances"],  # Evolução do saldo
+            accumulated_reserves=projections["reserves"],  # Evolução do saldo
 
             # Vetores por idade para frontend
             projection_ages=projections.get("projection_ages"),
@@ -432,7 +634,7 @@ class ActuarialEngine:
             # Projeções específicas CD
             projected_vpa_benefits=[],  # Não aplicável
             projected_vpa_contributions=[],  # Não aplicável
-            projected_rmba_evolution=projections["balances"],  # Usar evolução do saldo
+            projected_rmba_evolution=projections["reserves"],  # Usar evolução do saldo
             projected_rmbc_evolution=[],  # Não aplicável para CD
             
             # Métricas CD
@@ -706,7 +908,7 @@ class ActuarialEngine:
                 projected_salaries_by_age.append(0.0)
                 projected_benefits_by_age.append(0.0)
 
-        return {
+        projection_data = {
             "years": list(range(effective_projection_years)),
             "salaries": yearly_salaries,
             "benefits": yearly_benefits,
@@ -727,6 +929,12 @@ class ActuarialEngine:
                 "reserves": monthly_reserves
             }
         }
+
+        # Log debug information for chart generation
+        import logging
+        logging.info(f"[PROJECTIONS] Generated projection data: years={len(projection_data['years'])}, salaries={len(projection_data['salaries'])}, contributions={len(projection_data['contributions'])}, reserves={len(projection_data['reserves'])}")
+
+        return projection_data
     
     
     def _validate_economic_sanity(self, state: SimulatorState, vpa_benefits: float, vpa_contributions: float, rmba: float) -> None:
@@ -1106,261 +1314,6 @@ class ActuarialEngine:
 
         return context
     
-    def _calculate_cd_projections(self, state: SimulatorState, context: ActuarialContext, mortality_table: np.ndarray) -> Dict:
-        """Calcula projeções específicas para CD - foco na evolução do saldo"""
-        total_months = context.total_months_projection
-        months_to_retirement = context.months_to_retirement
-        projection_months = list(range(total_months))
-        
-        # Projeções salariais (mesmo cálculo que BD)
-        monthly_salaries = []
-        for month in projection_months:
-            if month < months_to_retirement:
-                year_number = month // 12
-                base_monthly_salary = context.monthly_salary * ((1 + state.salary_growth_real) ** year_number)
-                current_month_in_year = month % 12
-                monthly_salary = base_monthly_salary
-                
-                # Pagamentos extras (13º, 14º, etc.)
-                extra_payments = context.salary_months_per_year - 12
-                if extra_payments > 0:
-                    if current_month_in_year == 11:  # Dezembro
-                        if extra_payments >= 1:
-                            monthly_salary += base_monthly_salary
-                    if current_month_in_year == 0 and month > 0:  # Janeiro
-                        if extra_payments >= 2:
-                            monthly_salary += base_monthly_salary
-            else:
-                monthly_salary = 0.0
-            monthly_salaries.append(monthly_salary)
-        
-        # Contribuições mensais
-        monthly_contributions = []
-        for monthly_salary in monthly_salaries:
-            contribution_gross = monthly_salary * (state.contribution_rate / 100)
-            contribution_net = contribution_gross * (1 - context.loading_fee_rate)
-            monthly_contributions.append(contribution_net)
-        
-        # Probabilidades de sobrevivência (mesmo cálculo que BD)
-        monthly_survival_probs = []
-        cumulative_survival = 1.0
-        for month in projection_months:
-            current_age_years = state.age + (month / 12)
-            age_index = int(current_age_years)
-            
-            if age_index < len(mortality_table) and age_index >= 0:
-                q_x_annual = mortality_table[age_index]
-                if 0 <= q_x_annual <= 1:
-                    q_x_monthly = 1 - ((1 - q_x_annual) ** (1/12))
-                    p_x_monthly = 1 - q_x_monthly
-                    cumulative_survival *= p_x_monthly
-                else:
-                    cumulative_survival *= 1.0
-            else:
-                cumulative_survival = 0.0
-            
-            cumulative_survival = max(0.0, cumulative_survival)
-            monthly_survival_probs.append(cumulative_survival)
-        
-        # Calcular renda mensal base primeiro (estimativa inicial)
-        # Usaremos o saldo final estimado para calcular a renda mensal
-        temp_final_balance = state.initial_balance
-        for month in range(months_to_retirement):
-            temp_final_balance *= (1 + context.discount_rate_monthly)
-            temp_final_balance *= (1 - context.admin_fee_monthly)
-            monthly_contribution = monthly_contributions[month] if month < len(monthly_contributions) else 0
-            temp_final_balance += monthly_contribution
-        
-        monthly_income = self._calculate_cd_monthly_income_simple(state, context, temp_final_balance, mortality_table)
-        
-        # EVOLUÇÃO DO SALDO CD - CORE LOGIC
-        monthly_balances = []
-        accumulated_balance = state.initial_balance
-        
-        # Determinar período de benefícios baseado na modalidade de conversão
-        conversion_mode = state.cd_conversion_mode or CDConversionMode.ACTUARIAL
-        benefit_period_months = None
-        
-        if conversion_mode in [CDConversionMode.CERTAIN_5Y, CDConversionMode.CERTAIN_10Y, 
-                               CDConversionMode.CERTAIN_15Y, CDConversionMode.CERTAIN_20Y]:
-            # Renda certa por N anos
-            years_map = {
-                CDConversionMode.CERTAIN_5Y: 5,
-                CDConversionMode.CERTAIN_10Y: 10,
-                CDConversionMode.CERTAIN_15Y: 15,
-                CDConversionMode.CERTAIN_20Y: 20
-            }
-            benefit_period_months = years_map[conversion_mode] * 12
-        # Para ACTUARIAL (vitalícia) e outros modos, benefit_period_months fica None (sem limite)
-        
-        for month in projection_months:
-            # Durante acumulação: capitalizar com taxa de acumulação
-            if month < months_to_retirement:
-                # Capitalizar saldo com taxa de acumulação mensal
-                accumulated_balance *= (1 + context.discount_rate_monthly)
-                
-                # Aplicar taxa administrativa mensal
-                accumulated_balance *= (1 - context.admin_fee_monthly)
-                
-                # Adicionar contribuição líquida
-                accumulated_balance += monthly_contributions[month]
-                
-                monthly_balances.append(max(0, accumulated_balance))
-            else:
-                # Durante aposentadoria: verificar se ainda está no período de benefícios
-                months_since_retirement = month - months_to_retirement
-                
-                # No primeiro mês da aposentadoria, registrar pico ANTES do primeiro saque
-                if months_since_retirement == 0:
-                    monthly_balances.append(max(0, accumulated_balance))  # Pico real aos 65 anos
-                
-                # Se há limite de tempo e já passou, não consumir mais saldo
-                if benefit_period_months is not None and months_since_retirement >= benefit_period_months:
-                    # Período de benefícios acabou, apenas capitalizar saldo restante
-                    accumulated_balance *= (1 + context.conversion_rate_monthly)
-                else:
-                    # Ainda no período de benefícios: saldo é consumido pelos benefícios
-                    current_month_in_year = month % 12
-                    monthly_benefit_payment = monthly_income
-                    
-                    # Aplicar pagamentos extras (13º, 14º, etc.)
-                    extra_payments = context.benefit_months_per_year - 12
-                    if extra_payments > 0:
-                        if current_month_in_year == 11:  # Dezembro
-                            if extra_payments >= 1:
-                                monthly_benefit_payment += monthly_income
-                        if current_month_in_year == 0:  # Janeiro
-                            if extra_payments >= 2:
-                                monthly_benefit_payment += monthly_income
-                    
-                    # Consumir o saldo com o pagamento do benefício
-                    accumulated_balance -= monthly_benefit_payment
-                    
-                    # Continuar capitalização do saldo restante com taxa de conversão
-                    conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
-                    accumulated_balance *= (1 + conversion_rate_monthly)
-                
-                # Para meses após o primeiro mês da aposentadoria
-                if months_since_retirement > 0:
-                    monthly_balances.append(max(0, accumulated_balance))
-        
-        # Saldo final na aposentadoria (no momento exato da aposentadoria)
-        final_balance = monthly_balances[months_to_retirement] if months_to_retirement < len(monthly_balances) else accumulated_balance
-        
-        # Recalcular array de benefícios mensais para os gráficos
-        monthly_benefits = []
-        for month in projection_months:
-            if month >= months_to_retirement:
-                # Verificar se ainda está no período de benefícios
-                months_since_retirement = month - months_to_retirement
-                
-                # Se há limite de tempo e já passou, benefício = 0
-                if benefit_period_months is not None and months_since_retirement >= benefit_period_months:
-                    monthly_benefits.append(0.0)
-                else:
-                    # Ainda no período de benefícios
-                    current_month_in_year = month % 12
-
-                    # Para modalidade PERCENTAGE, recalcular benefício baseado no saldo atual
-                    if state.cd_conversion_mode == CDConversionMode.PERCENTAGE:
-                        # Obter saldo atual do mês
-                        current_balance = monthly_balances[month] if month < len(monthly_balances) else accumulated_balance
-                        # Calcular benefício como percentual do saldo atual
-                        percentage = state.cd_withdrawal_percentage or 5.0
-                        monthly_benefit = (current_balance * percentage / 100.0) / context.benefit_months_per_year
-                    else:
-                        monthly_benefit = monthly_income
-                    
-                    extra_payments = context.benefit_months_per_year - 12
-                    if extra_payments > 0:
-                        if current_month_in_year == 11:  # Dezembro
-                            if extra_payments >= 1:
-                                monthly_benefit += monthly_income
-                        if current_month_in_year == 0:  # Janeiro
-                            if extra_payments >= 2:
-                                monthly_benefit += monthly_income
-                    
-                    monthly_benefits.append(monthly_benefit)
-            else:
-                monthly_benefits.append(0.0)
-        
-        # Converter para anos
-        effective_projection_years = len(projection_months) // 12
-        yearly_salaries = []
-        yearly_benefits = []
-        yearly_contributions = []
-        yearly_survival_probs = []
-        yearly_balances = []
-        
-        for year_idx in range(effective_projection_years):
-            start_month = year_idx * 12
-            end_month = min((year_idx + 1) * 12, len(monthly_salaries))
-            
-            year_salary = sum(monthly_salaries[start_month:end_month])
-            year_benefit = sum(monthly_benefits[start_month:end_month])
-            year_contribution = sum(monthly_contributions[start_month:end_month])
-            year_survival_prob = monthly_survival_probs[min(end_month-1, len(monthly_survival_probs)-1)]
-            year_balance = monthly_balances[min(start_month, len(monthly_balances)-1)]
-            
-            yearly_salaries.append(year_salary)
-            yearly_benefits.append(year_benefit)
-            yearly_contributions.append(year_contribution)
-            yearly_survival_probs.append(year_survival_prob)
-            yearly_balances.append(year_balance)
-        
-        # Gerar vetores por idade para gráfico de evolução salarial/benefícios
-        projection_ages = []
-        projected_salaries_by_age = []
-        projected_benefits_by_age = []
-
-        for month in range(0, total_months, 12):  # Every 12 months
-            age = state.age + (month // 12)
-            projection_ages.append(age)
-
-            # Get corresponding data for this month
-            if month < len(monthly_salaries) and month < len(monthly_benefits):
-                # Para salários: usar o salário base mensal (sem 13º/14º extras)
-                # Para benefícios: usar o benefício base mensal (sem 13º/14º extras)
-                if monthly_salaries[month] > 0:
-                    # Calcular salário base mensal sem extras
-                    year_number = month // 12
-                    monthly_salary_base = context.monthly_salary * ((1 + state.salary_growth_real) ** year_number)
-                else:
-                    monthly_salary_base = 0
-
-                if monthly_benefits[month] > 0:
-                    # Usar benefício real do mês para capturar variação no modo PERCENTAGE
-                    monthly_benefit_base = monthly_benefits[month]
-                else:
-                    monthly_benefit_base = 0
-
-                projected_salaries_by_age.append(monthly_salary_base)
-                projected_benefits_by_age.append(monthly_benefit_base)
-            else:
-                projected_salaries_by_age.append(0.0)
-                projected_benefits_by_age.append(0.0)
-
-        return {
-            "years": list(range(effective_projection_years)),
-            "salaries": yearly_salaries,
-            "benefits": yearly_benefits,
-            "contributions": yearly_contributions,
-            "survival_probs": yearly_survival_probs,
-            "balances": yearly_balances,  # Evolução do saldo ao invés de reserves
-            "final_balance": final_balance,
-            # Vetores por idade para gráfico frontend
-            "projection_ages": projection_ages,
-            "projected_salaries_by_age": projected_salaries_by_age,
-            "projected_benefits_by_age": projected_benefits_by_age,
-            "monthly_data": {
-                "months": projection_months,
-                "salaries": monthly_salaries,
-                "benefits": monthly_benefits,
-                "contributions": monthly_contributions,
-                "survival_probs": monthly_survival_probs,
-                "balances": monthly_balances
-            }
-        }
     
     def _calculate_cd_monthly_income_simple(self, state: SimulatorState, context: ActuarialContext, balance: float, mortality_table: np.ndarray) -> float:
         """Cálculo simplificado da renda mensal CD para uso interno"""
@@ -1485,15 +1438,27 @@ class ActuarialEngine:
         
         # Taxa de reposição baseada na renda CD calculada
         replacement_ratio = (monthly_income / final_monthly_salary_base * 100) if final_monthly_salary_base > 0 else 0
-        
+
+        # Sanitizar replacement_ratio para evitar valores inválidos
+        if math.isnan(replacement_ratio) or math.isinf(replacement_ratio):
+            replacement_ratio = 0.0
+
         # Taxa de reposição alvo (baseada no input do usuário)
         if state.benefit_target_mode == BenefitTargetMode.REPLACEMENT_RATE:
             target_replacement_ratio = state.target_replacement_rate or 70.0
         else:
             target_replacement_ratio = replacement_ratio  # Se não especificado, usar o calculado
-        
+
+        # Sanitizar target_replacement_ratio
+        if math.isnan(target_replacement_ratio) or math.isinf(target_replacement_ratio):
+            target_replacement_ratio = 70.0
+
         # Taxa de reposição sustentável (para CD, é a própria taxa calculada)
         sustainable_replacement_ratio = replacement_ratio
+
+        # Sanitizar sustainable_replacement_ratio
+        if math.isnan(sustainable_replacement_ratio) or math.isinf(sustainable_replacement_ratio):
+            sustainable_replacement_ratio = replacement_ratio
         
         return {
             "total_contributions": total_contributions,

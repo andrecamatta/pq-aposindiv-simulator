@@ -6,7 +6,7 @@ Consolida lógica de validação espalhada pelo código
 from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..models.database import SimulatorState
+    from ..models.participant import SimulatorState
 
 
 class ValidationError(Exception):

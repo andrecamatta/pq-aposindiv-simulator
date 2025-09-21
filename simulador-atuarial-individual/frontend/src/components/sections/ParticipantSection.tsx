@@ -2,6 +2,7 @@ import React from 'react';
 import type { SimulatorState } from '../../types';
 import { useFormHandler } from '../../hooks';
 import { formatCurrencyBR } from '../../utils/formatBR';
+import { FormField, CurrencyInput } from '../../design-system/components';
 
 interface ParticipantSectionProps {
   state: SimulatorState;
@@ -20,12 +21,15 @@ const ParticipantSection: React.FC<ParticipantSectionProps> = ({
     <div className="bg-white rounded-lg shadow-sm p-4 space-y-4">
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {/* Idade */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1">
-            Idade Atual
-          </label>
+        {/* Idade - Refatorado com FormField */}
+        <FormField
+          label="Idade Atual"
+          helper="Idade atual do participante (entre 18 e 75 anos)"
+          variant="expanded"
+          htmlFor="age"
+        >
           <input
+            id="age"
             type="number"
             min="18"
             max="75"
@@ -34,17 +38,17 @@ const ParticipantSection: React.FC<ParticipantSectionProps> = ({
             className="w-full px-4 py-4 text-base border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white hover:border-slate-300 shadow-sm"
             disabled={loading}
           />
-          <p className="text-xs text-slate-500 leading-tight mt-1">
-            Idade atual do participante (entre 18 e 75 anos)
-          </p>
-        </div>
+        </FormField>
 
-        {/* Gênero */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1">
-            Sexo
-          </label>
+        {/* Gênero - Refatorado com FormField */}
+        <FormField
+          label="Sexo"
+          helper="Influencia na seleção da tábua de mortalidade apropriada"
+          variant="expanded"
+          htmlFor="gender"
+        >
           <select
+            id="gender"
             value={state.gender}
             onChange={(e) => handleInputChange('gender', e.target.value as 'M' | 'F')}
             className="w-full px-4 py-4 text-base border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white hover:border-slate-300 shadow-sm"
@@ -53,41 +57,37 @@ const ParticipantSection: React.FC<ParticipantSectionProps> = ({
             <option value="M">Masculino</option>
             <option value="F">Feminino</option>
           </select>
-          <p className="text-xs text-slate-500 leading-tight mt-1">
-            Influencia na seleção da tábua de mortalidade apropriada
-          </p>
-        </div>
+        </FormField>
 
-        {/* Salário */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1">
-            Salário Atual
-          </label>
-          <div className="flex items-center border border-slate-200 rounded-lg bg-white hover:border-slate-300 focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
-            <span className="pl-3 text-slate-500 text-xs select-none font-medium">R$</span>
-            <input
-              type="number"
-              min="0"
-              step="100"
-              value={state.salary}
-              onChange={(e) => handleInputChange('salary', parseFloat(e.target.value))}
-              className="flex-1 px-2 py-2 text-sm bg-transparent border-none focus:outline-none"
-              disabled={loading}
-              placeholder="0"
-            />
-          </div>
-          <p className="text-xs text-slate-500 leading-tight mt-1">
-            Salário mensal bruto atual (base para cálculos)
-          </p>
-        </div>
+        {/* Salário - Refatorado com FormField */}
+        <FormField
+          label="Salário Atual"
+          helper="Salário mensal bruto atual (base para cálculos)"
+          variant="expanded"
+          htmlFor="salary"
+        >
+          <CurrencyInput
+            id="salary"
+            value={state.salary}
+            onValueChange={(value) => handleInputChange('salary', value || 0)}
+            disabled={loading}
+            allowNegative={false}
+            decimalScale={0}
+            size="lg"
+            variant="default"
+          />
+        </FormField>
 
-        {/* Tempo de Serviço */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1">
-            Tempo de Serviço
-          </label>
+        {/* Tempo de Serviço - Refatorado com FormField */}
+        <FormField
+          label="Tempo de Serviço"
+          helper="Tempo de serviço já acumulado na empresa ou instituição"
+          variant="expanded"
+          htmlFor="service_years"
+        >
           <div className="flex items-center border-2 border-slate-200 rounded-xl bg-white hover:border-slate-300 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all shadow-sm">
             <input
+              id="service_years"
               type="number"
               min="0"
               step="0.1"
@@ -98,17 +98,17 @@ const ParticipantSection: React.FC<ParticipantSectionProps> = ({
             />
             <span className="pr-4 text-slate-500 text-base select-none">anos</span>
           </div>
-          <p className="text-xs text-slate-500 leading-tight mt-1">
-            Tempo de serviço já acumulado na empresa ou instituição
-          </p>
-        </div>
+        </FormField>
 
-        {/* Idade de Aposentadoria */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1">
-            Idade de Aposentadoria
-          </label>
+        {/* Idade de Aposentadoria - Refatorado com FormField */}
+        <FormField
+          label="Idade de Aposentadoria"
+          helper="Idade planejada para início do recebimento do benefício"
+          variant="expanded"
+          htmlFor="retirement_age"
+        >
           <input
+            id="retirement_age"
             type="number"
             min={state.age + 1}
             max="75"
@@ -117,33 +117,27 @@ const ParticipantSection: React.FC<ParticipantSectionProps> = ({
             className="w-full px-4 py-4 text-base border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white hover:border-slate-300 shadow-sm"
             disabled={loading}
           />
-          <p className="text-xs text-slate-500 leading-tight mt-1">
-            Idade planejada para início do recebimento do benefício
-          </p>
-        </div>
+        </FormField>
 
-        {/* Saldo Inicial */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1">
-            Saldo Inicial
-          </label>
-          <div className="flex items-center border border-slate-200 rounded-lg bg-white hover:border-slate-300 focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
-            <span className="pl-3 text-slate-500 text-xs select-none font-medium">R$</span>
-            <input
-              type="number"
-              min="0"
-              step="1000"
-              value={state.initial_balance}
-              onChange={(e) => handleInputChange('initial_balance', parseFloat(e.target.value))}
-              className="flex-1 px-2 py-2 text-sm bg-transparent border-none focus:outline-none"
-              disabled={loading}
-              placeholder="0"
-            />
-          </div>
-          <p className="text-xs text-slate-500 leading-tight mt-1">
-            Montante já acumulado na conta de aposentadoria individual
-          </p>
-        </div>
+        {/* Saldo Inicial - Refatorado com FormField */}
+        <FormField
+          label="Saldo Inicial"
+          helper="Montante já acumulado na conta de aposentadoria individual"
+          variant="expanded"
+          htmlFor="initial_balance"
+        >
+          <CurrencyInput
+            id="initial_balance"
+            value={state.initial_balance}
+            onValueChange={(value) => handleInputChange('initial_balance', value || 0)}
+            disabled={loading}
+            allowNegative={false}
+            decimalScale={0}
+            placeholder="0"
+            size="lg"
+            variant="default"
+          />
+        </FormField>
       </div>
 
       {/* Resumo Visual */}

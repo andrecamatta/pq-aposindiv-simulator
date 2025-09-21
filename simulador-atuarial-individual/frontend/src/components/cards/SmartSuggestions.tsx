@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../design-system/components';
 import { apiService } from '../../services/api';
-import { formatCurrencyBR, formatPercentageBR } from '../../utils/formatBR';
-import type { 
-  SimulatorState, 
-  Suggestion, 
-  SuggestionsResponse,
-  ApplySuggestionResponse,
-  SimulatorResults
+import { formatCurrencyBR } from '../../utils/formatBR';
+import type {
+  SimulatorState,
+  Suggestion,
+  SimulatorResults,
+  SuggestionAction
 } from '../../types';
 
 interface SmartSuggestionsProps {
@@ -26,16 +25,45 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [context, setContext] = useState<Record<string, any>>({});
   const [validationWarnings, setValidationWarnings] = useState<Record<string, string>>({});
+  const planType = state.plan_type || 'BD';
+  const benefitMode = state.benefit_target_mode || 'VALUE';
+  const isBDSupported = planType === 'BD' && (benefitMode === 'VALUE' || benefitMode === 'REPLACEMENT_RATE');
+
+  // Função removida - elimina redundância com impact_description
 
   // Buscar sugestões quando estado mudar
   useEffect(() => {
     if (!loading && state) {
-      fetchSuggestions();
+      if (isBDSupported) {
+        fetchSuggestions();
+      } else {
+        setSuggestions([]);
+        setContext({
+          plan_type: planType,
+          benefit_target_mode: benefitMode,
+          is_bd_supported: false,
+          unsupported_reason: 'Sugestões inteligentes estão disponíveis para planos BD com Valor Fixo ou Taxa de Reposição.'
+        });
+        setSuggestionsLoading(false);
+      }
     }
-  }, [state.deficit_surplus, state.contribution_rate, state.retirement_age, state.target_benefit, state.target_replacement_rate, state.benefit_target_mode]);
+  }, [
+    loading,
+    isBDSupported,
+    state.plan_type,
+    state.deficit_surplus,
+    state.contribution_rate,
+    state.retirement_age,
+    state.target_benefit,
+    state.target_replacement_rate,
+    state.benefit_target_mode
+  ]);
 
   const fetchSuggestions = async () => {
     try {
+      if (!isBDSupported) {
+        return;
+      }
       setSuggestionsLoading(true);
       
       const data = await apiService.getSuggestions({
@@ -45,8 +73,18 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
       
       setSuggestions(data.suggestions);
       setContext(data.context);
-    } catch {
+    } catch (error) {
+      console.error('Erro ao buscar sugestões:', error);
       setSuggestions([]);
+
+      // Atualizar contexto com informação de erro
+      setContext({
+        plan_type: planType,
+        benefit_target_mode: benefitMode,
+        is_bd_supported: isBDSupported,
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        unsupported_reason: 'Erro ao conectar com o servidor de sugestões.'
+      });
     } finally {
       setSuggestionsLoading(false);
     }
@@ -60,7 +98,7 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
   ): Promise<boolean> => {
     try {
       // Simular com novo estado para verificar se déficit foi realmente zerado
-      const results: SimulatorResults = await apiService.simulate(newState);
+      const results: SimulatorResults = await apiService.calculate(newState);
       const newDeficit = results.deficit_surplus;
       
       // Tolerância para validação (R$ 100)
@@ -125,6 +163,7 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
           updates.benefit_target_mode = 'VALUE';
           break;
         case 'update_replacement_rate':
+        case 'apply_sustainable_replacement_rate':
           updates.target_replacement_rate = suggestion.action_value;
           updates.benefit_target_mode = 'REPLACEMENT_RATE';
           break;
@@ -147,7 +186,8 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
       onStateChange(updates);
       
       // Validar pós-aplicação para sugestões de benefício sustentável
-      if (suggestion.action === 'apply_sustainable_benefit' || 
+      if (suggestion.action === 'apply_sustainable_benefit' ||
+          suggestion.action === 'apply_sustainable_replacement_rate' ||
           suggestion.action === 'update_replacement_rate' ||
           suggestion.action === 'update_target_benefit') {
         
@@ -172,11 +212,26 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
         }, 500);
       }
       
-    } catch {
-      // Erro ao aplicar sugestão
+    } catch (error) {
+      // Erro ao aplicar sugestão - melhor diagnóstico
+      console.error('Erro detalhado ao aplicar sugestão:', error);
+      let errorMessage = 'Erro ao aplicar sugestão';
+
+      if (error instanceof Error) {
+        if (error.message.includes('404')) {
+          errorMessage = 'Serviço de sugestões indisponível';
+        } else if (error.message.includes('422')) {
+          errorMessage = 'Dados inválidos para aplicar sugestão';
+        } else if (error.message.includes('500')) {
+          errorMessage = 'Erro interno do servidor';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
       setValidationWarnings(prev => ({
         ...prev,
-        [suggestion.id]: 'Erro ao aplicar sugestão'
+        [suggestion.id]: errorMessage
       }));
     } finally {
       setApplyingId(null);
@@ -190,6 +245,17 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
       <div role="region" aria-labelledby="smart-suggestions-title" className="space-y-1">
         <h3 id="smart-suggestions-title" className="text-sm font-semibold text-gray-900">Sugestões Inteligentes</h3>
         <p className="text-sm text-gray-600">Analisando seus dados...</p>
+      </div>
+    );
+  }
+
+  if (!isBDSupported) {
+    return (
+      <div role="region" aria-labelledby="smart-suggestions-title" className="space-y-1">
+        <h3 id="smart-suggestions-title" className="text-sm font-semibold text-gray-900">Sugestões Inteligentes</h3>
+        <p className="text-sm text-gray-600">
+          {context.unsupported_reason || 'Sugestões estarão disponíveis em breve para esta modalidade.'}
+        </p>
       </div>
     );
   }

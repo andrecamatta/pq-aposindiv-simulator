@@ -5,6 +5,7 @@ Extraído do ActuarialEngine para seguir Single Responsibility Principle
 import numpy as np
 from typing import Dict, TYPE_CHECKING
 from .logging_config import ActuarialLoggerMixin
+from ..utils.pydantic_validators import get_enum_value
 
 if TYPE_CHECKING:
     from ..models.participant import SimulatorState
@@ -46,7 +47,7 @@ class NormalCostCalculator(ActuarialLoggerMixin):
         months_to_retirement = context.months_to_retirement
         monthly_data = projections.get("monthly_data", {})
 
-        method = state.calculation_method.value if hasattr(state.calculation_method, 'value') else state.calculation_method
+        method = str(state.calculation_method)
 
         if method == "PUC":
             return self._calculate_puc_normal_cost(
@@ -175,7 +176,7 @@ class NormalCostCalculator(ActuarialLoggerMixin):
             Fator de anuidade vitalícia
         """
         # Importar aqui para evitar dependência circular
-        from ..utils import calculate_life_annuity_factor
+        from .calculations.vpa_calculations import calculate_life_annuity_factor
 
         return calculate_life_annuity_factor(
             survival_probs, discount_rate, timing, start_month
@@ -201,7 +202,7 @@ class NormalCostCalculator(ActuarialLoggerMixin):
             VPA dos benefícios
         """
         # Importar aqui para evitar dependência circular
-        from ..utils import calculate_actuarial_present_value
+        from .calculations.vpa_calculations import calculate_actuarial_present_value
 
         return calculate_actuarial_present_value(
             monthly_benefits,
@@ -231,7 +232,7 @@ class NormalCostCalculator(ActuarialLoggerMixin):
             VPA dos salários
         """
         # Importar aqui para evitar dependência circular
-        from ..utils import calculate_actuarial_present_value
+        from .calculations.vpa_calculations import calculate_actuarial_present_value
 
         return calculate_actuarial_present_value(
             monthly_salaries,

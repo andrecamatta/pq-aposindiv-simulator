@@ -6,7 +6,7 @@ Elimina duplicação entre cálculos de RMBA e déficit/superávit
 from typing import Dict, Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..models.database import SimulatorState
+    from ..models.participant import SimulatorState
     from .mortality_tables import get_mortality_table
 
 
@@ -272,9 +272,11 @@ def create_cd_sensitivity_calculator() -> SensitivityCalculator:
             state.mortality_aggravation
         )
         
-        projections = engine._calculate_cd_projections(state, context, mortality_table)
-        accumulated_balance = projections["final_balance"]
-        
-        return engine._calculate_cd_monthly_income(state, context, accumulated_balance, mortality_table)
+        # Use CD calculator directly instead of private engine method
+        cd_results = engine.cd_calculator.calculate_cd_simulation(state, context)
+        projections = cd_results["projections"]
+        accumulated_balance = cd_results["final_balance"]
+
+        return engine.cd_calculator.calculate_monthly_income(state, context, accumulated_balance, mortality_table)
     
     return SensitivityCalculator(calculate_cd_income_for_sensitivity)

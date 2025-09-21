@@ -5,22 +5,40 @@ import { Tooltip } from './Tooltip';
 interface FormFieldProps {
   label: string;
   tooltip?: string;
+  helper?: string;
   required?: boolean;
   children: React.ReactNode;
   className?: string;
+  htmlFor?: string;
+  /** Se deve usar o estilo compacto (padrão) ou expandido (ParticipantSection) */
+  variant?: 'default' | 'expanded';
 }
 
 export const FormField: React.FC<FormFieldProps> = ({
   label,
   tooltip,
+  helper,
   required = false,
   children,
-  className = "space-y-1.5"
+  className,
+  htmlFor,
+  variant = 'default'
 }) => {
+  const containerClass = variant === 'expanded'
+    ? "space-y-2"
+    : className || "space-y-1.5";
+
+  const labelClass = variant === 'expanded'
+    ? "block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1"
+    : "text-sm font-medium text-gray-700";
+
   return (
-    <div className={className}>
+    <div className={containerClass}>
       <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-gray-700">
+        <label
+          htmlFor={htmlFor}
+          className={labelClass}
+        >
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
@@ -31,6 +49,11 @@ export const FormField: React.FC<FormFieldProps> = ({
         )}
       </div>
       {children}
+      {helper && (
+        <p className="text-xs text-slate-500 leading-tight mt-1">
+          {helper}
+        </p>
+      )}
     </div>
   );
 };

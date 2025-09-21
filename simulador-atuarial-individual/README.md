@@ -1,10 +1,10 @@
-# 🧮 Simulador Atuarial Individual
+# 🧮 PrevLab
 
-Sistema web moderno para simulação atuarial de reservas matemáticas e projeções previdenciárias individuais, desenvolvido com rigor técnico profissional.
+Plataforma web moderna para simulação atuarial de reservas matemáticas e projeções previdenciárias individuais, desenvolvida com rigor técnico profissional.
 
 ## 🎯 Visão Geral
 
-O Simulador Atuarial Individual é uma aplicação web completa que permite calcular e visualizar:
+O PrevLab é uma plataforma web completa que permite calcular e visualizar:
 
 - **Reservas Matemáticas**: PMBC (Plano de Benefício Contribuição Definida) e PMBD (Plano de Benefício Definido)
 - **Projeções Temporais**: Evolução de salários, contribuições e benefícios

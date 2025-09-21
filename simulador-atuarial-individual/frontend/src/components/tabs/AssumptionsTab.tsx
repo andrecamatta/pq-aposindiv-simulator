@@ -29,17 +29,17 @@ const AssumptionsTab: React.FC<AssumptionsTabProps> = ({
   return (
     <div className="space-y-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[#111618] mb-2">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
           Premissas Financeiras
         </h1>
-        <p className="text-[#617c89]">Configure as premissas atuariais e financeiras para a simulação.</p>
+        <p className="text-gray-600">Configure as premissas atuariais e financeiras para a simulação.</p>
       </div>
       
       <div className="bg-white rounded-xl shadow-sm p-8">
         <div className="space-y-12">
           {/* Benefícios e Contribuições */}
           <div className="space-y-8">
-            <h3 className="text-lg font-semibold text-[#111618] mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">
               Benefícios & Contribuições
             </h3>
             

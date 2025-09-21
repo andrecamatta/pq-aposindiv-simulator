@@ -417,13 +417,18 @@ const SensitivityTab: React.FC<SensitivityTabProps> = ({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Análise de Sensibilidade</h2>
-        </div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          Análise de Sensibilidade
+        </h1>
+        <p className="text-gray-600">
+          Avalie o impacto das variações nas premissas sobre os resultados da simulação.
+        </p>
+      </div>
 
-        {/* Seletor de métrica (apenas para CD) */}
-        {state.plan_type === 'CD' && (
+      {/* Seletor de métrica (apenas para CD) */}
+      {state.plan_type === 'CD' && (
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <span className="text-sm font-medium text-gray-700">Métrica:</span>
             <div className="flex bg-gray-100 rounded-lg p-1">
@@ -449,8 +454,8 @@ const SensitivityTab: React.FC<SensitivityTabProps> = ({
               </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Content */}
       {state.plan_type === 'CD' && tornadoItems.length === 0 ? (

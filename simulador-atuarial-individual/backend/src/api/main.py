@@ -18,8 +18,8 @@ from .mortality_tables import router as mortality_tables_router
 from .reports_router import router as reports_router
 
 app = FastAPI(
-    title="Simulador Atuarial Individual",
-    description="API para simulação atuarial interativa individual",
+    title="PrevLab API",
+    description="API para plataforma de simulação atuarial PrevLab",
     version="1.0.0"
 )
 
@@ -107,7 +107,7 @@ manager = ConnectionManager()
 
 @app.get("/")
 async def root():
-    return {"message": "Simulador Atuarial Individual API"}
+    return {"message": "PrevLab API"}
 
 
 @app.get("/health")

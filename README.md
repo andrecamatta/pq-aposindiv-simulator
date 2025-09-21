@@ -1,6 +1,6 @@
-# Simulador Atuarial Individual
+# PrevLab
 
-Sistema web para simulação atuarial de planos de previdência individuais, desenvolvido para análise de sustentabilidade financeira e cálculos de reservas matemáticas.
+Plataforma web moderna para simulação atuarial de planos de previdência individuais, desenvolvida para análise de sustentabilidade financeira e cálculos de reservas matemáticas.
 
 ## 🏗️ Arquitetura
 

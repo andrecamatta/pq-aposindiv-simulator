@@ -11,7 +11,7 @@ from ....models.results import SimulatorResults
 
 class ReportConfig(BaseModel):
     """Configurações para geração de relatórios"""
-    company_name: str = "Simulador Atuarial Individual"
+    company_name: str = "PrevLab"
     logo_url: Optional[str] = None
     include_charts: bool = True
     include_sensitivity: bool = True

@@ -76,15 +76,19 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
 
 
   return (
-    <Card className="border-gray-200">
-      <CardHeader className="pb-4">
-        <CardTitle className="flex items-center gap-2 text-xl">
-          <span>Plano</span>
-        </CardTitle>
-      </CardHeader>
-      
-      <CardContent>
-        <div className="space-y-8">
+    <div className="space-y-8">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          Configurações Técnicas
+        </h1>
+        <p className="text-gray-600">
+          Configure o tipo de plano, premissas atuariais e parâmetros técnicos da simulação.
+        </p>
+      </div>
+
+      <Card className="border-gray-200">
+        <CardContent className="pt-6">
+          <div className="space-y-8">
           {/* Tipo de Plano */}
           <div>
             <h4 className="text-sm font-medium text-gray-700 mb-4">Tipo de Plano</h4>
@@ -229,9 +233,10 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
               />
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 });
 

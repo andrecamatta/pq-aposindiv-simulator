@@ -5,95 +5,50 @@ Extrai lógica específica BD do ActuarialEngine
 
 import numpy as np
 from typing import Dict, TYPE_CHECKING
-from .projections import (
-    calculate_salary_projections, 
-    calculate_benefit_projections,
-    calculate_contribution_projections,
-    calculate_survival_probabilities,
-    calculate_accumulated_reserves,
-    convert_monthly_to_yearly_projections
-)
+from .abstract_calculator import AbstractCalculator
+from .projection_builder import ProjectionBuilder
 from .mortality_tables import get_mortality_table
 from ..utils import (
+    get_timing_adjustment,
+    calculate_discount_factor
+)
+from .calculations.vpa_calculations import (
     calculate_vpa_benefits_contributions,
     calculate_sustainable_benefit,
-    get_timing_adjustment,
-    calculate_discount_factor,
     calculate_actuarial_present_value,
     get_payment_survival_probability,
     calculate_life_annuity_factor
 )
 
 if TYPE_CHECKING:
-    from ..models.database import SimulatorState
+    from ..models.participant import SimulatorState
     from .actuarial_engine import ActuarialContext
 
 
-class BDCalculator:
+class BDCalculator(AbstractCalculator):
     """Calculadora especializada para planos de Benefício Definido"""
-    
+
     def __init__(self):
-        self.cache = {}
+        super().__init__()
     
     def calculate_projections(
-        self, 
-        state: 'SimulatorState', 
-        context: 'ActuarialContext', 
+        self,
+        state: 'SimulatorState',
+        context: 'ActuarialContext',
         mortality_table: np.ndarray
     ) -> Dict:
         """
-        Calcula projeções temporais para BD usando funções modulares
-        
+        Calcula projeções temporais para BD usando ProjectionBuilder centralizado
+
         Args:
             state: Estado do simulador
             context: Contexto atuarial
             mortality_table: Tábua de mortalidade
-            
+
         Returns:
             Dicionário com projeções mensais e anuais
         """
-        total_months = context.total_months_projection
-        
-        # 1. Projeções salariais mensais
-        monthly_salaries = calculate_salary_projections(context, state, total_months)
-        
-        # 2. Determinar benefício mensal alvo
-        monthly_benefit_amount = self._calculate_target_benefit_amount(state, context, monthly_salaries)
-        
-        # 3. Projeções de benefícios mensais
-        monthly_benefits = calculate_benefit_projections(context, state, total_months, monthly_benefit_amount)
-        
-        # 4. Projeções de contribuições mensais
-        monthly_contributions = calculate_contribution_projections(monthly_salaries, state, context)
-        
-        # 5. Probabilidades de sobrevivência
-        monthly_survival_probs = calculate_survival_probabilities(state, mortality_table, total_months)
-        
-        # 6. Evolução das reservas
-        monthly_reserves = calculate_accumulated_reserves(
-            state, context, monthly_contributions, monthly_benefits, total_months
-        )
-        
-        # 7. Converter para dados anuais
-        monthly_data = {
-            "months": list(range(total_months)),
-            "salaries": monthly_salaries,
-            "benefits": monthly_benefits, 
-            "contributions": monthly_contributions,
-            "survival_probs": monthly_survival_probs,
-            "reserves": monthly_reserves
-        }
-        
-        yearly_data = convert_monthly_to_yearly_projections(monthly_data, total_months)
-        yearly_data["monthly_data"] = monthly_data
-
-        # 8. Gerar vetores por idade para frontend
-        age_projections = self._generate_age_projections(
-            state, context, monthly_salaries, monthly_benefits, total_months
-        )
-        yearly_data.update(age_projections)
-
-        return yearly_data
+        return ProjectionBuilder.build_bd_projections(state, context, mortality_table)
     
     def calculate_rmba(
         self, 
@@ -414,23 +369,6 @@ class BDCalculator:
             "required_contribution_rate": required_contribution_rate
         }
     
-    def _calculate_target_benefit_amount(
-        self, 
-        state: 'SimulatorState', 
-        context: 'ActuarialContext', 
-        monthly_salaries: list
-    ) -> float:
-        """Calcula valor do benefício mensal alvo baseado no modo configurado"""
-        from ..models.database import BenefitTargetMode
-        
-        if state.benefit_target_mode == BenefitTargetMode.REPLACEMENT_RATE:
-            replacement_rate = state.target_replacement_rate if state.target_replacement_rate is not None else 70.0
-            months_to_retirement = context.months_to_retirement
-            salary_growth_factor = (1 + context.salary_growth_real_monthly) ** max(months_to_retirement - 1, 0)
-            final_salary_base = context.monthly_salary * salary_growth_factor
-            return final_salary_base * (replacement_rate / 100)
-        else:  # VALUE
-            return state.target_benefit if state.target_benefit is not None else 0
     
     def _calculate_target_benefit_apv(
         self, 
@@ -544,3 +482,53 @@ class BDCalculator:
             "projected_salaries_by_age": projected_salaries_by_age,
             "projected_benefits_by_age": projected_benefits_by_age
         }
+
+    def calculate_bd_simulation(self, state: 'SimulatorState', context: 'ActuarialContext') -> Dict:
+        """
+        Orquestrador principal para simulações BD completas.
+
+        Args:
+            state: Estado do simulador
+            context: Contexto atuarial
+
+        Returns:
+            Resultados completos da simulação BD
+        """
+        # Obter tábua de mortalidade (usando import global)
+        mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
+
+        # Calcular projeções temporais
+        projections = self.calculate_projections(state, context, mortality_table)
+
+        # Calcular componentes de reserva
+        rmba = self.calculate_rmba(state, context, projections)
+        rmbc = self.calculate_rmbc(state, context, projections)
+        normal_cost = self.calculate_normal_cost(state, context, projections)
+
+        # Calcular métricas-chave
+        metrics = self.calculate_key_metrics(state, context, projections)
+
+        # Análise de suficiência
+        sufficiency_analysis = self.calculate_sufficiency_analysis(state, context, projections, metrics)
+
+        return {
+            "projections": projections,
+            "rmba": rmba,
+            "rmbc": rmbc,
+            "normal_cost": normal_cost,
+            "metrics": metrics,
+            "sufficiency_analysis": sufficiency_analysis
+        }
+
+    def calculate(self, state: 'SimulatorState', context: 'ActuarialContext') -> Dict:
+        """
+        Implementação do método abstrato para cálculos BD.
+
+        Args:
+            state: Estado do simulador
+            context: Contexto atuarial
+
+        Returns:
+            Resultados dos cálculos BD
+        """
+        return self.calculate_bd_simulation(state, context)

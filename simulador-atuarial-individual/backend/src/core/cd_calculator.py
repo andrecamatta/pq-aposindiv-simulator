@@ -5,25 +5,21 @@ Extrai lógica específica CD do ActuarialEngine
 
 import numpy as np
 from typing import Dict, List, TYPE_CHECKING
-from .projections import (
-    calculate_salary_projections,
-    calculate_contribution_projections,
-    calculate_survival_probabilities,
-    convert_monthly_to_yearly_projections
-)
+from .abstract_calculator import AbstractCalculator
+from .projection_builder import ProjectionBuilder
 from ..utils.rates import annual_to_monthly_rate
 
 if TYPE_CHECKING:
-    from ..models.database import SimulatorState
+    from ..models.participant import SimulatorState
     from ..models.participant import CDConversionMode
     from .actuarial_engine import ActuarialContext
 
 
-class CDCalculator:
+class CDCalculator(AbstractCalculator):
     """Calculadora especializada para planos de Contribuição Definida"""
-    
+
     def __init__(self):
-        self.cache = {}
+        super().__init__()
     
     def create_cd_context(self, state: 'SimulatorState') -> 'ActuarialContext':
         """
@@ -69,51 +65,47 @@ class CDCalculator:
         Returns:
             Dicionário com projeções CD
         """
+        # Usar ProjectionBuilder com lógica específica CD
+        projections = ProjectionBuilder.build_cd_projections(state, context, mortality_table)
+
+        # Ajustar com lógica específica CD que ainda não foi migrada
+        # TODO: Mover esta lógica para o ProjectionBuilder numa próxima iteração
         total_months = context.total_months_projection
         months_to_retirement = context.months_to_retirement
-        
-        # 1. Projeções salariais (mesmo cálculo que BD)
-        monthly_salaries = calculate_salary_projections(context, state, total_months)
-        
-        # 2. Contribuições mensais
-        monthly_contributions = calculate_contribution_projections(monthly_salaries, state, context)
-        
-        # 3. Probabilidades de sobrevivência
-        monthly_survival_probs = calculate_survival_probabilities(state, mortality_table, total_months)
-        
-        # 4. Calcular renda mensal estimada primeiro
+
+        # Recalcular evolução do saldo usando lógica específica da CDCalculator
+        monthly_contributions = projections["monthly_data"]["contributions"]
         temp_final_balance = self._estimate_final_balance(state, context, monthly_contributions, months_to_retirement)
         monthly_income = self.calculate_monthly_income(state, context, temp_final_balance, mortality_table)
-        
-        # 5. EVOLUÇÃO DO SALDO CD - CORE LOGIC
+
         monthly_balances, monthly_benefits = self._calculate_balance_evolution(
             state, context, monthly_contributions, monthly_income, total_months, months_to_retirement, mortality_table
         )
-        
-        # Saldo final na aposentadoria
-        final_balance = monthly_balances[months_to_retirement] if months_to_retirement < len(monthly_balances) else temp_final_balance
-        
-        # 6. Converter para dados anuais
-        monthly_data = {
-            "months": list(range(total_months)),
-            "salaries": monthly_salaries,
-            "benefits": monthly_benefits,
-            "contributions": monthly_contributions,
-            "survival_probs": monthly_survival_probs,
-            "balances": monthly_balances
-        }
-        
-        yearly_data = convert_monthly_to_yearly_projections(monthly_data, total_months)
-        yearly_data["monthly_data"] = monthly_data
-        yearly_data["final_balance"] = final_balance
 
-        # 7. Gerar vetores por idade para frontend
+        # Atualizar com valores recalculados
+        projections["monthly_data"]["reserves"] = monthly_balances
+        projections["monthly_data"]["benefits"] = monthly_benefits
+        projections["final_balance"] = monthly_balances[months_to_retirement] if months_to_retirement < len(monthly_balances) else temp_final_balance
+
+        # Recriar dados anuais com benefícios atualizados
+        from .projections import convert_monthly_to_yearly_projections
+        yearly_data = convert_monthly_to_yearly_projections(projections["monthly_data"], total_months)
+
+        # Atualizar projections com dados anuais corrigidos
+        projections.update(yearly_data)
+
+        # Manter monthly_data atualizado com benefícios corretos
+        projections["monthly_data"]["benefits"] = monthly_benefits
+        projections["monthly_data"]["reserves"] = monthly_balances
+
+        # Gerar projeções por idade com benefícios corretos
+        monthly_salaries = projections["monthly_data"]["salaries"]
         age_projections = self._generate_age_projections(
             state, context, monthly_salaries, monthly_benefits, total_months
         )
-        yearly_data.update(age_projections)
+        projections.update(age_projections)
 
-        return yearly_data
+        return projections
     
     def calculate_monthly_income(
         self, 
@@ -755,3 +747,56 @@ class CDCalculator:
             "projected_salaries_by_age": projected_salaries_by_age,
             "projected_benefits_by_age": projected_benefits_by_age
         }
+
+    def calculate_cd_simulation(self, state: 'SimulatorState', context: 'ActuarialContext') -> Dict:
+        """
+        Orquestrador principal para simulações CD completas.
+
+        Args:
+            state: Estado do simulador
+            context: Contexto atuarial
+
+        Returns:
+            Resultados completos da simulação CD
+        """
+        from .mortality_tables import get_mortality_table
+
+        # Obter tábua de mortalidade
+        mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
+
+        # Calcular projeções temporais
+        projections = self.calculate_projections(state, context, mortality_table)
+
+        # Calcular renda mensal baseada no saldo acumulado
+        monthly_income = self.calculate_monthly_income(state, context, projections["final_balance"], mortality_table)
+
+        # Calcular métricas-chave
+        metrics = self.calculate_metrics(state, projections, monthly_income)
+
+        # Calcular duração dos benefícios
+        benefit_duration = self.calculate_benefit_duration(state, context, projections["final_balance"], monthly_income, mortality_table)
+
+        # Calcular déficit/superávit
+        deficit_surplus = self.calculate_deficit_surplus(state, monthly_income)
+
+        return {
+            "projections": projections,
+            "final_balance": projections["final_balance"],
+            "monthly_income": monthly_income,
+            "metrics": metrics,
+            "benefit_duration": benefit_duration,
+            "deficit_surplus": deficit_surplus
+        }
+
+    def calculate(self, state: 'SimulatorState', context: 'ActuarialContext') -> Dict:
+        """
+        Implementação do método abstrato para cálculos CD.
+
+        Args:
+            state: Estado do simulador
+            context: Contexto atuarial
+
+        Returns:
+            Resultados dos cálculos CD
+        """
+        return self.calculate_cd_simulation(state, context)

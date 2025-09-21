@@ -14,60 +14,65 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 import pandas as pd
 
-from .models.report_models import ReportRequest, ReportResponse
+from .models.report_models import ReportRequest, ReportResponse, ReportConfig
+from ...utils.formatters import format_currency_br
+from .abstract_report_generator import AbstractReportGenerator
 
 
-class ExcelGenerator:
+class ExcelGenerator(AbstractReportGenerator):
     """Gerador de planilhas Excel e CSV com dados estruturados"""
 
-    def __init__(self, cache_dir: Path = None):
-        self.cache_dir = cache_dir or Path(__file__).parent / "cache"
-        self.cache_dir.mkdir(exist_ok=True)
+    def __init__(self, config: ReportConfig = None, cache_dir: Path = None):
+        super().__init__(config, cache_dir)
+
+    @property
+    def supported_formats(self) -> list[str]:
+        """Formatos suportados pelo gerador Excel."""
+        return ['xlsx', 'csv']
+
+    @property
+    def default_content_type(self) -> str:
+        """Tipo MIME padrão para Excel."""
+        return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
     def generate_excel(self, request: ReportRequest) -> ReportResponse:
         """
-        Gerar arquivo Excel com múltiplas abas de dados
+        Método público para gerar Excel (mantém compatibilidade).
+        Delega para o método base generate_report.
         """
-        start_time = time.time()
-        report_id = str(uuid.uuid4())
+        return self.generate_report(request)
 
-        try:
-            # Criar workbook
-            wb = openpyxl.Workbook()
+    def _generate_specific_report(self, request: ReportRequest, report_id: str) -> ReportResponse:
+        """
+        Implementação específica da geração Excel.
+        """
+        # Criar workbook
+        wb = openpyxl.Workbook()
 
-            # Remover aba padrão
-            wb.remove(wb.active)
+        # Remover aba padrão
+        wb.remove(wb.active)
 
-            # Criar abas com dados
-            self._create_input_data_sheet(wb, request)
-            self._create_results_sheet(wb, request)
-            self._create_projections_sheet(wb, request)
-            self._create_assumptions_sheet(wb, request)
+        # Criar abas com dados
+        self._create_input_data_sheet(wb, request)
+        self._create_results_sheet(wb, request)
+        self._create_projections_sheet(wb, request)
+        self._create_assumptions_sheet(wb, request)
 
-            # Salvar arquivo
-            file_path = self.cache_dir / f"dados_simulacao_{report_id}.xlsx"
-            wb.save(file_path)
+        # Salvar arquivo
+        file_path = self.cache_dir / f"dados_simulacao_{report_id}.xlsx"
+        wb.save(file_path)
 
-            generation_time = int((time.time() - start_time) * 1000)
-            file_size = file_path.stat().st_size
+        # Obter tamanho do arquivo
+        file_size = self._get_file_size(file_path)
 
-            return ReportResponse(
-                success=True,
-                message="Planilha Excel gerada com sucesso",
-                file_path=str(file_path),
-                file_size=file_size,
-                generation_time_ms=generation_time,
-                report_id=report_id,
-                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
-        except Exception as e:
-            return ReportResponse(
-                success=False,
-                message=f"Erro ao gerar Excel: {str(e)}",
-                generation_time_ms=int((time.time() - start_time) * 1000),
-                report_id=report_id
-            )
+        return self._create_success_response(
+            report_id=report_id,
+            generation_time_ms=0,  # Será calculado pela classe base
+            file_path=str(file_path),
+            file_size=file_size,
+            content_type=self.default_content_type,
+            message="Planilha Excel gerada com sucesso"
+        )
 
     def generate_csv(self, request: ReportRequest) -> ReportResponse:
         """
@@ -409,7 +414,7 @@ class ExcelGenerator:
         csv_data.append(["Parâmetro", "Valor"])
         csv_data.append(["Idade Atual", str(request.state.age)])
         csv_data.append(["Gênero", "Masculino" if request.state.gender == "M" else "Feminino"])
-        csv_data.append(["Salário Mensal", f"R$ {request.state.salary:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')])
+        csv_data.append(["Salário Mensal", format_currency_br(request.state.salary)])
         csv_data.append(["Tipo de Plano", request.state.plan_type])
         csv_data.append(["Taxa de Contribuição", f"{request.state.contribution_rate}%"])
         csv_data.append([])
@@ -419,12 +424,12 @@ class ExcelGenerator:
         csv_data.append(["Indicador", "Valor"])
 
         if request.state.plan_type == "BD":
-            csv_data.append(["RMBA", f"R$ {request.results.rmba or 0:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')])
-            csv_data.append(["RMBC", f"R$ {request.results.rmbc or 0:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')])
-            csv_data.append(["Déficit/Superávit", f"R$ {request.results.deficit_surplus or 0:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')])
+            csv_data.append(["RMBA", format_currency_br(request.results.rmba or 0)])
+            csv_data.append(["RMBC", format_currency_br(request.results.rmbc or 0)])
+            csv_data.append(["Déficit/Superávit", format_currency_br(request.results.deficit_surplus or 0)])
         else:
-            csv_data.append(["Saldo Final", f"R$ {request.results.individual_balance or 0:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')])
-            csv_data.append(["Renda Mensal", f"R$ {request.results.monthly_income_cd or 0:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')])
+            csv_data.append(["Saldo Final", format_currency_br(request.results.individual_balance or 0)])
+            csv_data.append(["Renda Mensal", format_currency_br(request.results.monthly_income_cd or 0)])
 
         csv_data.append(["Taxa de Reposição", f"{(request.results.replacement_ratio or 0):.3f}"])
 

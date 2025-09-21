@@ -14,7 +14,7 @@ from .projections import (
 )
 
 if TYPE_CHECKING:
-    from ..models.database import SimulatorState
+    from ..models.participant import SimulatorState
     from .actuarial_engine import ActuarialContext
 
 

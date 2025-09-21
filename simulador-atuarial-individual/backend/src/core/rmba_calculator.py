@@ -5,6 +5,7 @@ Extraído do ActuarialEngine para seguir Single Responsibility Principle
 from typing import Dict, TYPE_CHECKING
 from .logging_config import ActuarialLoggerMixin
 from .constants import MSG_PERSON_RETIRED, MSG_PERSON_ACTIVE
+from ..utils.pydantic_validators import get_enum_value
 
 if TYPE_CHECKING:
     from ..models.participant import SimulatorState
@@ -82,7 +83,7 @@ class RMBACalculator(ActuarialLoggerMixin):
         Delegação para utilitário especializado
         """
         # Importar aqui para evitar dependência circular
-        from ..utils import calculate_vpa_benefits_contributions
+        from .calculations.vpa_calculations import calculate_vpa_benefits_contributions
 
         return calculate_vpa_benefits_contributions(
             monthly_benefits,
@@ -133,7 +134,8 @@ class RMBACalculator(ActuarialLoggerMixin):
         self.log_auditoria(f"  - Total meses de contribuição: {context.months_to_retirement}")
 
         self.log_auditoria("Benefícios:")
-        if state.benefit_target_mode.value == "VALUE":
+        benefit_mode = str(state.benefit_target_mode)
+        if benefit_mode == "VALUE":
             self.log_auditoria(f" - Benefício: Valor fixo de R$ {state.target_benefit or 0:,.2f}/mês")
         else:
             self.log_auditoria(" - Benefício: Baseado em taxa de reposição")
@@ -221,7 +223,7 @@ class RMBACalculator(ActuarialLoggerMixin):
             VPA dos salários futuros
         """
         # Importar aqui para evitar dependência circular
-        from ..utils import calculate_actuarial_present_value
+        from .calculations.vpa_calculations import calculate_actuarial_present_value
 
         # Simular salários mensais até aposentadoria
         monthly_salaries = []

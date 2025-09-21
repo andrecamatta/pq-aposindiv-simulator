@@ -41,14 +41,20 @@ const ParticipantTab: React.FC<ParticipantTabProps> = ({
   ];
 
   return (
-    <div className="lg:col-span-2 bg-white p-8 rounded-lg shadow-md">
+    <div className="space-y-8">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900">Dados do Participante</h2>
-        <p className="text-gray-600 mt-1">Configure as informações pessoais e financeiras do participante.</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          Participante
+        </h1>
+        <p className="text-gray-600">
+          Configure as informações pessoais e financeiras do participante.
+        </p>
       </div>
-      <div className="space-y-8">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Informações Pessoais</h3>
+
+      <div className="bg-white p-8 rounded-lg shadow-md">
+        <div className="space-y-8">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Informações Pessoais</h3>
           <div>
             <Select
               label="Gênero"
@@ -120,6 +126,7 @@ const ParticipantTab: React.FC<ParticipantTabProps> = ({
               formatDisplay={(v) => formatSimplePercentageBR(v * 100, 2)}
               disabled={loading}
             />
+            </div>
           </div>
         </div>
       </div>

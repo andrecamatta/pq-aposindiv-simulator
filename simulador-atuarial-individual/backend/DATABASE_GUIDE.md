@@ -1,4 +1,4 @@
-# Guia do Banco de Dados - Simulador Atuarial Individual
+# Guia do Banco de Dados - PrevLab
 
 ## Visão Geral
 
