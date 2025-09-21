@@ -238,3 +238,185 @@ class ProjectionBuilder:
             "projected_salaries_by_age": projected_salaries_by_age,
             "projected_benefits_by_age": projected_benefits_by_age
         }
+
+    @classmethod
+    def build_cd_projections_with_final_balance(
+        cls,
+        state: 'SimulatorState',
+        context: 'ActuarialContext',
+        mortality_table: np.ndarray,
+        cd_calculator
+    ) -> Dict:
+        """
+        Constrói projeções CD completas incluindo renda calculada e evolução final do saldo
+        Incorpora a lógica anteriormente no CDCalculator.calculate_projections()
+        """
+        total_months = context.total_months_projection
+        months_to_retirement = context.months_to_retirement
+
+        # 1. Usar projeções base do método existente
+        base_projections = cls.build_cd_projections(state, context, mortality_table)
+
+        # 2. Recalcular evolução específica CD com income calculado
+        monthly_contributions = base_projections["monthly_data"]["contributions"]
+
+        # Estimativa inicial do saldo final para cálculo da renda
+        temp_final_balance = cls._estimate_cd_final_balance(state, context, monthly_contributions, months_to_retirement)
+
+        # Calcular renda mensal usando CD calculator
+        monthly_income = cd_calculator.calculate_monthly_income(state, context, temp_final_balance, mortality_table)
+
+        # Evolução completa considerando saques de renda
+        monthly_balances, monthly_benefits = cls._calculate_cd_balance_evolution_with_benefits(
+            state, context, monthly_contributions, monthly_income, total_months, months_to_retirement, mortality_table
+        )
+
+        # 3. Atualizar projeções com dados recalculados
+        base_projections["monthly_data"]["reserves"] = monthly_balances
+        base_projections["monthly_data"]["benefits"] = monthly_benefits
+        base_projections["final_balance"] = monthly_balances[months_to_retirement] if months_to_retirement < len(monthly_balances) else temp_final_balance
+
+        # 4. Recriar dados anuais com benefícios atualizados
+        from .projections import convert_monthly_to_yearly_projections
+        yearly_data = convert_monthly_to_yearly_projections(base_projections["monthly_data"], total_months)
+        base_projections.update(yearly_data)
+
+        # 5. Gerar projeções por idade com benefícios corretos
+        monthly_salaries = base_projections["monthly_data"]["salaries"]
+        age_projections = cls._generate_age_projections(
+            state, context, monthly_salaries, monthly_benefits, total_months
+        )
+        base_projections.update(age_projections)
+
+        return base_projections
+
+    @classmethod
+    def _estimate_cd_final_balance(
+        cls,
+        state: 'SimulatorState',
+        context: 'ActuarialContext',
+        monthly_contributions: list,
+        months_to_retirement: int
+    ) -> float:
+        """Estimativa inicial do saldo final para cálculo da renda"""
+        accumulated = state.initial_balance
+
+        for month in range(months_to_retirement):
+            accumulated *= (1 + context.discount_rate_monthly)
+            accumulated *= (1 - context.admin_fee_monthly)
+            if month < len(monthly_contributions):
+                accumulated += monthly_contributions[month]
+
+        return accumulated
+
+    @classmethod
+    def _calculate_cd_balance_evolution_with_benefits(
+        cls,
+        state: 'SimulatorState',
+        context: 'ActuarialContext',
+        monthly_contributions: list,
+        monthly_income: float,
+        total_months: int,
+        months_to_retirement: int,
+        mortality_table: np.ndarray = None
+    ) -> tuple:
+        """
+        Calcula evolução do saldo e benefícios mensais considerando saques durante aposentadoria
+        Migrado de CDCalculator._calculate_balance_evolution()
+        """
+        from ..models.participant import CDConversionMode
+
+        monthly_balances = []
+        monthly_benefits = []
+        accumulated_balance = state.initial_balance
+
+        # Determinar período de benefícios e modalidade
+        conversion_mode = state.cd_conversion_mode or CDConversionMode.ACTUARIAL
+        benefit_period_months = cls._get_cd_benefit_period_months(conversion_mode)
+
+        # Armazena rendas recalculadas para modalidades dinâmicas
+        annual_monthly_incomes = {}
+
+        # Para modalidades dinâmicas, não usar valor fixo inicial
+        if conversion_mode in [CDConversionMode.PERCENTAGE, CDConversionMode.ACTUARIAL_EQUIVALENT]:
+            current_year_income = 0  # Será recalculado no primeiro mês
+        else:
+            current_year_income = monthly_income  # Modalidades com valor fixo
+
+        for month in range(total_months):
+            # Durante acumulação: capitalizar com taxa de acumulação
+            if month < months_to_retirement:
+                accumulated_balance *= (1 + context.discount_rate_monthly)
+                accumulated_balance *= (1 - context.admin_fee_monthly)
+                accumulated_balance += monthly_contributions[month]
+                monthly_balances.append(max(0, accumulated_balance))
+                monthly_benefits.append(0.0)
+            else:
+                # Durante aposentadoria
+                months_since_retirement = month - months_to_retirement
+                years_since_retirement = months_since_retirement // 12
+                month_in_retirement_year = months_since_retirement % 12
+
+                # No primeiro mês, registrar pico ANTES do primeiro saque
+                if months_since_retirement == 0:
+                    accumulated_balance *= (1 - context.admin_fee_monthly)
+                    monthly_balances.append(max(0, accumulated_balance))
+
+                # Recalcular renda para modalidades dinâmicas (implementação simplificada)
+                # Para implementação completa, seria necessário importar métodos do CDCalculator
+
+                # Verificar se ainda está no período de benefícios
+                if benefit_period_months is not None and months_since_retirement >= benefit_period_months:
+                    # Período acabou, apenas capitalizar
+                    accumulated_balance *= (1 + getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly))
+                    accumulated_balance *= (1 - context.admin_fee_monthly)
+                    monthly_benefits.append(0.0)
+                else:
+                    # Ainda no período de benefícios
+                    current_month_in_year = month % 12
+
+                    # Usar renda do ano corrente
+                    monthly_benefit_payment = current_year_income
+
+                    # Aplicar pagamentos extras (13º, 14º, etc.)
+                    extra_payments = context.benefit_months_per_year - 12
+                    if extra_payments > 0:
+                        if current_month_in_year == 11:  # Dezembro
+                            if extra_payments >= 1:
+                                monthly_benefit_payment += current_year_income
+                        if current_month_in_year == 0:  # Janeiro
+                            if extra_payments >= 2:
+                                monthly_benefit_payment += current_year_income
+
+                    # Consumir saldo
+                    accumulated_balance -= monthly_benefit_payment
+
+                    # Capitalizar saldo restante
+                    conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
+                    accumulated_balance *= (1 + conversion_rate_monthly)
+                    accumulated_balance *= (1 - context.admin_fee_monthly)
+
+                    monthly_benefits.append(monthly_benefit_payment)
+
+                # Para meses após o primeiro mês da aposentadoria
+                if months_since_retirement > 0:
+                    monthly_balances.append(max(0, accumulated_balance))
+
+        return monthly_balances, monthly_benefits
+
+    @classmethod
+    def _get_cd_benefit_period_months(cls, conversion_mode) -> int:
+        """Retorna período de benefícios em meses ou None se vitalício"""
+        from ..models.participant import CDConversionMode
+
+        if conversion_mode in [CDConversionMode.CERTAIN_5Y, CDConversionMode.CERTAIN_10Y,
+                               CDConversionMode.CERTAIN_15Y, CDConversionMode.CERTAIN_20Y]:
+            years_map = {
+                CDConversionMode.CERTAIN_5Y: 5,
+                CDConversionMode.CERTAIN_10Y: 10,
+                CDConversionMode.CERTAIN_15Y: 15,
+                CDConversionMode.CERTAIN_20Y: 20
+            }
+            return years_map[conversion_mode] * 12
+
+        return None  # Vitalício

@@ -10,6 +10,8 @@ from .projections import (
     calculate_salary_projections,
     calculate_contribution_projections,
     calculate_survival_probabilities,
+    calculate_accumulated_reserves,
+    calculate_benefit_projections,
     convert_monthly_to_yearly_projections
 )
 
@@ -92,11 +94,18 @@ class ProjectionEngine:
         
         # 4. Benefícios (se solicitados - implementação específica por tipo de plano)
         if config.include_benefits:
-            monthly_data["benefits"] = [0.0] * total_months  # Placeholder
-        
+            # Para benefícios, usar valor padrão baseado no target ou valor zero
+            monthly_benefit_amount = getattr(state, 'target_benefit', 0.0) or 0.0
+            monthly_benefits = calculate_benefit_projections(context, state, total_months, monthly_benefit_amount)
+            monthly_data["benefits"] = monthly_benefits
+
         # 5. Reservas/Saldos (se solicitados - implementação específica)
         if config.include_reserves:
-            monthly_data["reserves"] = [state.initial_balance] * total_months  # Placeholder
+            # Calcular reservas baseadas em contribuições e benefícios
+            monthly_contributions = monthly_data.get("contributions", [0.0] * total_months)
+            monthly_benefits = monthly_data.get("benefits", [0.0] * total_months)
+            monthly_reserves = calculate_accumulated_reserves(state, context, monthly_contributions, monthly_benefits, total_months)
+            monthly_data["reserves"] = monthly_reserves
         
         # 6. Agregar dados anuais se solicitado
         if config.yearly_aggregation:

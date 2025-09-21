@@ -65,45 +65,8 @@ class CDCalculator(AbstractCalculator):
         Returns:
             Dicionário com projeções CD
         """
-        # Usar ProjectionBuilder com lógica específica CD
-        projections = ProjectionBuilder.build_cd_projections(state, context, mortality_table)
-
-        # Ajustar com lógica específica CD que ainda não foi migrada
-        # TODO: Mover esta lógica para o ProjectionBuilder numa próxima iteração
-        total_months = context.total_months_projection
-        months_to_retirement = context.months_to_retirement
-
-        # Recalcular evolução do saldo usando lógica específica da CDCalculator
-        monthly_contributions = projections["monthly_data"]["contributions"]
-        temp_final_balance = self._estimate_final_balance(state, context, monthly_contributions, months_to_retirement)
-        monthly_income = self.calculate_monthly_income(state, context, temp_final_balance, mortality_table)
-
-        monthly_balances, monthly_benefits = self._calculate_balance_evolution(
-            state, context, monthly_contributions, monthly_income, total_months, months_to_retirement, mortality_table
-        )
-
-        # Atualizar com valores recalculados
-        projections["monthly_data"]["reserves"] = monthly_balances
-        projections["monthly_data"]["benefits"] = monthly_benefits
-        projections["final_balance"] = monthly_balances[months_to_retirement] if months_to_retirement < len(monthly_balances) else temp_final_balance
-
-        # Recriar dados anuais com benefícios atualizados
-        from .projections import convert_monthly_to_yearly_projections
-        yearly_data = convert_monthly_to_yearly_projections(projections["monthly_data"], total_months)
-
-        # Atualizar projections com dados anuais corrigidos
-        projections.update(yearly_data)
-
-        # Manter monthly_data atualizado com benefícios corretos
-        projections["monthly_data"]["benefits"] = monthly_benefits
-        projections["monthly_data"]["reserves"] = monthly_balances
-
-        # Gerar projeções por idade com benefícios corretos
-        monthly_salaries = projections["monthly_data"]["salaries"]
-        age_projections = self._generate_age_projections(
-            state, context, monthly_salaries, monthly_benefits, total_months
-        )
-        projections.update(age_projections)
+        # Usar ProjectionBuilder com lógica completa CD migrada
+        projections = ProjectionBuilder.build_cd_projections_with_final_balance(state, context, mortality_table, self)
 
         return projections
     

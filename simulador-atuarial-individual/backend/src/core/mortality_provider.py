@@ -142,61 +142,290 @@ class FileMortalityProvider(MortalityTableProvider):
 
 
 class DatabaseMortalityProvider(MortalityTableProvider):
-    """Provedor baseado em banco de dados (implementação futura)"""
+    """Provedor baseado em banco de dados SQLModel/SQLite"""
 
-    def __init__(self, connection_string: str):
+    def __init__(self, connection_string: str = None):
         self.connection_string = connection_string
         self.logger = logging.getLogger(self.__class__.__name__)
-        # TODO: Implementar conexão com banco
+
+        # Importar dependências do banco
+        from ..database import get_session, engine
+        from ..repositories.mortality_repository import MortalityTableRepository
+        from sqlmodel import Session
+
+        self.get_session = get_session
+        self.engine = engine
+        self.repository_class = MortalityTableRepository
 
     def get_mortality_table(self, table_name: str, gender: str) -> np.ndarray:
         """Implementação para banco de dados"""
-        # TODO: Implementar consulta SQL
-        raise NotImplementedError("DatabaseMortalityProvider ainda não implementado")
+        try:
+            with Session(self.engine) as session:
+                repo = self.repository_class(session)
+
+                # Buscar por nome ou código
+                table = repo.get_by_name(table_name)
+                if not table:
+                    table = repo.get_by_code(table_name)
+
+                if not table:
+                    raise ValueError(f"Tábua de mortalidade '{table_name}' não encontrada no banco")
+
+                if not table.is_active:
+                    raise ValueError(f"Tábua de mortalidade '{table_name}' está inativa")
+
+                # Verificar compatibilidade de gênero
+                if table.gender and table.gender.upper() != "UNISEX" and table.gender.upper() != gender.upper():
+                    self.logger.warning(f"Tábua '{table_name}' é para gênero '{table.gender}', usando para '{gender}'")
+
+                # Converter dados para array numpy
+                table_data = table.get_table_data()
+                if not table_data:
+                    raise ValueError(f"Tábua '{table_name}' não contém dados válidos")
+
+                # Criar array numpy ordenado por idade
+                max_age = max(table_data.keys())
+                mortality_array = np.zeros(max_age + 1)
+
+                for age, qx in table_data.items():
+                    if 0 <= age <= max_age:
+                        mortality_array[age] = float(qx)
+
+                self.logger.info(f"Tábua '{table_name}' carregada do banco com {len(table_data)} idades")
+                return mortality_array
+
+        except Exception as e:
+            self.logger.error(f"Erro ao carregar tábua '{table_name}' do banco: {str(e)}")
+            raise
 
     def get_available_tables(self) -> List[str]:
         """Lista tábuas do banco"""
-        # TODO: SELECT DISTINCT table_name FROM mortality_tables
-        raise NotImplementedError("DatabaseMortalityProvider ainda não implementado")
+        try:
+            with Session(self.engine) as session:
+                repo = self.repository_class(session)
+                active_tables = repo.get_active_tables()
+
+                # Retornar lista de nomes das tábuas ativas
+                table_names = [table.name for table in active_tables]
+                self.logger.info(f"Encontradas {len(table_names)} tábuas ativas no banco")
+                return table_names
+
+        except Exception as e:
+            self.logger.error(f"Erro ao listar tábuas do banco: {str(e)}")
+            return []
 
     def get_table_info(self, table_name: str) -> Dict:
         """Recupera metadados do banco"""
-        # TODO: Consultar tabela de metadados
-        raise NotImplementedError("DatabaseMortalityProvider ainda não implementado")
+        try:
+            with Session(self.engine) as session:
+                repo = self.repository_class(session)
+
+                # Buscar por nome ou código
+                table = repo.get_by_name(table_name)
+                if not table:
+                    table = repo.get_by_code(table_name)
+
+                if not table:
+                    return {}
+
+                return {
+                    "name": table.name,
+                    "code": table.code,
+                    "description": table.description,
+                    "country": table.country,
+                    "year": table.year,
+                    "gender": table.gender,
+                    "source": table.source,
+                    "version": table.version,
+                    "is_official": table.is_official,
+                    "regulatory_approved": table.regulatory_approved,
+                    "is_active": table.is_active,
+                    "metadata": table.get_metadata()
+                }
+
+        except Exception as e:
+            self.logger.error(f"Erro ao obter informações da tábua '{table_name}': {str(e)}")
+            return {}
 
     def validate_table(self, table_name: str, gender: str) -> bool:
         """Valida existência no banco"""
-        # TODO: Verificar se registro existe
-        raise NotImplementedError("DatabaseMortalityProvider ainda não implementado")
+        try:
+            with Session(self.engine) as session:
+                repo = self.repository_class(session)
+
+                # Buscar por nome ou código
+                table = repo.get_by_name(table_name)
+                if not table:
+                    table = repo.get_by_code(table_name)
+
+                if not table:
+                    return False
+
+                # Verificar se está ativa
+                if not table.is_active:
+                    return False
+
+                # Verificar dados
+                table_data = table.get_table_data()
+                if not table_data:
+                    return False
+
+                return True
+
+        except Exception as e:
+            self.logger.error(f"Erro na validação da tábua '{table_name}': {str(e)}")
+            return False
 
 
 class APIMortalityProvider(MortalityTableProvider):
-    """Provedor baseado em API externa (implementação futura)"""
+    """Provedor baseado em API externa REST"""
 
-    def __init__(self, api_base_url: str, api_key: Optional[str] = None):
-        self.api_base_url = api_base_url
+    def __init__(self, api_base_url: str, api_key: Optional[str] = None, timeout: int = 30):
+        self.api_base_url = api_base_url.rstrip('/')  # Remove trailing slash
         self.api_key = api_key
+        self.timeout = timeout
         self.logger = logging.getLogger(self.__class__.__name__)
+
+        # Headers padrão
+        self.default_headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+
+        if api_key:
+            self.default_headers['Authorization'] = f'Bearer {api_key}'
+
+    def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict:
+        """Faz requisição HTTP para a API"""
+        try:
+            import requests
+
+            url = f"{self.api_base_url}{endpoint}"
+            headers = {**self.default_headers, **kwargs.pop('headers', {})}
+
+            self.logger.debug(f"API Request: {method.upper()} {url}")
+
+            response = requests.request(
+                method=method,
+                url=url,
+                headers=headers,
+                timeout=self.timeout,
+                **kwargs
+            )
+
+            response.raise_for_status()
+
+            # Tentar decodificar JSON
+            try:
+                return response.json()
+            except ValueError:
+                return {"success": True, "data": response.text}
+
+        except ImportError:
+            raise ImportError("requests library is required for APIMortalityProvider")
+        except Exception as e:
+            self.logger.error(f"API request failed: {str(e)}")
+            raise
 
     def get_mortality_table(self, table_name: str, gender: str) -> np.ndarray:
         """Implementação para API externa"""
-        # TODO: Fazer requisição HTTP para API
-        raise NotImplementedError("APIMortalityProvider ainda não implementado")
+        try:
+            # GET /api/mortality-tables/{table_name}/{gender}
+            endpoint = f"/api/mortality-tables/{table_name}/{gender.upper()}"
+            response = self._make_request('GET', endpoint)
+
+            # Esperar formato: {"success": true, "data": {"ages": [0,1,2,...], "rates": [0.001, 0.002, ...]}}
+            if not response.get('success', False):
+                raise ValueError(f"API retornou erro: {response.get('message', 'Unknown error')}")
+
+            data = response.get('data', {})
+            ages = data.get('ages', [])
+            rates = data.get('rates', [])
+
+            if not ages or not rates or len(ages) != len(rates):
+                raise ValueError(f"Dados inválidos da API para tábua '{table_name}'")
+
+            # Criar array numpy
+            max_age = max(ages)
+            mortality_array = np.zeros(max_age + 1)
+
+            for age, rate in zip(ages, rates):
+                if 0 <= age <= max_age:
+                    mortality_array[age] = float(rate)
+
+            self.logger.info(f"Tábua '{table_name}' carregada da API com {len(rates)} idades")
+            return mortality_array
+
+        except Exception as e:
+            self.logger.error(f"Erro ao carregar tábua '{table_name}' da API: {str(e)}")
+            raise
 
     def get_available_tables(self) -> List[str]:
         """Lista tábuas da API"""
-        # TODO: GET /api/mortality-tables
-        raise NotImplementedError("APIMortalityProvider ainda não implementado")
+        try:
+            # GET /api/mortality-tables
+            endpoint = "/api/mortality-tables"
+            response = self._make_request('GET', endpoint)
+
+            if not response.get('success', False):
+                raise ValueError(f"API retornou erro: {response.get('message', 'Unknown error')}")
+
+            tables = response.get('data', [])
+
+            # Esperar formato: {"success": true, "data": ["BR_EMS_2021", "AT_83", ...]}
+            if isinstance(tables, list):
+                table_names = [str(table) for table in tables]
+            else:
+                # Formato alternativo: {"success": true, "data": {"tables": [...]}}
+                table_names = [str(table) for table in tables.get('tables', [])]
+
+            self.logger.info(f"Encontradas {len(table_names)} tábuas na API")
+            return table_names
+
+        except Exception as e:
+            self.logger.error(f"Erro ao listar tábuas da API: {str(e)}")
+            return []
 
     def get_table_info(self, table_name: str) -> Dict:
         """Recupera metadados da API"""
-        # TODO: GET /api/mortality-tables/{table_name}/info
-        raise NotImplementedError("APIMortalityProvider ainda não implementado")
+        try:
+            # GET /api/mortality-tables/{table_name}/info
+            endpoint = f"/api/mortality-tables/{table_name}/info"
+            response = self._make_request('GET', endpoint)
+
+            if not response.get('success', False):
+                self.logger.warning(f"API não retornou informações para tábua '{table_name}'")
+                return {}
+
+            return response.get('data', {})
+
+        except Exception as e:
+            self.logger.error(f"Erro ao obter informações da tábua '{table_name}' da API: {str(e)}")
+            return {}
 
     def validate_table(self, table_name: str, gender: str) -> bool:
         """Valida via API"""
-        # TODO: HEAD /api/mortality-tables/{table_name}/{gender}
-        raise NotImplementedError("APIMortalityProvider ainda não implementado")
+        try:
+            # HEAD /api/mortality-tables/{table_name}/{gender}
+            endpoint = f"/api/mortality-tables/{table_name}/{gender.upper()}"
+
+            import requests
+            url = f"{self.api_base_url}{endpoint}"
+
+            response = requests.head(
+                url=url,
+                headers=self.default_headers,
+                timeout=self.timeout
+            )
+
+            # Retornar True se status for 200 ou 204
+            return response.status_code in [200, 204]
+
+        except ImportError:
+            raise ImportError("requests library is required for APIMortalityProvider")
+        except Exception as e:
+            self.logger.debug(f"Validação da tábua '{table_name}' falhou: {str(e)}")
+            return False
 
 
 class CompositeMortalityProvider(MortalityTableProvider):
