@@ -31,11 +31,6 @@ export const tabs: Tab[] = [
     icon: 'analytics',
   },
   {
-    id: 'sensitivity',
-    label: 'Sensibilidade',
-    icon: 'settings',
-  },
-  {
     id: 'tables',
     label: 'Tábuas',
     icon: 'table_chart',

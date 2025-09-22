@@ -64,9 +64,6 @@ export const useSimulator = () => {
         setLoading(false);
       });
 
-      wsClient.current.on('sensitivity_update', () => {
-        // Atualizar dados de sensibilidade se necessário
-      });
 
       wsClient.current.on('calculation_completed', () => {
         setLoading(false);
@@ -132,7 +129,7 @@ export const useSimulator = () => {
     // Configurações que afetam cálculos e precisam de feedback mais rápido
     const immediateFields = [
       'age', 'salary', 'target_benefit', 'target_replacement_rate',
-      'contribution_rate', 'accrual_rate', 'retirement_age'
+      'contribution_rate', 'accrual_rate', 'retirement_age', 'plan_type'
     ];
 
     // Verificar quais campos mudaram
@@ -170,11 +167,21 @@ export const useSimulator = () => {
 
     debounceTimeoutRef.current = setTimeout(() => {
       const preparedState = { ...currentState };
-      
+
       if (preparedState.benefit_target_mode === 'REPLACEMENT_RATE') {
         preparedState.target_benefit = undefined;
       } else {
         preparedState.target_replacement_rate = undefined;
+      }
+
+      // Log para depuração de CD
+      if (preparedState.plan_type === 'CD') {
+        console.log('[useSimulator] Enviando cálculo CD:', {
+          plan_type: preparedState.plan_type,
+          calculation_method: preparedState.calculation_method,
+          cd_conversion_mode: preparedState.cd_conversion_mode,
+          target_benefit: preparedState.target_benefit
+        });
       }
 
       lastCalculatedStateRef.current = JSON.stringify(preparedState);

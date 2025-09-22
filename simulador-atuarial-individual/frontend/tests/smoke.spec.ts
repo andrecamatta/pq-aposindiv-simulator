@@ -35,7 +35,6 @@ test.describe('Smoke Tests - Funcionalidades Principais', () => {
     // Testa navegação para cada aba principal
     const tabs = [
       { name: 'Resultados', content: 'Análise' },
-      { name: 'Sensibilidade', content: 'Sensibilidade' },
       { name: 'Premissas', content: 'Premissas' },
       { name: 'Técnico', content: 'Configurações Técnicas' }
     ];
@@ -210,27 +209,6 @@ test.describe('Smoke Tests - Funcionalidades Principais', () => {
     }
   });
 
-  test('aba sensibilidade está acessível e funcional', async ({ page }) => {
-    // Navega para aba de sensibilidade
-    await page.click('text=Sensibilidade');
-    
-    // Verifica se o header principal da aba aparece (h2)
-    await expect(page.locator('h2:has-text("Análise de Sensibilidade")')).toBeVisible({ timeout: 5000 });
-    
-    // Verifica se mostra mensagem para executar simulação quando não há dados
-    const executeMessage = page.locator('text=/Execute.*Simulação/i');
-    const sensitivityPlaceholder = page.locator('text=/Em breve/i, text=/CD/i');
-    
-    // Deve ter mensagem para executar simulação ou placeholder para CD
-    const hasExecuteMessage = await executeMessage.isVisible();
-    const hasPlaceholder = await sensitivityPlaceholder.count() > 0;
-    
-    expect(hasExecuteMessage || hasPlaceholder).toBe(true);
-    
-    // Verifica se não há erros JavaScript críticos
-    const hasError = await page.locator('text=/erro|error/i').isVisible();
-    expect(hasError).toBe(false);
-  });
 });
 
 test.describe('Smoke Tests - Casos Críticos', () => {

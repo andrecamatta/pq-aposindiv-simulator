@@ -1,7 +1,9 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import asyncio
 import json
+import numpy as np
 from typing import Dict, Any, List
 import uuid
 
@@ -17,23 +19,55 @@ from ..utils.response_formatter import response_formatter
 from .mortality_tables import router as mortality_tables_router
 from .reports_router import router as reports_router
 
+# Função para serializar tipos NumPy
+def numpy_serializer(obj):
+    """Serializa tipos NumPy para tipos nativos Python"""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif hasattr(obj, 'dtype') and 'numpy' in str(type(obj)):
+        return str(obj)
+    raise TypeError(f"Objeto do tipo {type(obj)} não é serializável JSON")
+
+# Classe customizada para JSONResponse que trata NumPy
+class NumpyJSONResponse(JSONResponse):
+    def render(self, content) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+            default=numpy_serializer
+        ).encode("utf-8")
+
 app = FastAPI(
     title="PrevLab API",
     description="API para plataforma de simulação atuarial PrevLab",
-    version="1.0.0"
+    version="1.0.0",
+    default_response_class=NumpyJSONResponse
 )
 
 # Inicializar aplicação
 @app.on_event("startup")
 async def startup_event():
     import logging
-    from ..database import engine
-    from ..models.database import MortalityTable
+    from ..database import engine, create_db_and_tables
+    from ..models.database import MortalityTable, DecrementTable  # Import all models
     from sqlmodel import Session, select
-    
+
     logger = logging.getLogger(__name__)
-    
+
     logger.info("Iniciando aplicação...")
+
+    # Criar todas as tabelas (incluindo novas como DecrementTable)
+    create_db_and_tables()
+    logger.info("✅ Tabelas do banco de dados criadas/verificadas")
     
     # Verificar tábuas de mortalidade disponíveis no banco
     try:
@@ -184,17 +218,6 @@ async def handle_calculation(client_id: str, state_data: dict):
             "data": results.dict()
         })
         
-        # Calcular e enviar análise de sensibilidade (paralelo)
-        await manager.send_message(client_id, {
-            "type": "sensitivity_update",
-            "data": {
-                "discount_rate": results.sensitivity_discount_rate,
-                "mortality": results.sensitivity_mortality,
-                "retirement_age": results.sensitivity_retirement_age,
-                "salary_growth": results.sensitivity_salary_growth,
-                "inflation": results.sensitivity_inflation
-            }
-        })
         
         # Enviar confirmação de conclusão
         await manager.send_message(client_id, {

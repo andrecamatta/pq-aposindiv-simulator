@@ -25,6 +25,7 @@ from .calculations.vpa_calculations import (
 )
 # Função consolidada agora está em utils via redirecionamento
 from ..utils.formatters import format_currency_safe, format_audit_benefit_section
+from .builders.results_builder import ResultsBuilder
 
 
 @dataclass
@@ -165,7 +166,8 @@ class ActuarialEngine:
                  rmba_calculator=None,
                  rmbc_calculator=None,
                  normal_cost_calculator=None,
-                 projection_engine=None):
+                 projection_engine=None,
+):
         """
         Inicializa engine com dependency injection para testabilidade
 
@@ -195,6 +197,9 @@ class ActuarialEngine:
         self.rmbc_calculator = rmbc_calculator or RMBCCalculator()
         self.normal_cost_calculator = normal_cost_calculator or NormalCostCalculator()
         self.projection_engine = projection_engine or ProjectionEngine()
+
+        # Dependency injection para factories e builders
+        self.results_builder = ResultsBuilder()
 
         # Configurar logging
         self.logger = ActuarialLoggerMixin().logger
@@ -363,7 +368,7 @@ class ActuarialEngine:
         self._validate_state(state)
         
         # Delegar para calculadoras especializadas baseado no tipo de plano
-        if state.plan_type == PlanType.BD:
+        if state.derived_plan_type == PlanType.BD:
             return self._calculate_bd_simulation_with_calculator(state, start_time)
         else:  # PlanType.CD
             return self._calculate_cd_simulation_with_calculator(state, start_time)
@@ -375,14 +380,6 @@ class ActuarialEngine:
 
         # Delegar cálculo completo para calculadora BD especializada
         bd_results = self.bd_calculator.calculate_bd_simulation(state, context)
-        # Análise de sensibilidade usando calculadoras consolidadas
-        from .sensitivity import create_rmba_sensitivity_calculator, create_deficit_sensitivity_calculator
-
-        rmba_calculator = create_rmba_sensitivity_calculator()
-        deficit_calculator = create_deficit_sensitivity_calculator()
-
-        sensitivity = rmba_calculator.calculate_sensitivity(state)
-        sensitivity_deficit = deficit_calculator.calculate_sensitivity(state)
 
         # Decomposição atuarial
         decomposition = self._calculate_actuarial_decomposition(state, context, bd_results["projections"])
@@ -395,161 +392,14 @@ class ActuarialEngine:
 
         computation_time = (time.time() - start_time) * 1000
 
-        # Extrair dados das calculadoras especializadas
-        projections = bd_results["projections"]
-        metrics = bd_results["metrics"]
-        sufficiency_analysis = bd_results["sufficiency_analysis"]
-
-        return SimulatorResults(
-            # Resultados das calculadoras especializadas
-            rmba=bd_results["rmba"],
-            rmbc=bd_results["rmbc"],
-            normal_cost=bd_results["normal_cost"],
-
-            # Análise de Suficiência
-            deficit_surplus=sufficiency_analysis["deficit_surplus"],
-            deficit_surplus_percentage=sufficiency_analysis["deficit_surplus_percentage"],
-            required_contribution_rate=sufficiency_analysis["required_contribution_rate"],
-
-            # Projeções temporais
-            projection_years=projections["years"],
-            projected_salaries=projections["salaries"],
-            projected_benefits=projections["benefits"],
-            projected_contributions=projections["contributions"],
-            survival_probabilities=projections["survival_probs"],
-            accumulated_reserves=projections["reserves"],
-
-            # Vetores por idade
-            projection_ages=projections.get("projection_ages"),
-            projected_salaries_by_age=projections.get("projected_salaries_by_age"),
-            projected_benefits_by_age=projections.get("projected_benefits_by_age"),
-
-            # Projeções atuariais específicas BD
-            projected_vpa_benefits=actuarial_projections["vpa_benefits"],
-            projected_vpa_contributions=actuarial_projections["vpa_contributions"],
-            projected_rmba_evolution=actuarial_projections["rmba_evolution"],
-            projected_rmbc_evolution=actuarial_projections["rmbc_evolution"],
-
-            # Métricas das calculadoras
-            total_contributions=metrics["total_contributions"],
-            total_benefits=metrics["total_benefits"],
-            replacement_ratio=metrics["replacement_ratio"],
-            target_replacement_ratio=metrics["target_replacement_ratio"],
-            sustainable_replacement_ratio=metrics["sustainable_replacement_ratio"],
-            funding_ratio=metrics.get("funding_ratio", 100.0),
-
-            # Sensibilidade BD
-            sensitivity_discount_rate=sensitivity.get("discount_rate", {}),
-            sensitivity_mortality=sensitivity.get("mortality", {}),
-            sensitivity_retirement_age=sensitivity.get("retirement_age", {}),
-            sensitivity_salary_growth=sensitivity.get("salary_growth", {}),
-            sensitivity_inflation=sensitivity.get("inflation", {}),
-
-            # Sensibilidade déficit
-            sensitivity_deficit_discount_rate=sensitivity_deficit.get("discount_rate", {}),
-            sensitivity_deficit_mortality=sensitivity_deficit.get("mortality", {}),
-            sensitivity_deficit_retirement_age=sensitivity_deficit.get("retirement_age", {}),
-            sensitivity_deficit_salary_growth=sensitivity_deficit.get("salary_growth", {}),
-            sensitivity_deficit_inflation=sensitivity_deficit.get("inflation", {}),
-
-            # Decomposição atuarial
-            actuarial_present_value_benefits=decomposition.get("apv_benefits", 0.0),
-            actuarial_present_value_salary=decomposition.get("apv_future_contributions", 0.0),
-            service_cost_breakdown=decomposition.get("cost_breakdown", {}),
-            liability_duration=decomposition.get("duration", 0.0),
-            convexity=decomposition.get("convexity", 0.0),
-
-            # Cenários
-            best_case_scenario=scenarios.get("best_case", {}),
-            worst_case_scenario=scenarios.get("worst_case", {}),
-            confidence_intervals=scenarios.get("confidence_intervals", {}),
-
-            # Metadados
-            calculation_timestamp=datetime.now(),
-            computation_time_ms=computation_time,
-            actuarial_method_details={"method": state.calculation_method},
-            assumptions_validation={"valid": True}
-        )
-        # Análise de suficiência usando resultados da calculadora BD
-        sufficiency_analysis = bd_results["sufficiency_analysis"]
-
-        # Debug temporário - verificar chaves disponíveis
-        print(f"DEBUG: bd_results keys: {list(bd_results.keys())}")
-        print(f"DEBUG: sufficiency_analysis keys: {list(sufficiency_analysis.keys())}")
-        deficit_surplus_percentage_value = sufficiency_analysis.get('deficit_surplus_percentage', 0.0)
-        print(f"DEBUG: deficit_surplus_percentage value: {deficit_surplus_percentage_value}")
-        print(f"DEBUG: deficit_surplus_percentage type: {type(deficit_surplus_percentage_value)}")
-
-        return SimulatorResults(
-            # Resultados das calculadoras especializadas - delegação real
-            rmba=bd_results["rmba"],
-            rmbc=bd_results["rmbc"],
-            normal_cost=bd_results["normal_cost"],
-
-            # Análise de Suficiência das calculadoras
-            deficit_surplus=sufficiency_analysis["deficit_surplus"],
-            deficit_surplus_percentage=float(deficit_surplus_percentage_value),
-            required_contribution_rate=sufficiency_analysis["required_contribution_rate"],
-
-            # Projeções das calculadoras
-            projection_years=projections["years"],
-            projected_salaries=projections["salaries"],
-            projected_benefits=projections["benefits"],
-            projected_contributions=projections["contributions"],
-            survival_probabilities=projections["survival_probs"],
-            accumulated_reserves=projections["reserves"],
-
-            # Vetores por idade das calculadoras
-            projection_ages=projections.get("projection_ages"),
-            projected_salaries_by_age=projections.get("projected_salaries_by_age"),
-            projected_benefits_by_age=projections.get("projected_benefits_by_age"),
-
-            # Projeções atuariais para gráfico separado
-            projected_vpa_benefits=actuarial_projections["vpa_benefits"],
-            projected_vpa_contributions=actuarial_projections["vpa_contributions"],
-            projected_rmba_evolution=actuarial_projections["rmba_evolution"],
-            projected_rmbc_evolution=actuarial_projections["rmbc_evolution"],
-
-            # Métricas das calculadoras BD
-            total_contributions=metrics["total_contributions"],
-            total_benefits=metrics["total_benefits"],
-            replacement_ratio=metrics["replacement_ratio"],
-            target_replacement_ratio=metrics["target_replacement_ratio"],
-            sustainable_replacement_ratio=metrics["sustainable_replacement_ratio"],
-            funding_ratio=metrics.get("funding_ratio", 100.0),
-
-            # Sensibilidade BD
-            sensitivity_discount_rate=sensitivity.get("discount_rate", {}),
-            sensitivity_mortality=sensitivity.get("mortality", {}),
-            sensitivity_retirement_age=sensitivity.get("retirement_age", {}),
-            sensitivity_salary_growth=sensitivity.get("salary_growth", {}),
-            sensitivity_inflation=sensitivity.get("inflation", {}),
-
-            # Sensibilidade déficit BD
-            sensitivity_deficit_discount_rate=sensitivity_deficit.get("discount_rate", {}),
-            sensitivity_deficit_mortality=sensitivity_deficit.get("mortality", {}),
-            sensitivity_deficit_retirement_age=sensitivity_deficit.get("retirement_age", {}),
-            sensitivity_deficit_salary_growth=sensitivity_deficit.get("salary_growth", {}),
-            sensitivity_deficit_inflation=sensitivity_deficit.get("inflation", {}),
-
-            # Decomposição
-            actuarial_present_value_benefits=decomposition["apv_benefits"],
-            actuarial_present_value_salary=decomposition["apv_future_contributions"],
-            service_cost_breakdown=decomposition["service_cost"],
-            liability_duration=decomposition["duration"],
-            convexity=decomposition["convexity"],
-
-            # Cenários
-            best_case_scenario=scenarios["best"],
-            worst_case_scenario=scenarios["worst"],
-            confidence_intervals=scenarios["confidence"],
-            
-            # Metadados
-            calculation_timestamp=datetime.now(),
-            computation_time_ms=computation_time,
-            actuarial_method_details={"method": state.calculation_method},
-            assumptions_validation={"valid": True}
-        )
+        # Usar ResultsBuilder para construção padronizada
+        return (self.results_builder
+                .with_bd_results(bd_results)
+                .with_actuarial_projections(actuarial_projections)
+                .with_decomposition(decomposition)
+                .with_scenarios(scenarios)
+                .with_computation_time(computation_time)
+                .build_bd_results())
 
     def _calculate_cd_simulation_with_calculator(self, state: SimulatorState, start_time: float) -> SimulatorResults:
         """Calcula simulação para plano CD (Contribuição Definida)"""
@@ -578,105 +428,20 @@ class ActuarialEngine:
         
         # Análise de modalidades de conversão
         conversion_analysis = self._analyze_cd_conversion_modes(state, context, accumulated_balance, mortality_table)
-        
-        # Sensibilidade específica para CD usando calculadora consolidada
-        from .sensitivity import create_cd_sensitivity_calculator
-        
-        cd_calculator = create_cd_sensitivity_calculator()
-        cd_sensitivity = cd_calculator.calculate_sensitivity(state)
+
+        # Cenários diferenciados (atuarial vs desejado)
+        cd_scenarios = self.cd_calculator.calculate_scenarios(state, context, projections, monthly_income, mortality_table)
+
         
         computation_time = (time.time() - start_time) * 1000
         
-        # Calcular métricas específicas CD
-        total_contributions_value = sum(projections["contributions"])
-        administrative_costs = total_contributions_value * state.loading_fee_rate + accumulated_balance * state.admin_fee_rate
-        net_balance = accumulated_balance - administrative_costs
-        accumulated_return_value = accumulated_balance - state.initial_balance - total_contributions_value
-        effective_return = (accumulated_return_value / total_contributions_value * 100) if total_contributions_value > 0 else 0.0
-        conversion_factor_value = monthly_income / accumulated_balance if accumulated_balance > 0 else 0.0
-        
-        # Valores serão automaticamente sanitizados pelo Pydantic
-        
-        return SimulatorResults(
-            # Reservas Matemáticas (zeradas para CD)
-            rmba=0.0,
-            rmbc=0.0,  
-            normal_cost=0.0,
-            
-            # Campos específicos CD
-            individual_balance=accumulated_balance,
-            net_accumulated_value=net_balance,
-            accumulated_return=accumulated_return_value,
-            effective_return_rate=effective_return,
-            monthly_income_cd=monthly_income,
-            conversion_factor=conversion_factor_value,
-            administrative_cost_total=administrative_costs,
-            benefit_duration_years=benefit_duration_years,
-            
-            # Análise de Suficiência para CD
-            deficit_surplus=self._calculate_cd_deficit_surplus(state, monthly_income),
-            deficit_surplus_percentage=self._calculate_cd_deficit_surplus_percentage(state, monthly_income),
-            required_contribution_rate=self._calculate_cd_required_contribution_rate(state, context, projections, monthly_income, accumulated_balance),
-            
-            # Projeções CD
-            projection_years=projections["years"],
-            projected_salaries=projections["salaries"],
-            projected_benefits=projections["benefits"],  # Renda projetada na aposentadoria
-            projected_contributions=projections["contributions"],
-            survival_probabilities=projections["survival_probs"],
-            accumulated_reserves=projections["reserves"],  # Evolução do saldo
-
-            # Vetores por idade para frontend
-            projection_ages=projections.get("projection_ages"),
-            projected_salaries_by_age=projections.get("projected_salaries_by_age"),
-            projected_benefits_by_age=projections.get("projected_benefits_by_age"),
-            
-            # Projeções específicas CD
-            projected_vpa_benefits=[],  # Não aplicável
-            projected_vpa_contributions=[],  # Não aplicável
-            projected_rmba_evolution=projections["reserves"],  # Usar evolução do saldo
-            projected_rmbc_evolution=[],  # Não aplicável para CD
-            
-            # Métricas CD
-            total_contributions=cd_metrics["total_contributions"],
-            total_benefits=cd_metrics["total_benefits"],
-            replacement_ratio=cd_metrics["replacement_ratio"],
-            target_replacement_ratio=cd_metrics["target_replacement_ratio"],
-            sustainable_replacement_ratio=cd_metrics["sustainable_replacement_ratio"],
-            funding_ratio=None,  # Não aplicável
-            
-            # Sensibilidade CD
-            sensitivity_discount_rate=cd_sensitivity.get("accumulation_rate", cd_sensitivity.get("discount_rate", {})),
-            sensitivity_mortality=cd_sensitivity.get("mortality", {}),
-            sensitivity_retirement_age=cd_sensitivity.get("retirement_age", {}),
-            sensitivity_salary_growth=cd_sensitivity.get("salary_growth", {}),
-            sensitivity_inflation={},
-            
-            # Sensibilidade déficit para CD (usar mesmos valores por simplicidade)
-            sensitivity_deficit_discount_rate=cd_sensitivity.get("accumulation_rate", cd_sensitivity.get("discount_rate", {})),
-            sensitivity_deficit_mortality=cd_sensitivity.get("mortality", {}),
-            sensitivity_deficit_retirement_age=cd_sensitivity.get("retirement_age", {}),
-            sensitivity_deficit_salary_growth=cd_sensitivity.get("salary_growth", {}),
-            sensitivity_deficit_inflation={},
-            
-            # Decomposição (simplificada para CD)
-            actuarial_present_value_benefits=monthly_income * 12 * 15,  # Estimativa
-            actuarial_present_value_salary=cd_metrics["total_contributions"],
-            service_cost_breakdown={"accumulated_balance": accumulated_balance},
-            liability_duration=0.0,
-            convexity=0.0,
-            
-            # Cenários (simplificados)
-            best_case_scenario={"balance": accumulated_balance * 1.2},
-            worst_case_scenario={"balance": accumulated_balance * 0.8},
-            confidence_intervals={"balance": (accumulated_balance * 0.9, accumulated_balance * 1.1)},
-            
-            # Metadados
-            calculation_timestamp=datetime.now(),
-            computation_time_ms=computation_time,
-            actuarial_method_details={"method": "CD", "conversion_mode": state.cd_conversion_mode if state.cd_conversion_mode else "ACTUARIAL"},
-            assumptions_validation={"valid": True}
-        )
+        # Usar ResultsBuilder para construção padronizada
+        return (self.results_builder
+                .with_cd_results(cd_results)
+                .with_cd_specific_data(monthly_income, benefit_duration_years, conversion_analysis, cd_metrics)
+                .with_cd_scenarios(cd_scenarios)
+                .with_computation_time(computation_time)
+                .build_cd_results(state))
     
     def _validate_state(self, state: SimulatorState) -> None:
         """Valida parâmetros de entrada usando validador centralizado"""
@@ -1383,7 +1148,7 @@ class ActuarialEngine:
         elif conversion_mode == CDConversionMode.PERCENTAGE:
             # Percentual do saldo por ano
             percentage = state.cd_withdrawal_percentage or 5.0  # 5% default
-            return (balance * (percentage / 100)) / 12  # Converter para mensal
+            return (balance * (percentage / 100)) / (state.benefit_months_per_year or 13)  # Converter para mensal
         
         else:  # PROGRAMMED - simplificado
             # Saque programado por 20 anos (default)

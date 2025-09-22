@@ -53,19 +53,6 @@ class SimulatorResults(BaseModel):
     sustainable_replacement_ratio: Optional[float] = 0.0  # Taxa de reposição sustentável (%)
     funding_ratio: Optional[float] = None  # Cobertura patrimonial
 
-    # Análise detalhada de sensibilidade (RMBA - original) - todas opcionais
-    sensitivity_discount_rate: Optional[Dict[float, float]] = None  # Taxa → Impacto RMBA
-    sensitivity_mortality: Optional[Dict[str, float]] = None        # Tabela → Impacto RMBA
-    sensitivity_retirement_age: Optional[Dict[int, float]] = None   # Idade → Impacto RMBA
-    sensitivity_salary_growth: Optional[Dict[float, float]] = None  # Taxa → Impacto RMBA
-    sensitivity_inflation: Optional[Dict[float, float]] = None      # Taxa → Impacto RMBA
-
-    # Análise detalhada de sensibilidade (Déficit/Superávit - novo) - todas opcionais
-    sensitivity_deficit_discount_rate: Optional[Dict[float, float]] = None  # Taxa → Impacto Déficit
-    sensitivity_deficit_mortality: Optional[Dict[str, float]] = None        # Tabela → Impacto Déficit
-    sensitivity_deficit_retirement_age: Optional[Dict[int, float]] = None   # Idade → Impacto Déficit
-    sensitivity_deficit_salary_growth: Optional[Dict[float, float]] = None  # Taxa → Impacto Déficit
-    sensitivity_deficit_inflation: Optional[Dict[float, float]] = None      # Taxa → Impacto Déficit
 
     # Decomposição atuarial detalhada - todas opcionais
     actuarial_present_value_benefits: Optional[float] = 0.0        # VPA dos benefícios futuros
@@ -78,6 +65,17 @@ class SimulatorResults(BaseModel):
     best_case_scenario: Optional[Dict[str, float]] = None          # Cenário otimista (5%)
     worst_case_scenario: Optional[Dict[str, float]] = None         # Cenário pessimista (95%)
     confidence_intervals: Optional[Dict[str, Tuple[float, float]]] = None  # Intervalos de confiança
+
+    # Cenários diferenciados para CD
+    actuarial_scenario: Optional[Dict[str, Any]] = None            # Cenário baseado nas contribuições atuais
+    desired_scenario: Optional[Dict[str, Any]] = None             # Cenário para atingir benefício desejado
+    scenario_comparison: Optional[Dict[str, Any]] = None          # Comparação entre cenários
+
+    # Campos específicos CD adicionais (compatibilidade com ResultsBuilder)
+    accumulated_balance: Optional[float] = None                    # Saldo acumulado final CD
+    monthly_income: Optional[float] = None                        # Renda mensal CD (alias para monthly_income_cd)
+    conversion_analysis: Optional[Dict[str, Any]] = None          # Análise de modalidades de conversão
+
 
     # Metadados técnicos - todos opcionais
     calculation_timestamp: Optional[datetime] = None

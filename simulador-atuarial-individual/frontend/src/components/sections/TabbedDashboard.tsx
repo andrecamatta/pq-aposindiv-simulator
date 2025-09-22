@@ -4,7 +4,6 @@ import { TabNavigation, tabs, type Tab } from '../../design-system/components';
 import ParticipantTab from '../tabs/ParticipantTab';
 import AssumptionsTab from '../tabs/AssumptionsTab';
 import ResultsTab from '../tabs/ResultsTab';
-import SensitivityTab from '../tabs/SensitivityTab';
 import TechnicalTab from '../tabs/TechnicalTab';
 import TablesAnalysisTab from '../tabs/TablesAnalysisTab';
 import ReportsTab from '../tabs/ReportsTab';
@@ -64,14 +63,6 @@ const TabbedDashboard: React.FC<TabbedDashboardProps> = ({
             loading={loading}
           />
         );
-      case 'sensitivity':
-        return (
-          <SensitivityTab
-            results={results}
-            state={state}
-            loading={loading}
-          />
-        );
       case 'technical':
         return (
           <TechnicalTab
@@ -117,8 +108,6 @@ const TabbedDashboard: React.FC<TabbedDashboardProps> = ({
           />
         );
       case 'results':
-        return null;
-      case 'sensitivity':
         return null;
       case 'technical':
         return null;

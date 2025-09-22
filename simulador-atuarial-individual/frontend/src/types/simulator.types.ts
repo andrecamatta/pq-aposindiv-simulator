@@ -103,19 +103,6 @@ export interface SimulatorResults {
   sustainable_replacement_ratio: number;
   funding_ratio?: number;
   
-  // Sensibilidade (RMBA - original)
-  sensitivity_discount_rate: Record<number, number>;
-  sensitivity_mortality: Record<string, number>;
-  sensitivity_retirement_age: Record<number, number>;
-  sensitivity_salary_growth: Record<number, number>;
-  sensitivity_inflation: Record<number, number>;
-  
-  // Sensibilidade (Déficit/Superávit - novo)
-  sensitivity_deficit_discount_rate: Record<number, number>;
-  sensitivity_deficit_mortality: Record<string, number>;
-  sensitivity_deficit_retirement_age: Record<number, number>;
-  sensitivity_deficit_salary_growth: Record<number, number>;
-  sensitivity_deficit_inflation: Record<number, number>;
   
   // Decomposição
   actuarial_present_value_benefits: number;
@@ -128,6 +115,58 @@ export interface SimulatorResults {
   best_case_scenario: Record<string, number>;
   worst_case_scenario: Record<string, number>;
   confidence_intervals: Record<string, [number, number]>;
+
+  // Cenários diferenciados CD
+  actuarial_scenario?: {
+    description: string;
+    contribution_rate: number;
+    final_balance: number;
+    monthly_income: number;
+    annual_income: number;
+    replacement_ratio: number;
+    projections: {
+      years: number[];
+      salaries: number[];
+      benefits: number[];
+      contributions: number[];
+      survival_probs: number[];
+      reserves: number[];
+      monthly_data: {
+        months: number[];
+        salaries: number[];
+        benefits: number[];
+      };
+    };
+  };
+  desired_scenario?: {
+    description: string;
+    required_contribution_rate: number;
+    final_balance: number;
+    monthly_income: number;
+    annual_income: number;
+    replacement_ratio: number;
+    projections: {
+      years: number[];
+      salaries: number[];
+      benefits: number[];
+      contributions: number[];
+      survival_probs: number[];
+      reserves: number[];
+      monthly_data: {
+        months: number[];
+        salaries: number[];
+        benefits: number[];
+      };
+    };
+  };
+  scenario_comparison?: {
+    contribution_gap: number;
+    contribution_gap_percentage: number;
+    income_gap: number;
+    income_gap_percentage: number;
+    feasibility: string;
+    recommendation: string;
+  };
   
   // Metadados
   calculation_timestamp: string;
