@@ -292,7 +292,7 @@ const TablesAnalysisTab: React.FC<TablesAnalysisTabProps> = ({
                       
                       {showTableMenu && (
                         <div 
-                          className="absolute left-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+                          className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button

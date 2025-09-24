@@ -1084,8 +1084,12 @@ class ActuarialEngine:
         """Cálculo simplificado da renda mensal CD para uso interno"""
         if balance <= 0:
             return 0.0
-        
+
         conversion_mode = state.cd_conversion_mode or CDConversionMode.ACTUARIAL
+
+        # Inicializar monthly_rate com valor padrão para evitar UnboundLocalError
+        conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
+        monthly_rate = conversion_rate_monthly
         
         if conversion_mode == CDConversionMode.ACTUARIAL:
             # Anuidade vitalícia usando tábua de mortalidade
@@ -1106,8 +1110,7 @@ class ActuarialEngine:
             }
             years = years_map[conversion_mode]
             months = years * 12
-            conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
-            monthly_rate = conversion_rate_monthly
+            # monthly_rate já foi inicializado no início do método
             
             # Considerar pagamentos extras (13º, 14º salário) no cálculo
             benefit_months_per_year = context.benefit_months_per_year  # Normalmente 13

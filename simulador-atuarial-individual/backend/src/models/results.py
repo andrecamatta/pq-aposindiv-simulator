@@ -76,6 +76,9 @@ class SimulatorResults(BaseModel):
     monthly_income: Optional[float] = None                        # Renda mensal CD (alias para monthly_income_cd)
     conversion_analysis: Optional[Dict[str, Any]] = None          # Análise de modalidades de conversão
 
+    # Dados mensais detalhados (para relatórios precisos)
+    monthly_data: Optional[Dict[str, List[float]]] = None         # Dados mensais: salaries, benefits, contributions, etc.
+
 
     # Metadados técnicos - todos opcionais
     calculation_timestamp: Optional[datetime] = None

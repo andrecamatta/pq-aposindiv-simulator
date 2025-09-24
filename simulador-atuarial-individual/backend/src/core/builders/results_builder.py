@@ -107,6 +107,9 @@ class ResultsBuilder:
             projected_salaries_by_age=self._projections.get("projected_salaries_by_age"),
             projected_benefits_by_age=self._projections.get("projected_benefits_by_age"),
 
+            # Dados mensais detalhados (para relatórios precisos)
+            monthly_data=self._projections.get("monthly_data"),
+
             # Projeções atuariais específicas BD
             projected_vpa_benefits=self._actuarial_projections.get("vpa_benefits", []),
             projected_vpa_contributions=self._actuarial_projections.get("vpa_contributions", []),
@@ -174,6 +177,9 @@ class ResultsBuilder:
             projection_ages=None,
             projected_salaries_by_age=None,
             projected_benefits_by_age=None,
+
+            # Dados mensais detalhados (para relatórios precisos)
+            monthly_data=self._projections.get("monthly_data"),
 
             # Projeções atuariais específicas BD (zeradas para CD)
             projected_vpa_benefits=[],

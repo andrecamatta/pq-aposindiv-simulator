@@ -100,7 +100,15 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                   </span>
                 }
                 value={state.plan_type || 'BD'}
-                onChange={(value) => handleInputChange('plan_type', value)}
+                onChange={(value) => {
+                  handleInputChange('plan_type', value);
+                  // Atualizar calculation_method quando mudar plan_type
+                  if (value === 'CD') {
+                    handleInputChange('calculation_method', 'CD');
+                  } else if (value === 'BD') {
+                    handleInputChange('calculation_method', 'PUC');
+                  }
+                }}
                 options={planTypeOptions}
                 disabled={loading}
               />

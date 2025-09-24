@@ -362,8 +362,19 @@ class ProjectionBuilder:
                     accumulated_balance *= (1 - context.admin_fee_monthly)
                     monthly_balances.append(max(0, accumulated_balance))
 
-                # Recalcular renda para modalidades dinâmicas (implementação simplificada)
-                # Para implementação completa, seria necessário importar métodos do CDCalculator
+                # Recalcular renda para modalidades dinâmicas
+                if conversion_mode == CDConversionMode.PERCENTAGE:
+                    # Recalcular renda no início de cada ano baseado no saldo atual
+                    if month_in_retirement_year == 0:
+                        percentage = state.cd_withdrawal_percentage or 5.0
+                        current_year_income = cls._calculate_percentage_withdrawal(
+                            accumulated_balance,
+                            context,
+                            percentage
+                        )
+                        annual_monthly_incomes[years_since_retirement] = current_year_income
+                    elif years_since_retirement in annual_monthly_incomes:
+                        current_year_income = annual_monthly_incomes[years_since_retirement]
 
                 # Verificar se ainda está no período de benefícios
                 if benefit_period_months is not None and months_since_retirement >= benefit_period_months:
@@ -420,3 +431,19 @@ class ProjectionBuilder:
             return years_map[conversion_mode] * 12
 
         return None  # Vitalício
+
+    @classmethod
+    def _calculate_percentage_withdrawal(
+        cls,
+        balance: float,
+        context: 'ActuarialContext',
+        percentage: float
+    ) -> float:
+        """Calcula retirada mensal proporcional ao saldo remanescente."""
+        if balance <= 0 or percentage <= 0:
+            return 0.0
+
+        benefit_months_per_year = getattr(context, 'benefit_months_per_year', 12) or 12
+        annual_withdrawal = balance * (percentage / 100.0)
+        monthly_withdrawal = annual_withdrawal / max(benefit_months_per_year, 1)
+        return monthly_withdrawal

@@ -11,8 +11,16 @@ interface SalaryBenefitEvolutionChartProps {
 }
 
 const SalaryBenefitEvolutionChart: React.FC<SalaryBenefitEvolutionChartProps> = ({ results, state }) => {
-  // Verificações de segurança - usar novos vetores por idade do backend
-  if (!results || !results.projection_ages || !Array.isArray(results.projection_ages)) {
+  // Detectar tipo de plano e usar dados apropriados
+  const isCD = state.plan_type === 'CD';
+
+  // Para CD: usar projection_years, projected_salaries, projected_benefits
+  // Para BD: usar projection_ages, projected_salaries_by_age, projected_benefits_by_age
+  const hasValidData = isCD
+    ? (results?.projection_years && Array.isArray(results.projection_years))
+    : (results?.projection_ages && Array.isArray(results.projection_ages));
+
+  if (!results || !hasValidData) {
     return (
       <div className="h-[32rem] flex items-center justify-center">
         <div className="text-center">
@@ -24,10 +32,18 @@ const SalaryBenefitEvolutionChart: React.FC<SalaryBenefitEvolutionChartProps> = 
     );
   }
 
-  // Usar dados pré-calculados do backend
-  const ageLabels = results.projection_ages;
-  const salaryData = results.projected_salaries_by_age || [];
-  const benefitData = results.projected_benefits_by_age || [];
+  // Usar dados apropriados baseado no tipo de plano
+  const ageLabels = isCD
+    ? results.projection_years?.map((year, idx) => (state.age || 30) + idx) || []
+    : results.projection_ages || [];
+
+  const salaryData = isCD
+    ? results.projected_salaries || []
+    : results.projected_salaries_by_age || [];
+
+  const benefitData = isCD
+    ? results.projected_benefits || []
+    : results.projected_benefits_by_age || [];
 
   // Identificar o ponto de aposentadoria
   const retirementAge = state.retirement_age || 65;
@@ -182,10 +198,16 @@ const SalaryBenefitEvolutionChart: React.FC<SalaryBenefitEvolutionChartProps> = 
     <div>
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900">
-          Evolução Salarial e Benefícios (Valores Mensais)
+          {isCD
+            ? 'Evolução dos Salários e Contribuições'
+            : 'Evolução Salarial e Benefícios (Valores Mensais)'
+          }
         </h2>
         <p className="text-sm text-gray-600 mt-1">
-          Progressão do salário mensal durante a fase ativa e benefícios mensais na aposentadoria
+          {isCD
+            ? 'Progressão do salário mensal e contribuições durante a fase de acumulação, seguida pelos benefícios na aposentadoria'
+            : 'Progressão do salário mensal durante a fase ativa e benefícios mensais na aposentadoria'
+          }
         </p>
       </div>
 

@@ -16,9 +16,10 @@ from ..utils.pydantic_validators import get_enum_value
 
 class SuggestionsEngine:
     """Engine para gerar sugestões inteligentes contextuais"""
-    
-    def __init__(self):
-        self.actuarial_engine = ActuarialEngine()
+
+    def __init__(self, actuarial_engine: 'ActuarialEngine' = None):
+        from .actuarial_engine import ActuarialEngine
+        self.actuarial_engine = actuarial_engine or ActuarialEngine()
 
     
     def generate_suggestions(self, request: SuggestionsRequest) -> SuggestionsResponse:

@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 import json
 
-from .participant import SimulatorState, Gender, CalculationMethod, BenefitTargetMode, PaymentTiming
+from .participant import SimulatorState, Gender, CalculationMethod, BenefitTargetMode, PaymentTiming, DecrementType
 from .mixins import JSONSerializationMixin
 
 
@@ -113,6 +113,68 @@ class MortalityTable(SQLModel, JSONSerializationMixin, table=True):
     def set_metadata(self, metadata: Dict[str, Any]):
         """Serializa os metadados"""
         self.set_json_field("table_metadata", metadata)
+
+
+class DecrementTable(SQLModel, JSONSerializationMixin, table=True):
+    """Tábuas de decrementos múltiplos (invalidez, rotatividade, etc.)"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(description="Nome descritivo da tábua")
+    code: str = Field(unique=True, description="Código único da tábua (ex: UP84_DISABILITY, BR_TURNOVER_2021)")
+    decrement_type: DecrementType = Field(description="Tipo de decremento")
+    description: Optional[str] = None
+    country: Optional[str] = None
+    year: Optional[int] = None
+    gender: Optional[str] = None  # "M", "F", ou "UNISEX"
+
+    # Metadados específicos do decremento
+    base_mortality_table: Optional[str] = None  # Para invalidez: tábua de mortalidade base
+    occupation_codes: Optional[str] = None      # JSON com códigos de ocupação aplicáveis
+    age_range: str = Field(default="18-110", description="Faixa etária aplicável (ex: '18-65')")
+
+    # Dados da tábua serializados como JSON
+    table_data: str = Field(description="JSON com os dados da tábua de decremento")
+    table_metadata: str = Field(default="{}", description="JSON com metadados adicionais")
+
+    # Metadados da fonte
+    source: str = Field(description="Fonte da tábua (database, csv, excel, manual)")
+    source_id: Optional[str] = None  # ID da tábua na fonte original
+    version: Optional[str] = None
+    is_official: bool = False  # Tábua oficial/regulamentar
+    regulatory_approved: bool = False  # Aprovada por órgão regulador
+
+    # Controle
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = None
+
+    def get_table_data(self) -> Dict[int, float]:
+        """Deserializa os dados da tábua de decremento"""
+        return self.get_json_field_with_transform("table_data", key_transform=int)
+
+    def set_table_data(self, data: Dict[int, float]):
+        """Serializa os dados da tábua de decremento"""
+        self.set_json_field_with_transform("table_data", data, key_transform=str)
+
+    def get_metadata(self) -> Dict[str, Any]:
+        """Deserializa os metadados"""
+        return self.get_json_field("table_metadata")
+
+    def set_metadata(self, metadata: Dict[str, Any]):
+        """Serializa os metadados"""
+        self.set_json_field("table_metadata", metadata)
+
+    def get_occupation_codes(self) -> List[str]:
+        """Retorna lista de códigos de ocupação aplicáveis"""
+        if not self.occupation_codes:
+            return []
+        try:
+            return json.loads(self.occupation_codes)
+        except:
+            return []
+
+    def set_occupation_codes(self, codes: List[str]):
+        """Define códigos de ocupação aplicáveis"""
+        self.occupation_codes = json.dumps(codes)
 
 
 class SimulationResult(SQLModel, JSONSerializationMixin, table=True):

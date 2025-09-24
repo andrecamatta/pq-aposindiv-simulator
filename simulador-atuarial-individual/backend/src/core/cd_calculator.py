@@ -24,28 +24,48 @@ class CDCalculator(AbstractCalculator):
     def create_cd_context(self, state: 'SimulatorState') -> 'ActuarialContext':
         """
         Cria contexto atuarial adaptado para CD usando taxas específicas
-        
+
         Args:
             state: Estado do simulador
-            
+
         Returns:
             Contexto atuarial para CD
         """
         from .actuarial_engine import ActuarialContext
-        
+
+        # Validações defensivas
+        if not state:
+            raise ValueError("Estado do simulador não pode ser None")
+
+        if state.age < 0 or state.age > 120:
+            raise ValueError(f"Idade inválida: {state.age}")
+
+        if state.retirement_age <= state.age or state.retirement_age > 120:
+            raise ValueError(f"Idade de aposentadoria inválida: {state.retirement_age}")
+
+        if state.salary <= 0:
+            raise ValueError(f"Salário deve ser positivo: {state.salary}")
+
         # Usar taxas específicas do CD ou fallback para taxas BD
         accumulation_rate = state.accumulation_rate or state.discount_rate
         conversion_rate = state.conversion_rate or state.discount_rate
-        
+
+        # Validar taxas
+        if accumulation_rate < -0.5 or accumulation_rate > 1.0:
+            raise ValueError(f"Taxa de acumulação fora do intervalo válido: {accumulation_rate}")
+
+        if conversion_rate < -0.5 or conversion_rate > 1.0:
+            raise ValueError(f"Taxa de conversão fora do intervalo válido: {conversion_rate}")
+
         # Criar contexto base
         context = ActuarialContext.from_state(state)
-        
+
         # Substituir taxa de desconto por taxa de acumulação durante fase ativa
         context.discount_rate_monthly = annual_to_monthly_rate(accumulation_rate)
-        
+
         # Armazenar taxa de conversão para uso posterior
         setattr(context, 'conversion_rate_monthly', annual_to_monthly_rate(conversion_rate))
-        
+
         return context
     
     def calculate_projections(
@@ -606,7 +626,7 @@ class CDCalculator(AbstractCalculator):
             # Para modalidade percentage, recalcular renda
             if conversion_mode == CDConversionMode.PERCENTAGE:
                 percentage = state.cd_withdrawal_percentage or 5.0
-                monthly_income = (remaining_balance * (percentage / 100)) / 12
+                monthly_income = (remaining_balance * (percentage / 100)) / (state.benefit_months_per_year or 13)
                 if monthly_income < 1.0:
                     break
         
@@ -711,6 +731,165 @@ class CDCalculator(AbstractCalculator):
             "projected_benefits_by_age": projected_benefits_by_age
         }
 
+    def calculate_scenarios(self, state: 'SimulatorState', context: 'ActuarialContext',
+                           current_projections: Dict, current_monthly_income: float,
+                           mortality_table: Dict) -> Dict:
+        """
+        Calcula cenários diferenciados: atuarial vs desejado
+
+        Args:
+            state: Estado do simulador
+            context: Contexto atuarial
+            current_projections: Projeções atuais
+            current_monthly_income: Renda mensal atual
+            mortality_table: Tábua de mortalidade
+
+        Returns:
+            Dict com cenários diferenciados
+        """
+        print(f"[CD_SCENARIOS] Iniciando cálculo de cenários")
+        print(f"[CD_SCENARIOS] benefit_target_mode: {state.benefit_target_mode}")
+        print(f"[CD_SCENARIOS] target_benefit: {state.target_benefit}")
+        print(f"[CD_SCENARIOS] current_monthly_income: {current_monthly_income}")
+        print(f"[CD_SCENARIOS] current_projections keys: {list(current_projections.keys())}")
+        print(f"[CD_SCENARIOS] state.benefit_months_per_year: {state.benefit_months_per_year}")
+
+        scenarios = {}
+
+        # Cenário Atuarial (atual)
+        scenarios["actuarial"] = {
+            "description": "Cenário baseado nas contribuições atuais",
+            "contribution_rate": state.contribution_rate,
+            "final_balance": current_projections["final_balance"],
+            "monthly_income": current_monthly_income,
+            "annual_income": current_monthly_income * 12,
+            "replacement_ratio": (current_monthly_income / (state.salary * (state.salary_months_per_year or 13) / 12) * 100) if state.salary > 0 else 0,
+            "projections": current_projections
+        }
+
+        # Cenário Desejado (com benefício alvo, mas mesmo saldo de acumulação)
+        print(f"[CD_SCENARIOS] Verificando condição VALUE: {state.get_enum_value('benefit_target_mode') == 'VALUE'} and {state.target_benefit is not None}")
+        if state.get_enum_value('benefit_target_mode') == "VALUE" and state.target_benefit:
+            benefit_months_per_year = state.benefit_months_per_year or 13  # Fallback para 13 se None
+            target_monthly_benefit = state.target_benefit  # target_benefit já é mensal
+
+            # Usar MESMO saldo final do cenário atuarial (fase de acumulação idêntica)
+            final_balance = current_projections["final_balance"]
+
+            # Calcular evolução do saldo durante aposentadoria com benefício desejado
+            desired_projections = self._calculate_desired_scenario_projections(
+                state, context, current_projections, target_monthly_benefit, mortality_table
+            )
+
+            scenarios["desired"] = {
+                "description": f"Cenário para atingir benefício de R$ {state.target_benefit:,.2f}/mês",
+                "contribution_rate": state.contribution_rate,  # Mesma taxa da acumulação
+                "final_balance": final_balance,  # Mesmo saldo final
+                "monthly_income": target_monthly_benefit,  # Benefício desejado
+                "annual_income": target_monthly_benefit * 12,
+                "replacement_ratio": (target_monthly_benefit / (state.salary * (state.salary_months_per_year or 13) / 12) * 100) if state.salary > 0 else 0,
+                "projections": desired_projections,
+                "target_monthly_benefit": target_monthly_benefit,
+                "achievable": True  # Sempre será o valor desejado
+            }
+
+        elif state.get_enum_value('benefit_target_mode') == "REPLACEMENT_RATE" and state.target_replacement_rate:
+            target_monthly_benefit = (state.salary * (state.salary_months_per_year or 13) / 12) * (state.target_replacement_rate / 100)
+
+            # Similar logic for replacement rate
+            required_contribution_rate = self._calculate_required_contribution_rate(
+                state, context, target_monthly_benefit, mortality_table
+            )
+
+            if required_contribution_rate and required_contribution_rate > 0:
+                temp_state = state.model_copy()
+                temp_state.contribution_rate = min(required_contribution_rate, 50.0)
+
+                desired_projections = self.calculate_projections(temp_state, context, mortality_table)
+                desired_monthly_income = self.calculate_monthly_income(
+                    temp_state, context, desired_projections["final_balance"], mortality_table
+                )
+
+                scenarios["desired"] = {
+                    "description": f"Cenário para taxa de reposição de {state.target_replacement_rate}%",
+                    "contribution_rate": required_contribution_rate,
+                    "final_balance": desired_projections["final_balance"],
+                    "monthly_income": desired_monthly_income,
+                    "annual_income": desired_monthly_income * 12,
+                    "replacement_ratio": (desired_monthly_income / (state.salary * (state.salary_months_per_year or 13) / 12) * 100) if state.salary > 0 else 0,
+                    "projections": desired_projections,
+                    "target_monthly_benefit": target_monthly_benefit,
+                    "achievable": desired_monthly_income >= target_monthly_benefit * 0.95
+                }
+
+        # Comparação entre cenários
+        if "desired" in scenarios:
+            actuarial = scenarios["actuarial"]
+            desired = scenarios["desired"]
+
+            scenarios["comparison"] = {
+                "contribution_rate_gap": desired["contribution_rate"] - actuarial["contribution_rate"],
+                "income_gap": desired["monthly_income"] - actuarial["monthly_income"],
+                "balance_gap": desired["final_balance"] - actuarial["final_balance"],
+                "replacement_ratio_gap": desired["replacement_ratio"] - actuarial["replacement_ratio"],
+                "additional_contribution_needed": (
+                    desired["contribution_rate"] - actuarial["contribution_rate"]
+                ) * state.salary / 100,
+                "feasible": desired["contribution_rate"] <= 30.0  # Limite razoável
+            }
+
+        print(f"[CD_SCENARIOS] Resultado final: actuarial={scenarios.get('actuarial') is not None}, desired={scenarios.get('desired') is not None}")
+        if scenarios.get('actuarial'):
+            print(f"[CD_SCENARIOS] Actuarial monthly_income: {scenarios['actuarial']['monthly_income']}")
+        if scenarios.get('desired'):
+            print(f"[CD_SCENARIOS] Desired monthly_income: {scenarios['desired']['monthly_income']}")
+
+        # Converter numpy types para tipos nativos do Python para serialização JSON
+        return self._convert_numpy_types(scenarios)
+
+    def _calculate_required_contribution_rate(self, state: 'SimulatorState', context: 'ActuarialContext',
+                                            target_monthly_income: float, mortality_table: Dict) -> float:
+        """
+        Calcula a taxa de contribuição necessária para atingir uma renda alvo
+
+        Args:
+            state: Estado do simulador
+            context: Contexto atuarial
+            target_monthly_income: Renda mensal desejada
+            mortality_table: Tábua de mortalidade
+
+        Returns:
+            Taxa de contribuição necessária (%)
+        """
+        # Busca binária para encontrar taxa necessária
+        min_rate = 0.1
+        max_rate = 50.0
+        tolerance = 0.01
+        max_iterations = 20
+
+        for _ in range(max_iterations):
+            test_rate = (min_rate + max_rate) / 2
+
+            # Criar estado temporário
+            temp_state = state.model_copy()
+            temp_state.contribution_rate = test_rate
+
+            # Calcular projeções
+            projections = self.calculate_projections(temp_state, context, mortality_table)
+            resulting_income = self.calculate_monthly_income(
+                temp_state, context, projections["final_balance"], mortality_table
+            )
+
+            # Verificar se atingiu o alvo
+            if abs(resulting_income - target_monthly_income) <= tolerance:
+                return test_rate
+            elif resulting_income < target_monthly_income:
+                min_rate = test_rate
+            else:
+                max_rate = test_rate
+
+        return (min_rate + max_rate) / 2
+
     def calculate_cd_simulation(self, state: 'SimulatorState', context: 'ActuarialContext') -> Dict:
         """
         Orquestrador principal para simulações CD completas.
@@ -742,13 +921,17 @@ class CDCalculator(AbstractCalculator):
         # Calcular déficit/superávit
         deficit_surplus = self.calculate_deficit_surplus(state, monthly_income)
 
+        # Calcular cenários diferenciados
+        scenarios = self.calculate_scenarios(state, context, projections, monthly_income, mortality_table)
+
         return {
             "projections": projections,
             "final_balance": projections["final_balance"],
             "monthly_income": monthly_income,
             "metrics": metrics,
             "benefit_duration": benefit_duration,
-            "deficit_surplus": deficit_surplus
+            "deficit_surplus": deficit_surplus,
+            "scenarios": scenarios
         }
 
     def calculate(self, state: 'SimulatorState', context: 'ActuarialContext') -> Dict:
@@ -763,3 +946,130 @@ class CDCalculator(AbstractCalculator):
             Resultados dos cálculos CD
         """
         return self.calculate_cd_simulation(state, context)
+
+    def _convert_numpy_types(self, data):
+        """
+        Converte qualquer tipo não-serializável para tipos nativos do Python
+        usando uma abordagem simples e robusta via JSON
+        """
+        import json
+        try:
+            return json.loads(json.dumps(data, default=str))
+        except Exception:
+            # Fallback para conversão manual se JSON falhar
+            return self._manual_convert(data)
+
+    def _calculate_desired_scenario_projections(self, state: 'SimulatorState', context: 'ActuarialContext',
+                                              current_projections: Dict, target_monthly_benefit: float,
+                                              mortality_table: Dict) -> Dict:
+        """
+        Calcula projeções para o cenário desejado mantendo a mesma fase de acumulação,
+        mas com benefício diferente na fase de aposentadoria.
+
+        Args:
+            state: Estado do simulador
+            context: Contexto atuarial
+            current_projections: Projeções atuais (cenário atuarial)
+            target_monthly_benefit: Benefício mensal desejado
+            mortality_table: Tábua de mortalidade
+
+        Returns:
+            Dict com projeções do cenário desejado
+        """
+        # Copiar dados da fase de acumulação (idênticos ao cenário atuarial)
+        desired_projections = {
+            "years": current_projections["years"].copy(),
+            "projection_ages": current_projections["projection_ages"].copy(),
+            "reserves": current_projections["reserves"].copy(),  # Fase de acumulação idêntica
+            "contributions": current_projections["contributions"].copy(),
+            "benefits": current_projections["benefits"].copy(),
+            "final_balance": current_projections["final_balance"],
+            "salaries": current_projections["salaries"].copy(),
+            "survival_probs": current_projections["survival_probs"].copy(),
+            "projected_salaries_by_age": current_projections["projected_salaries_by_age"].copy(),
+            "projected_benefits_by_age": current_projections["projected_benefits_by_age"].copy(),
+            "monthly_data": current_projections["monthly_data"].copy()
+        }
+
+        # Recalcular apenas a fase de aposentadoria com o benefício desejado
+        retirement_year_index = None
+        for i, age in enumerate(current_projections["projection_ages"]):
+            if age >= state.retirement_age:
+                retirement_year_index = i
+                break
+
+        if retirement_year_index is not None:
+            # Usar benefício diferente na aposentadoria
+            benefit_months_per_year = state.benefit_months_per_year or 13  # Fallback para 13 se None
+            target_annual_benefit = target_monthly_benefit * benefit_months_per_year
+
+            # Recalcular saldos após aposentadoria começando do saldo no momento da aposentadoria
+            # (não o final_balance, mas o saldo aos 65 anos)
+            retirement_balance = current_projections["reserves"][retirement_year_index] if retirement_year_index < len(current_projections["reserves"]) else current_projections["final_balance"]
+            current_balance = retirement_balance
+
+            # Definir taxas uma vez, usando parâmetros dinâmicos
+            conversion_rate = state.conversion_rate or 0.045  # Fallback para 4.5% se None
+            period_rate = conversion_rate / benefit_months_per_year  # Taxa por período de pagamento
+            admin_period_rate = state.admin_fee_rate / benefit_months_per_year  # Taxa admin por período
+
+            # Inicializar current_balance antes do loop
+            current_balance = retirement_balance
+
+            for i in range(retirement_year_index, len(desired_projections["years"])):
+                year_index = i - retirement_year_index
+                age = desired_projections["projection_ages"][i]
+
+                # Aplicar benefício desejado
+                desired_projections["benefits"][i] = target_annual_benefit
+
+                # Para o primeiro ano da aposentadoria, garantir que começamos do mesmo saldo
+                if year_index == 0:
+                    # No primeiro ano da aposentadoria, ambos cenários devem começar com o mesmo saldo
+                    # Usar o saldo já calculado do cenário atuarial para esse ano
+                    desired_projections["reserves"][i] = current_projections["reserves"][i]
+                    current_balance = current_projections["reserves"][i]
+                else:
+                    # Para anos subsequentes, usar o saldo do ano anterior e simular
+                    remaining_balance = current_balance
+
+                    # Simular período a período para maior precisão (usando benefit_months_per_year)
+                    for period in range(benefit_months_per_year):
+                        # Aplicar rentabilidade por período
+                        remaining_balance *= (1 + period_rate)
+
+                        # Descontar benefício mensal
+                        remaining_balance -= target_monthly_benefit
+
+                        # Aplicar taxa administrativa por período
+                        admin_fee_period = remaining_balance * admin_period_rate
+                        remaining_balance -= admin_fee_period
+
+                        # Garantir que não fique negativo
+                        remaining_balance = max(0, remaining_balance)
+
+                        if remaining_balance <= 0:
+                            break
+
+                    desired_projections["reserves"][i] = remaining_balance
+                    current_balance = remaining_balance
+
+                # Se saldo zerou, interromper cálculo
+                if current_balance <= 0:
+                    for j in range(i + 1, len(desired_projections["years"])):
+                        desired_projections["reserves"][j] = 0
+                        desired_projections["benefits"][j] = 0
+                    break
+
+        return desired_projections
+
+    def _manual_convert(self, data):
+        """Conversão manual como fallback"""
+        if isinstance(data, dict):
+            return {k: self._manual_convert(v) for k, v in data.items()}
+        elif isinstance(data, (list, tuple)):
+            return [self._manual_convert(item) for item in data]
+        elif hasattr(data, 'dtype') or 'numpy' in str(type(data)):
+            return str(data)
+        else:
+            return data

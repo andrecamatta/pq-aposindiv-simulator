@@ -124,13 +124,11 @@ class ChartGenerator:
         chart_sets = {
             'executive': [
                 'reserve_evolution',
-                'sensitivity_analysis',
                 'cash_flow',
                 'projections_summary'
             ],
             'technical': [
                 'reserve_evolution',
-                'sensitivity_analysis',
                 'cash_flow',
                 # Add technical-specific charts here when strategies are created
             ]

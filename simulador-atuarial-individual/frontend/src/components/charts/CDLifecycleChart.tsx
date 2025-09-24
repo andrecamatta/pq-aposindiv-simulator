@@ -11,6 +11,15 @@ interface CDLifecycleChartProps {
 }
 
 const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) => {
+  // Log para debug
+  console.log('[CDLifecycleChart] Results structure:', {
+    hasResults: !!results,
+    hasProjectionYears: !!results?.projection_years,
+    projectionYearsType: Array.isArray(results?.projection_years) ? 'array' : typeof results?.projection_years,
+    hasAccumulatedReserves: !!results?.accumulated_reserves,
+    hasActuarialScenario: !!results?.actuarial_scenario
+  });
+
   // Verificações de segurança
   if (!results || !results.projection_years || !Array.isArray(results.projection_years)) {
     return (
@@ -73,15 +82,44 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
     exhaustionAge = exhaustionIndex && exhaustionIndex > 0 ? ageLabels[exhaustionIndex] : null;
   }
 
+  // Usar dados dos cenários do backend ou calcular localmente como fallback
+  const getScenarioData = () => {
+    // Se temos dados dos cenários do backend, usar esses
+    console.log('[CDLifecycleChart] Verificando cenários:', {
+      hasActuarial: !!results.actuarial_scenario,
+      hasDesired: !!results.desired_scenario,
+      actuarialIncome: results.actuarial_scenario?.monthly_income,
+      desiredIncome: results.desired_scenario?.monthly_income
+    });
+
+    if (results.actuarial_scenario && results.desired_scenario) {
+      return {
+        actuarial: {
+          balances: results.actuarial_scenario.projections.reserves,
+          monthly_income: results.actuarial_scenario.monthly_income,
+          exhaustionAge: null // Será calculado abaixo
+        },
+        desired: {
+          balances: results.desired_scenario.projections.reserves,
+          monthly_income: results.desired_scenario.monthly_income,
+          exhaustionAge: null // Será calculado abaixo
+        }
+      };
+    }
+
+    // Fallback: calcular localmente como antes
+    return calculateAlternativeProjection();
+  };
+
   // Calcular projeção alternativa com benefício desejado (para comparação de suficiência)
   const calculateAlternativeProjection = () => {
     // Verificar se deve mostrar comparação
-    const showComparison = state.benefit_target_mode === 'VALUE' && 
-                           state.target_benefit && 
-                           state.target_benefit > 0 && 
-                           results.monthly_income_cd && 
+    const showComparison = state.benefit_target_mode === 'VALUE' &&
+                           state.target_benefit &&
+                           state.target_benefit > 0 &&
+                           results.monthly_income_cd &&
                            Math.abs(state.target_benefit - results.monthly_income_cd) > 100; // Diferença significativa
-    
+
     if (!showComparison) return null;
 
     // Configurações para cálculo alternativo
@@ -163,13 +201,17 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
     }
     
     return {
-      balances: alternativeBalances,
-      exhaustionAge: alternativeExhaustionAge,
-      targetBenefit
+      actuarial: null,
+      desired: {
+        balances: alternativeBalances,
+        exhaustionAge: alternativeExhaustionAge,
+        monthly_income: targetBenefit
+      }
     };
   };
 
-  const alternativeProjection = calculateAlternativeProjection();
+  const scenarioData = getScenarioData();
+  const alternativeProjection = scenarioData?.desired;
 
   // Construir datasets dinamicamente
   const datasets: any[] = [
@@ -224,7 +266,7 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
   // Adicionar dataset de comparação se disponível
   if (alternativeProjection) {
     datasets.push({
-      label: `Cenário Desejado (${formatCurrencyBR(alternativeProjection.targetBenefit, 0)})`,
+      label: `Cenário Desejado (${formatCurrencyBR(alternativeProjection.monthly_income, 0)})`,
       data: alternativeProjection.balances,
       borderColor: '#F87171',
       backgroundColor: 'rgba(248, 113, 113, 0.1)',
@@ -234,19 +276,19 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
       borderDash: [5, 3],
       pointRadius: (context: any) => {
         const age = ageLabels[context.dataIndex];
-        return age === alternativeProjection.exhaustionAge ? 8 : 2;
+        return age === alternativeProjection?.exhaustionAge ? 8 : 2;
       },
       pointBackgroundColor: (context: any) => {
         const age = ageLabels[context.dataIndex];
-        return age === alternativeProjection.exhaustionAge ? '#DC2626' : '#F87171';
+        return age === alternativeProjection?.exhaustionAge ? '#DC2626' : '#F87171';
       },
       pointBorderColor: (context: any) => {
         const age = ageLabels[context.dataIndex];
-        return age === alternativeProjection.exhaustionAge ? '#FFFFFF' : '#F87171';
+        return age === alternativeProjection?.exhaustionAge ? '#FFFFFF' : '#F87171';
       },
       pointBorderWidth: (context: any) => {
         const age = ageLabels[context.dataIndex];
-        return age === alternativeProjection.exhaustionAge ? 2 : 0;
+        return age === alternativeProjection?.exhaustionAge ? 2 : 0;
       },
       segment: {
         borderColor: (ctx: any) => {
@@ -315,7 +357,7 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
             if (age === exhaustionAge) {
               return '⚠️ Exaustão estimada do saldo';
             }
-            if (alternativeProjection && age === alternativeProjection.exhaustionAge) {
+            if (alternativeProjection && age === alternativeProjection?.exhaustionAge) {
               return '🔴 Exaustão no cenário desejado';
             }
             return '';

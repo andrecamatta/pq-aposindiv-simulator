@@ -476,13 +476,13 @@
                     <tr>
                         <td>{{ results.projection_years[i] if results.projection_years and i < results.projection_years | safe_length else (2024 + i) }}</td>
                         <td>{{ state.age + i }}</td>
-                        <td>{{ results.projected_salaries[i] | currency(0) if results.projected_salaries and i < (results.projected_salaries | safe_length) else '-' }}</td>
+                        <td>{{ results.projected_salaries_by_age[i] | currency(0) if results.projected_salaries_by_age and i < (results.projected_salaries_by_age | safe_length) else (results.projected_salaries[i] | currency(0) if results.projected_salaries and i < (results.projected_salaries | safe_length) else '-') }}</td>
                         {% if is_cd %}
                         <td>{{ results.projected_contributions[i] | currency(0) if results.projected_contributions and i < (results.projected_contributions | safe_length) else '-' }}</td>
                         <td>{{ results.accumulated_reserves[i] | currency(0) if results.accumulated_reserves and i < (results.accumulated_reserves | safe_length) else '-' }}</td>
                         <td>{{ ((results.accumulated_reserves[i] or 0) * (state.accrual_rate or 5) / 100) | currency(0) if results.accumulated_reserves and i < (results.accumulated_reserves | safe_length) else '-' }}</td>
                         {% else %}
-                        <td>{{ results.projected_benefits[i] | currency(0) if results.projected_benefits and i < (results.projected_benefits | safe_length) else '-' }}</td>
+                        <td>{{ results.projected_benefits_by_age[i] | currency(0) if results.projected_benefits_by_age and i < (results.projected_benefits_by_age | safe_length) else (results.projected_benefits[i] | currency(0) if results.projected_benefits and i < (results.projected_benefits | safe_length) else '-') }}</td>
                         <td>{{ results.projected_rmba_evolution[i] | currency(0) if results.projected_rmba_evolution and i < (results.projected_rmba_evolution | safe_length) else '-' }}</td>
                         <td>{{ results.projected_contributions[i] | currency(0) if results.projected_contributions and i < (results.projected_contributions | safe_length) else '-' }}</td>
                         {% endif %}
@@ -500,16 +500,6 @@
         </table>
     </div>
 
-    <!-- Análise de Sensibilidade Detalhada -->
-    {% if charts.sensitivity_analysis %}
-    <div class="chart-container no-break">
-        <h3>Análise de Sensibilidade - Impacto das Premissas</h3>
-        <img src="{{ charts.sensitivity_analysis }}" alt="Análise de Sensibilidade">
-        <p style="font-size: 8px; color: #666; margin-top: 0.5em;">
-            Variação dos resultados conforme alteração das principais premissas atuariais (±20%)
-        </p>
-    </div>
-    {% endif %}
 
     <div class="page-break"></div>
 

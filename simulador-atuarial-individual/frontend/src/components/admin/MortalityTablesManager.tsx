@@ -487,8 +487,8 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
           </div>
         ) : (
           /* Tabela de Tábuas */
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full">
+          <div className="border border-gray-200 rounded-lg overflow-visible">
+            <table className="w-full rounded-lg">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>

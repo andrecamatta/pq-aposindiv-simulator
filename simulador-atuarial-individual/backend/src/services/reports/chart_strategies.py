@@ -266,8 +266,15 @@ class CashFlowStrategy(AbstractChartStrategy):
         logging.info(f"[CASH_FLOW_CHART] projection_years: {len(results.projection_years or [])}, projected_contributions: {len(results.projected_contributions or [])}, projected_benefits: {len(results.projected_benefits or [])}")
 
         # Check if we have sufficient data - be less restrictive
-        if (not results.projection_years or not results.projected_contributions or
-            len(results.projection_years) == 0 or len(results.projected_contributions) == 0):
+        # Check monthly_data first, then fallback to annual fields
+        has_monthly_data = (results.monthly_data and
+                           all(k in results.monthly_data for k in ['contributions', 'benefits']) and
+                           len(results.monthly_data.get('contributions', [])) > 0)
+
+        has_annual_data = (results.projection_years and results.projected_contributions and
+                          len(results.projection_years) > 0 and len(results.projected_contributions) > 0)
+
+        if not has_monthly_data and not has_annual_data:
             # Log why we're showing empty chart
             logging.warning(f"[CASH_FLOW_CHART] Insufficient data - proj_years: {len(results.projection_years or [])}, contributions: {len(results.projected_contributions or [])}")
             # Empty chart with message
@@ -276,31 +283,83 @@ class CashFlowStrategy(AbstractChartStrategy):
             ax.set_title(self.chart_title, fontsize=16, fontweight='bold', pad=20)
             return self._figure_to_base64(fig)
 
-        # Extract data from projection fields
-        years = results.projection_years
-        contributions = results.projected_contributions
-        benefits = [-b for b in results.projected_benefits] if results.projected_benefits else [0] * len(years)  # Negative for cash outflow
-        logging.info(f"[CASH_FLOW_CHART] Generating chart with {len(years)} data points")
+        # Use monthly data for accurate aggregation if available
+        if results.monthly_data and all(k in results.monthly_data for k in ['contributions', 'benefits']):
+            # Aggregate monthly data to yearly for correct representation
+            years = results.projection_years or []
+            monthly_contributions = results.monthly_data.get('contributions', [])
+            monthly_benefits = results.monthly_data.get('benefits', [])
 
-        # Create stacked bar chart
+            # Aggregate by 12-month periods
+            contributions = []
+            benefits = []
+
+            months_per_year = 12
+            total_years = len(monthly_contributions) // months_per_year
+
+            for year_idx in range(total_years):
+                start_month = year_idx * months_per_year
+                end_month = start_month + months_per_year
+
+                # Sum monthly values to get annual totals
+                year_contributions = sum(monthly_contributions[start_month:end_month])
+                year_benefits = sum(monthly_benefits[start_month:end_month])
+
+                contributions.append(year_contributions)
+                benefits.append(-year_benefits)  # Negative for cash outflow
+
+            # Ensure we have the right number of years
+            if not years:
+                current_year = 2024  # Default starting year
+                years = list(range(current_year, current_year + len(contributions)))
+            elif len(years) > len(contributions):
+                years = years[:len(contributions)]
+
+            logging.info(f"[CASH_FLOW_CHART] Using monthly_data aggregation: {len(years)} years, contributions from R${min(contributions) if contributions else 0:,.0f} to R${max(contributions) if contributions else 0:,.0f}")
+        else:
+            # Fallback to annual fields (legacy behavior)
+            years = results.projection_years
+            contributions = results.projected_contributions
+            benefits = [-b for b in results.projected_benefits] if results.projected_benefits else [0] * len(years)  # Negative for cash outflow
+            logging.info(f"[CASH_FLOW_CHART] Using legacy annual fields: {len(years)} data points")
+
+        # Create stacked bar chart with better visualization
         width = 0.6
-        ax.bar(years, contributions, width, label='Contribuições',
-              color=self.colors['success'], alpha=0.8)
-        ax.bar(years, benefits, width, label='Benefícios',
-              color=self.colors['danger'], alpha=0.8)
+
+        # Only show bars for non-zero values to avoid confusion
+        contrib_bars = ax.bar(years, contributions, width, label='Contribuições',
+                             color=self.colors['success'], alpha=0.8)
+        benefit_bars = ax.bar(years, benefits, width, label='Benefícios (Saídas)',
+                             color=self.colors['danger'], alpha=0.8)
 
         # Add net cash flow line
         net_flow = [c + b for c, b in zip(contributions, benefits)]
         ax.plot(years, net_flow, linewidth=2, color=self.colors['dark'],
                marker='o', markersize=4, label='Fluxo Líquido')
 
-        # Add zero line
-        ax.axhline(y=0, color='black', linestyle='-', alpha=0.3)
+        # Add zero line for reference
+        ax.axhline(y=0, color='black', linestyle='-', alpha=0.5, linewidth=1)
+
+        # Add phase annotations if data suggests retirement transition
+        max_contrib = max(contributions) if contributions else 0
+        min_benefit = min(benefits) if benefits else 0
+        if max_contrib > 0 and min_benefit < 0:
+            # Add subtle phase indicators
+            retirement_transition = None
+            for i, (c, b) in enumerate(zip(contributions, benefits)):
+                if i > 0 and contributions[i-1] > 0 and c == 0 and b < 0:
+                    retirement_transition = years[i]
+                    break
+
+            if retirement_transition:
+                ax.axvline(x=retirement_transition, color='gray', linestyle='--', alpha=0.5, linewidth=1)
+                ax.text(retirement_transition, ax.get_ylim()[1] * 0.9, 'Aposentadoria',
+                       rotation=90, ha='center', va='top', fontsize=9, alpha=0.7)
 
         # Styling
         ax.set_title(self.chart_title, fontsize=16, fontweight='bold', pad=20)
         ax.set_xlabel('Ano', fontsize=12)
-        ax.set_ylabel('Fluxo de Caixa (R$)', fontsize=12)
+        ax.set_ylabel('Fluxo de Caixa Anual (R$)', fontsize=12)
 
         self._format_currency_axis(ax, 'y')
         ax.legend(loc='upper right')

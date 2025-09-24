@@ -300,7 +300,7 @@
             <div class="kpi-card">
                 <h3>Renda Mensal CD</h3>
                 <div class="kpi-value">{{ kpis.renda_mensal | currency(0) }}</div>
-                <small>{{ kpis.modalidade_conversao }}</small>
+                <small>{{ kpis.modalidade_conversao }} - Valor mensal</small>
             </div>
             <div class="kpi-card">
                 <h3>Taxa de Reposição</h3>
@@ -355,16 +355,6 @@
     <!-- Página 2: Análise Detalhada -->
     <h2>📈 Análise Detalhada</h2>
 
-    <!-- Gráfico de Sensibilidade -->
-    {% if charts.sensitivity_analysis %}
-    <div class="chart-container no-break">
-        <h3>Análise de Sensibilidade</h3>
-        <img src="{{ charts.sensitivity_analysis }}" alt="Análise de Sensibilidade">
-        <p style="font-size: 9px; color: #666; margin-top: 0.5em;">
-            Impacto das principais variáveis nos resultados da simulação
-        </p>
-    </div>
-    {% endif %}
 
     <!-- Gráfico de Projeções -->
     {% if charts.projections_summary %}
@@ -396,8 +386,8 @@
         {% if is_cd %}
         <p>
             A simulação projeta um saldo acumulado de <strong>{{ kpis.saldo_final | currency(0) }}</strong>
-            na aposentadoria, resultando em uma renda mensal estimada de <strong>{{ kpis.renda_mensal | currency(0) }}</strong>,
-            que representa <strong>{{ kpis.taxa_reposicao | percentage }}</strong> do salário final.
+            na aposentadoria, resultando em uma <strong>renda mensal</strong> estimada de <strong>{{ kpis.renda_mensal | currency(0) }}</strong>,
+            que representa <strong>{{ kpis.taxa_reposicao | percentage }}</strong> do salário mensal final.
         </p>
         {% if kpis.taxa_reposicao >= kpis.taxa_reposicao_meta %}
         <p>

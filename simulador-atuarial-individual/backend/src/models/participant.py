@@ -13,6 +13,7 @@ class Gender(str, Enum):
 class CalculationMethod(str, Enum):
     PUC = "PUC"  # Projected Unit Credit
     EAN = "EAN"  # Entry Age Normal
+    CD = "CD"    # Contribution Defined
 
 
 class BenefitTargetMode(str, Enum):
@@ -39,6 +40,21 @@ class CDConversionMode(str, Enum):
     CERTAIN_20Y = "CERTAIN_20Y"    # Renda certa por 20 anos
     PERCENTAGE = "PERCENTAGE"      # Percentual do saldo por ano
     PROGRAMMED = "PROGRAMMED"      # Saque programado
+
+
+class DecrementType(str, Enum):
+    """Tipos de decrementos atuariais suportados"""
+    MORTALITY = "MORTALITY"        # Mortalidade (morte)
+    DISABILITY = "DISABILITY"      # Invalidez
+    TURNOVER = "TURNOVER"         # Rotatividade (saída do emprego)
+    DIVORCE = "DIVORCE"           # Divórcio (para pensões)
+
+
+class DisabilityEntryMode(str, Enum):
+    """Modalidades de entrada em invalidez"""
+    IMMEDIATE = "IMMEDIATE"            # Invalidez imediata
+    GRADUAL = "GRADUAL"               # Entrada gradual por idade
+    OCCUPATION_BASED = "OCCUPATION_BASED"  # Baseada na ocupação
 
 
 class SimulatorState(BaseModel, EnumMixin):
@@ -76,6 +92,12 @@ class SimulatorState(BaseModel, EnumMixin):
     turnover_rates: Optional[Dict[int, float]] = None  # Taxa rotatividade por idade
     disability_rates: Optional[Dict[int, float]] = None  # Taxa invalidez por idade
     early_retirement_factors: Optional[Dict[int, float]] = None  # Fatores aposentadoria antecipada
+
+    # Configurações de múltiplos decrementos
+    disability_enabled: bool = False                           # Habilitar invalidez
+    disability_entry_mode: Optional[DisabilityEntryMode] = None  # Modalidade de entrada
+    disability_table: Optional[str] = None                    # Tábua de entrada em invalidez
+    disability_mortality_table: Optional[str] = None          # Tábua de mortalidade do inválido
     
     # Hipóteses econômicas avançadas
     salary_scale: Optional[Dict[int, float]] = None  # Escala salarial por idade
@@ -144,3 +166,11 @@ class SimulatorState(BaseModel, EnumMixin):
     @field_validator('calculation_method', mode='before')
     def validate_calculation_method(cls, v):
         return create_enum_validator(CalculationMethod)(cls, v)
+
+    @property
+    def derived_plan_type(self) -> PlanType:
+        """Mapeia calculation_method para plan_type automaticamente"""
+        if self.calculation_method == CalculationMethod.CD:
+            return PlanType.CD
+        else:  # PUC, EAN
+            return PlanType.BD

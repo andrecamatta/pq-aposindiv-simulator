@@ -4,7 +4,7 @@ Consolida lógica comum entre BD e CD
 """
 
 import numpy as np
-from typing import Dict, List, TYPE_CHECKING
+from typing import Dict, List, Optional, TYPE_CHECKING
 from ..utils.rates import annual_to_monthly_rate
 
 if TYPE_CHECKING:
@@ -148,19 +148,73 @@ def calculate_contribution_projections(
     return monthly_contributions
 
 
-def calculate_survival_probabilities(
+def calculate_survival_probabilities_multi_decrement(
+    state: 'SimulatorState',
+    mortality_table: np.ndarray,
+    disability_table: Optional[np.ndarray] = None,
+    total_months: int = None
+) -> Dict[str, List[float]]:
+    """
+    Calcula probabilidades de sobrevivência com múltiplos decrementos
+
+    Args:
+        state: Estado do simulador
+        mortality_table: Tábua de mortalidade
+        disability_table: Tábua de invalidez (opcional)
+        total_months: Total de meses para projeção
+
+    Returns:
+        Dicionário com diferentes tipos de probabilidades:
+        - "survival_total": Sobrevivência total (permanece ativo)
+        - "survival_mortality_only": Sobrevivência apenas mortalidade
+        - "probability_disability": Probabilidade de entrada em invalidez
+        - "survival_disabled": Sobrevivência como inválido
+    """
+    if total_months is None:
+        # Fallback para compatibilidade
+        total_months = state.projection_years * 12 if hasattr(state, 'projection_years') else 40 * 12
+
+    # Se não há invalidez, usar lógica simples (compatibilidade)
+    if disability_table is None or not getattr(state, 'disability_enabled', False):
+        mortality_only = calculate_survival_probabilities_legacy(state, mortality_table, total_months)
+        return {
+            "survival_total": mortality_only,
+            "survival_mortality_only": mortality_only,
+            "probability_disability": [0.0] * len(mortality_only),
+            "survival_disabled": [1.0] * len(mortality_only)
+        }
+
+    # Aplicar múltiplos decrementos usando o manager
+    from .decrement_tables import apply_multiple_decrements, DecrementType
+
+    decrement_tables = {DecrementType.MORTALITY: mortality_table}
+    if disability_table is not None:
+        decrement_tables[DecrementType.DISABILITY] = disability_table
+
+    result = apply_multiple_decrements(decrement_tables, state.age, total_months)
+
+    return {
+        "survival_total": result.survival_total,
+        "survival_mortality_only": result.survival_mortality_only,
+        "probability_disability": result.probability_disability,
+        "survival_disabled": result.survival_disabled
+    }
+
+
+def calculate_survival_probabilities_legacy(
     state: 'SimulatorState',
     mortality_table: np.ndarray,
     total_months: int
 ) -> List[float]:
     """
-    Calcula probabilidades de sobrevivência mensais cumulativas
-    
+    Versão legada do cálculo de sobrevivência (apenas mortalidade)
+    Mantida para compatibilidade com código existente
+
     Args:
         state: Estado do simulador
         mortality_table: Tábua de mortalidade
         total_months: Total de meses para projeção
-        
+
     Returns:
         Lista de probabilidades de sobrevivência cumulativas
     """
@@ -192,6 +246,47 @@ def calculate_survival_probabilities(
         monthly_survival_probs.append(cumulative_survival)
     
     return monthly_survival_probs
+
+
+def calculate_survival_probabilities(
+    state: 'SimulatorState',
+    mortality_table: np.ndarray,
+    total_months: int
+) -> List[float]:
+    """
+    Calcula probabilidades de sobrevivência mensais cumulativas
+    Wrapper compatível que detecta automaticamente múltiplos decrementos
+
+    Args:
+        state: Estado do simulador
+        mortality_table: Tábua de mortalidade
+        total_months: Total de meses para projeção
+
+    Returns:
+        Lista de probabilidades de sobrevivência cumulativas
+        (retorna 'survival_total' se múltiplos decrementos estiverem ativos)
+    """
+    # Verificar se múltiplos decrementos estão habilitados
+    if getattr(state, 'disability_enabled', False) and getattr(state, 'disability_table', None):
+        # Obter tábua de invalidez
+        from .decrement_tables import get_decrement_table, DecrementType
+
+        disability_table = None
+        if state.disability_table:
+            disability_table = get_decrement_table(
+                state.disability_table,
+                DecrementType.DISABILITY,
+                getattr(state, 'gender', 'M')
+            )
+
+        # Usar função de múltiplos decrementos
+        multi_result = calculate_survival_probabilities_multi_decrement(
+            state, mortality_table, disability_table, total_months
+        )
+        return multi_result["survival_total"]
+    else:
+        # Usar lógica legada (apenas mortalidade)
+        return calculate_survival_probabilities_legacy(state, mortality_table, total_months)
 
 
 def calculate_accumulated_reserves(

@@ -4,7 +4,7 @@ Consolida lógica comum e estabelece padrões para implementações específicas
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, TYPE_CHECKING
+from typing import Dict, Any, List, TYPE_CHECKING
 import hashlib
 import json
 import logging
@@ -90,6 +90,44 @@ class AbstractCalculator(ABC):
         if context.months_to_retirement <= 0:
             raise ValueError(f"Meses até aposentadoria inválido: {context.months_to_retirement}")
 
+    def _validate_decrement_tables(self, state: 'SimulatorState') -> None:
+        """Validação comum para tábuas de decrementos"""
+        if not state:
+            return
+
+        # Validar configuração de invalidez
+        if getattr(state, 'disability_enabled', False):
+            disability_table = getattr(state, 'disability_table', None)
+            if not disability_table:
+                raise ValueError("Invalidez habilitada mas tábua de invalidez não especificada")
+
+            # Validar se tábua existe (importação lazy para evitar dependência circular)
+            try:
+                from .decrement_tables import validate_decrement_table, DecrementType
+                if not validate_decrement_table(disability_table, DecrementType.DISABILITY):
+                    raise ValueError(f"Tábua de invalidez '{disability_table}' não encontrada")
+            except ImportError:
+                self._logger.warning("Não foi possível validar tábua de invalidez")
+
+            # Validar modalidade de entrada
+            disability_mode = getattr(state, 'disability_entry_mode', None)
+            if not disability_mode:
+                raise ValueError("Modalidade de entrada em invalidez não especificada")
+
+    def _get_active_decrements(self, state: 'SimulatorState') -> List[str]:
+        """Retorna lista de decrementos ativos para o cálculo"""
+        active_decrements = ['MORTALITY']  # Mortalidade sempre ativa
+
+        # Verificar invalidez
+        if getattr(state, 'disability_enabled', False):
+            active_decrements.append('DISABILITY')
+
+        # Extensível para outros decrementos no futuro
+        # if getattr(state, 'turnover_enabled', False):
+        #     active_decrements.append('TURNOVER')
+
+        return active_decrements
+
     @abstractmethod
     def calculate(self, state: 'SimulatorState', context: 'ActuarialContext') -> Dict[str, Any]:
         """
@@ -115,9 +153,10 @@ class AbstractCalculator(ABC):
         Returns:
             Resultados do cálculo (do cache ou recém-calculados)
         """
-        # Validações comum
+        # Validações comuns
         self._validate_state(state)
         self._validate_context(context)
+        self._validate_decrement_tables(state)
 
         # Gerar chave de cache
         cache_key = self._generate_cache_key(

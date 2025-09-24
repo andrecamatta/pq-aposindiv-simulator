@@ -11,6 +11,7 @@ from typing import Optional
 from ..services.reports.pdf_generator import PDFGenerator
 from ..services.reports.excel_generator import ExcelGenerator
 from ..services.reports.models.report_models import ReportRequest, ReportResponse, ReportConfig
+from .handlers.report_stream_handler import ReportStreamHandler
 
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -27,49 +28,10 @@ async def generate_executive_pdf(request: ReportRequest):
 
     Retorna um stream do arquivo PDF para download direto
     """
-    try:
-        # Gerar PDF
-        report_response = pdf_generator.generate_executive_pdf(request)
-
-        if not report_response.success:
-            raise HTTPException(status_code=500, detail=report_response.message)
-
-        # Verificar se arquivo foi criado
-        file_path = Path(report_response.file_path)
-        if not file_path.exists():
-            raise HTTPException(status_code=500, detail="Arquivo PDF não foi gerado")
-
-        # Função geradora para streaming
-        def iterfile():
-            try:
-                with open(file_path, mode="rb") as file_like:
-                    yield from file_like
-            finally:
-                # Limpar arquivo temporário após download
-                try:
-                    if file_path.exists():
-                        os.unlink(file_path)
-                except Exception:
-                    pass  # Falha na limpeza não deve quebrar o download
-
-        # Determinar nome do arquivo baseado nos dados do participante
-        participant_info = f"{request.state.age}anos_{request.state.gender}"
-        plan_type = request.state.plan_type.lower()
-        filename = f"relatorio_executivo_{plan_type}_{participant_info}_{report_response.report_id[:8]}.pdf"
-
-        # Headers para download
-        headers = {
-            'Content-Disposition': f'attachment; filename="{filename}"',
-            'Content-Type': 'application/pdf',
-            'Content-Length': str(report_response.file_size)
-        }
-
-        return StreamingResponse(iterfile(), headers=headers, media_type='application/pdf')
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro interno ao gerar relatório: {str(e)}")
+    report_response = ReportStreamHandler.execute_with_error_handling(
+        lambda: pdf_generator.generate_executive_pdf(request)
+    )
+    return ReportStreamHandler.handle_pdf_response(report_response, request, "executivo")
 
 
 @router.post("/technical-pdf", response_class=StreamingResponse)
@@ -79,49 +41,10 @@ async def generate_technical_pdf(request: ReportRequest):
 
     Retorna um stream do arquivo PDF para download direto
     """
-    try:
-        # Gerar PDF
-        report_response = pdf_generator.generate_technical_pdf(request)
-
-        if not report_response.success:
-            raise HTTPException(status_code=500, detail=report_response.message)
-
-        # Verificar se arquivo foi criado
-        file_path = Path(report_response.file_path)
-        if not file_path.exists():
-            raise HTTPException(status_code=500, detail="Arquivo PDF não foi gerado")
-
-        # Função geradora para streaming
-        def iterfile():
-            try:
-                with open(file_path, mode="rb") as file_like:
-                    yield from file_like
-            finally:
-                # Limpar arquivo temporário após download
-                try:
-                    if file_path.exists():
-                        os.unlink(file_path)
-                except Exception:
-                    pass  # Falha na limpeza não deve quebrar o download
-
-        # Determinar nome do arquivo baseado nos dados do participante
-        participant_info = f"{request.state.age}anos_{request.state.gender}"
-        plan_type = request.state.plan_type.lower()
-        filename = f"relatorio_tecnico_{plan_type}_{participant_info}_{report_response.report_id[:8]}.pdf"
-
-        # Headers para download
-        headers = {
-            'Content-Disposition': f'attachment; filename="{filename}"',
-            'Content-Type': 'application/pdf',
-            'Content-Length': str(report_response.file_size)
-        }
-
-        return StreamingResponse(iterfile(), headers=headers, media_type='application/pdf')
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro interno ao gerar relatório: {str(e)}")
+    report_response = ReportStreamHandler.execute_with_error_handling(
+        lambda: pdf_generator.generate_technical_pdf(request)
+    )
+    return ReportStreamHandler.handle_pdf_response(report_response, request, "tecnico")
 
 
 @router.post("/data-excel", response_class=StreamingResponse)
@@ -131,49 +54,10 @@ async def generate_data_excel(request: ReportRequest):
 
     Retorna um stream do arquivo Excel para download direto
     """
-    try:
-        # Gerar Excel
-        report_response = excel_generator.generate_excel(request)
-
-        if not report_response.success:
-            raise HTTPException(status_code=500, detail=report_response.message)
-
-        # Verificar se arquivo foi criado
-        file_path = Path(report_response.file_path)
-        if not file_path.exists():
-            raise HTTPException(status_code=500, detail="Arquivo Excel não foi gerado")
-
-        # Função geradora para streaming
-        def iterfile():
-            try:
-                with open(file_path, mode="rb") as file_like:
-                    yield from file_like
-            finally:
-                # Limpar arquivo temporário após download
-                try:
-                    if file_path.exists():
-                        os.unlink(file_path)
-                except Exception:
-                    pass  # Falha na limpeza não deve quebrar o download
-
-        # Determinar nome do arquivo baseado nos dados do participante
-        participant_info = f"{request.state.age}anos_{request.state.gender}"
-        plan_type = request.state.plan_type.lower()
-        filename = f"dados_simulacao_{plan_type}_{participant_info}_{report_response.report_id[:8]}.xlsx"
-
-        # Headers para download
-        headers = {
-            'Content-Disposition': f'attachment; filename="{filename}"',
-            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Length': str(report_response.file_size)
-        }
-
-        return StreamingResponse(iterfile(), headers=headers, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro interno ao gerar planilha Excel: {str(e)}")
+    report_response = ReportStreamHandler.execute_with_error_handling(
+        lambda: excel_generator.generate_excel(request)
+    )
+    return ReportStreamHandler.handle_excel_response(report_response, request)
 
 
 @router.post("/data-csv", response_class=StreamingResponse)
@@ -183,49 +67,10 @@ async def generate_data_csv(request: ReportRequest):
 
     Retorna um stream do arquivo CSV para download direto
     """
-    try:
-        # Gerar CSV
-        report_response = excel_generator.generate_csv(request)
-
-        if not report_response.success:
-            raise HTTPException(status_code=500, detail=report_response.message)
-
-        # Verificar se arquivo foi criado
-        file_path = Path(report_response.file_path)
-        if not file_path.exists():
-            raise HTTPException(status_code=500, detail="Arquivo CSV não foi gerado")
-
-        # Função geradora para streaming
-        def iterfile():
-            try:
-                with open(file_path, mode="rb") as file_like:
-                    yield from file_like
-            finally:
-                # Limpar arquivo temporário após download
-                try:
-                    if file_path.exists():
-                        os.unlink(file_path)
-                except Exception:
-                    pass  # Falha na limpeza não deve quebrar o download
-
-        # Determinar nome do arquivo baseado nos dados do participante
-        participant_info = f"{request.state.age}anos_{request.state.gender}"
-        plan_type = request.state.plan_type.lower()
-        filename = f"dados_simulacao_{plan_type}_{participant_info}_{report_response.report_id[:8]}.csv"
-
-        # Headers para download
-        headers = {
-            'Content-Disposition': f'attachment; filename="{filename}"',
-            'Content-Type': 'text/csv; charset=utf-8',
-            'Content-Length': str(report_response.file_size)
-        }
-
-        return StreamingResponse(iterfile(), headers=headers, media_type='text/csv')
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro interno ao gerar arquivo CSV: {str(e)}")
+    report_response = ReportStreamHandler.execute_with_error_handling(
+        lambda: excel_generator.generate_csv(request)
+    )
+    return ReportStreamHandler.handle_csv_response(report_response, request)
 
 
 @router.post("/preview-executive")
