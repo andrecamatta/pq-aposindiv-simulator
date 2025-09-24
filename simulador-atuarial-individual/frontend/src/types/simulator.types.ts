@@ -41,7 +41,11 @@ export interface SimulatorState {
   // Custos administrativos
   admin_fee_rate: number;      // Taxa anual sobre saldo
   loading_fee_rate: number;    // Taxa de carregamento sobre contribuições
-  
+  admin_fee_annual?: number;   // Taxa administrativa anual (valor absoluto)
+
+  // Tempo de serviço
+  service_years?: number;       // Anos de serviço já cumpridos
+
   // Configurações técnicas
   payment_timing: PaymentTiming;
   salary_months_per_year: number;
@@ -178,7 +182,7 @@ export interface SimulatorResults {
 export interface MortalityTable {
   code: string;
   name: string;
-  description: string;
+  description?: string;
   source: string;
   is_official: boolean;
   regulatory_approved: boolean;
@@ -195,7 +199,7 @@ export interface WebSocketMessage {
 
 // Tipos para sugestões inteligentes
 export type SuggestionType = "balance_plan" | "improve_benefit" | "reduce_contribution" | "optimize_retirement" | "sustainable_benefit" | "trade_off_options" | "optimize_multiple";
-export type SuggestionAction = "update_contribution_rate" | "update_retirement_age" | "update_target_benefit" | "update_accrual_rate" | "apply_sustainable_benefit" | "update_replacement_rate" | "update_multiple_params";
+export type SuggestionAction = "update_contribution_rate" | "update_retirement_age" | "update_target_benefit" | "update_accrual_rate" | "apply_sustainable_benefit" | "apply_sustainable_replacement_rate" | "update_replacement_rate" | "update_multiple_params";
 
 export interface Suggestion {
   id: string;

@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  Database, 
-  Upload, 
-  Search, 
-  BarChart3, 
-  Eye, 
-  Power, 
-  Trash2, 
-  FileText,
+import {
+  Database,
+  Upload,
+  Search,
+  BarChart3,
+  Power,
+  Trash2,
   AlertCircle,
   CheckCircle,
   Loader2,

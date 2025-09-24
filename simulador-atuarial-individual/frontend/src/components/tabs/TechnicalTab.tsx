@@ -39,9 +39,9 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
   ], []);
 
   const monthsOptions = useMemo(() => [
-    { value: 12, label: '12 meses' },
-    { value: 13, label: '13 meses (13º)' },
-    { value: 14, label: '14 meses (13º + 14º)' }
+    { value: '12', label: '12 meses' },
+    { value: '13', label: '13 meses (13º)' },
+    { value: '14', label: '14 meses (13º + 14º)' }
   ], []);
 
   const planTypeOptions = useMemo(() => [
@@ -222,7 +222,7 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                     Salários por Ano
                   </span>
                 }
-                value={state.salary_months_per_year || 13}
+                value={String(state.salary_months_per_year || 13)}
                 onChange={(value) => handleInputChange('salary_months_per_year', parseInt(value))}
                 options={monthsOptions}
                 disabled={loading}
@@ -234,7 +234,7 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                     Benefícios por Ano
                   </span>
                 }
-                value={state.benefit_months_per_year || 13}
+                value={String(state.benefit_months_per_year || 13)}
                 onChange={(value) => handleInputChange('benefit_months_per_year', parseInt(value))}
                 options={monthsOptions}
                 disabled={loading}

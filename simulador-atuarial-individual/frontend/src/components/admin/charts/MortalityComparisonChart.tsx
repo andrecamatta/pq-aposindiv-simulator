@@ -244,7 +244,7 @@ const MortalityComparisonChart: React.FC<MortalityComparisonChartProps> = ({
           text: 'Idade (anos)',
           font: {
             size: 14,
-            weight: '600' as const,
+            weight: 600,
           },
           padding: {
             top: 10,
@@ -280,7 +280,7 @@ const MortalityComparisonChart: React.FC<MortalityComparisonChartProps> = ({
           })(),
           font: {
             size: 14,
-            weight: '600' as const,
+            weight: 600,
           },
           padding: {
             bottom: 10,

@@ -11,14 +11,16 @@ import type {
 
 interface SmartSuggestionsProps {
   state: SimulatorState;
+  results?: SimulatorResults | null;
   onStateChange: (updates: Partial<SimulatorState>) => void;
   loading?: boolean;
 }
 
-const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({ 
-  state, 
-  onStateChange, 
-  loading = false 
+const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
+  state,
+  results,
+  onStateChange,
+  loading = false
 }) => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
@@ -51,7 +53,7 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
     loading,
     isBDSupported,
     state.plan_type,
-    state.deficit_surplus,
+    results?.deficit_surplus,
     state.contribution_rate,
     state.retirement_age,
     state.target_benefit,

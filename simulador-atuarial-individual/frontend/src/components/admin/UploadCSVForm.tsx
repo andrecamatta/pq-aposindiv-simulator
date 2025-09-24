@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, X, Loader2 } from 'lucide-react';
+import { Upload, FileText, AlertCircle, X, Loader2 } from 'lucide-react';
 
 interface UploadCSVFormProps {
   onUpload: (file: File, metadata: {

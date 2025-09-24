@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { SimulatorState, SimulatorResults, MortalityTable } from '../types';
+import type { SimulatorState, SimulatorResults } from '../types';
 import { apiService, WebSocketClient } from '../services/api';
 
 export const useSimulator = () => {
@@ -118,7 +118,15 @@ export const useSimulator = () => {
 
   // Função para determinar o delay do debounce baseado no tipo de mudança
   const getDebounceDelay = useCallback((currentState: SimulatorState, previousState: SimulatorState | null) => {
-    if (!previousState) return 500;
+    // Em testes E2E, usar delays muito mais baixos para acelerar
+    const isTestEnvironment = typeof window !== 'undefined' && (
+      window.location.hostname === 'localhost' &&
+      (window.navigator.userAgent.includes('HeadlessChrome') || window.navigator.webdriver)
+    );
+
+    const baseDelay = isTestEnvironment ? 100 : 500; // 5x mais rápido em testes
+
+    if (!previousState) return baseDelay;
 
     // Configurações técnicas que podem ter delay maior (não afetam cálculos imediatos)
     const technicalFields = [
@@ -139,16 +147,16 @@ export const useSimulator = () => {
 
     // Se apenas campos técnicos mudaram, usar delay maior
     if (changedFields.length > 0 && changedFields.every(field => technicalFields.includes(field))) {
-      return 1000; // 1 segundo para configs técnicas
+      return isTestEnvironment ? 150 : 1000; // Otimizado para testes
     }
 
     // Se campos de custo administrativo mudaram, delay médio
     if (changedFields.some(field => ['admin_fee_rate', 'loading_fee_rate'].includes(field))) {
-      return 750; // 750ms para custos administrativos
+      return isTestEnvironment ? 125 : 750; // Otimizado para testes
     }
 
     // Para outros campos, delay padrão
-    return 500;
+    return baseDelay;
   }, []);
 
   // Função debounced para cálculo com delay inteligente

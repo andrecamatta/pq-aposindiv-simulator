@@ -633,7 +633,8 @@ class ActuarialEngine:
             year_survival_prob = monthly_survival_probs[min(end_month-1, len(monthly_survival_probs)-1)]
             
             # Reserva no final do ano
-            year_reserve = monthly_reserves[min(start_month, len(monthly_reserves)-1)]
+            last_month_index = max(start_month, end_month - 1)
+            year_reserve = monthly_reserves[min(last_month_index, len(monthly_reserves) - 1)]
             
             yearly_salaries.append(year_salary)
             yearly_benefits.append(year_benefit)

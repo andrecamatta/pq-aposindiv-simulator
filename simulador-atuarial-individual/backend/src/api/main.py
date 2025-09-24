@@ -57,7 +57,7 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     import logging
-    from ..database import engine, create_db_and_tables
+    from ..database import engine, init_database
     from ..models.database import MortalityTable, DecrementTable  # Import all models
     from sqlmodel import Session, select
 
@@ -65,8 +65,8 @@ async def startup_event():
 
     logger.info("Iniciando aplicação...")
 
-    # Criar todas as tabelas (incluindo novas como DecrementTable)
-    create_db_and_tables()
+    # Inicializar banco de dados com tábuas obrigatórias
+    init_database()
     logger.info("✅ Tabelas do banco de dados criadas/verificadas")
     
     # Verificar tábuas de mortalidade disponíveis no banco

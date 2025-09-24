@@ -19,7 +19,6 @@ const SimulatorApp: React.FC = () => {
     results,
     loading,
     error,
-    connected,
     connectionStatus,
     lastPing,
     responseTime,

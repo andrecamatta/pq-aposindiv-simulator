@@ -10,7 +10,7 @@ import type {
   ApplySuggestionResponse
 } from '../types';
 
-export const API_BASE_URL = 'http://localhost:8000';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -72,7 +72,7 @@ export class WebSocketClient {
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const wsUrl = `ws://localhost:8000/ws/${this.clientId}`;
+        const wsUrl = `ws://${API_BASE_URL.replace('http://', '').replace('https://', '')}/ws/${this.clientId}`;
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {

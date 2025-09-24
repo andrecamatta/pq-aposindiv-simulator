@@ -255,7 +255,7 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
           text: 'Idade (anos)',
           font: {
             size: 14,
-            weight: '600' as const,
+            weight: 600,
           },
           padding: {
             top: 10,
@@ -280,7 +280,7 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
           text: getYAxisTitle(),
           font: {
             size: 14,
-            weight: '600' as const,
+            weight: 600,
           },
           padding: {
             bottom: 10,

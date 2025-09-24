@@ -124,7 +124,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           <Select
             id="gender"
             value={state.gender}
-            onChange={(e) => handleInputChange('gender', e.target.value as 'M' | 'F')}
+            onChange={(value) => handleInputChange('gender', value as 'M' | 'F')}
             disabled={loading}
             options={[
               { value: 'M', label: 'Masculino' },

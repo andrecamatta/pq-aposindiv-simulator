@@ -41,10 +41,20 @@ export default defineConfig({
     // },
   ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000, // 2 minutes to start server
-  },
+  webServer: [
+    // Backend server
+    {
+      command: 'cd ../backend && ./.venv/bin/uvicorn src.api.main:app --reload --port 8001',
+      url: 'http://localhost:8001/health',
+      reuseExistingServer: !process.env.CI,
+      timeout: 90000, // 90 seconds to start backend
+    },
+    // Frontend server
+    {
+      command: 'VITE_API_BASE_URL=http://localhost:8001 npm run dev',
+      url: 'http://localhost:5173',
+      reuseExistingServer: !process.env.CI,
+      timeout: 60000, // 60 seconds to start frontend
+    },
+  ],
 });

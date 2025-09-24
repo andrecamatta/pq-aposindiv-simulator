@@ -2,6 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Responsividade global e prevenção de overflow horizontal */
+* {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+/* Forçar tabelas responsivas */
+table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  table {
+    font-size: 0.875rem;
+  }
+}
+
+/* Quebra de texto longo */
+.prose, p, span, div {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Container principal responsivo */
+.main-container {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Charts responsivos */
+.chart-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Grid responsivo */
+@media (max-width: 640px) {
+  .responsive-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+}
+
 /* Força fundo cinza escuro nos tooltips */
 [role="tooltip"] {
   background-color: #111827 !important;

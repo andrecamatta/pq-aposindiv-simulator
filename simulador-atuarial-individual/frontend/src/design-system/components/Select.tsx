@@ -38,9 +38,9 @@ export interface SelectOption {
 }
 
 export interface SelectProps
-  extends Omit<React.HTMLAttributes<HTMLDivElement>, 'size'>,
+  extends Omit<React.HTMLAttributes<HTMLDivElement>, 'size' | 'onChange'>,
     VariantProps<typeof selectVariants> {
-  label?: string;
+  label?: string | React.ReactNode;
   helperText?: string;
   error?: string;
   options: SelectOption[];

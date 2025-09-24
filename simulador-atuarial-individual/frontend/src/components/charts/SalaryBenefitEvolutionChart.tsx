@@ -104,7 +104,7 @@ const SalaryBenefitEvolutionChart: React.FC<SalaryBenefitEvolutionChartProps> = 
         borderWidth: 1,
         titleFont: {
           size: 13,
-          weight: '600' as const,
+          weight: 600,
         },
         bodyFont: {
           size: 12,
@@ -149,7 +149,7 @@ const SalaryBenefitEvolutionChart: React.FC<SalaryBenefitEvolutionChartProps> = 
           text: 'Idade (anos)',
           font: {
             size: 12,
-            weight: '500' as const,
+            weight: 500,
           },
           color: '#6b7280',
         },
@@ -171,7 +171,7 @@ const SalaryBenefitEvolutionChart: React.FC<SalaryBenefitEvolutionChartProps> = 
           text: 'Valor (R$)',
           font: {
             size: 12,
-            weight: '500' as const,
+            weight: 500,
           },
           color: '#6b7280',
         },
