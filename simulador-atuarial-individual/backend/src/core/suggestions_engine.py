@@ -4,13 +4,14 @@ from typing import List, Dict, Any
 # Usando funções centralizadas de root finding do módulo VPA (fsolve + fallbacks)
 
 from ..models import SimulatorState, SimulatorResults
-from ..models.participant import PlanType, CDConversionMode, BenefitTargetMode
+from ..models.participant import PlanType, CDConversionMode, BenefitTargetMode, DEFAULT_SALARY_MONTHS_PER_YEAR
+from .constants import MONTHS_PER_YEAR
 from ..models.suggestions import (
     Suggestion, SuggestionType, SuggestionAction, 
     SuggestionsRequest, SuggestionsResponse
 )
 from .actuarial_engine import ActuarialEngine
-from ..utils.formatters import format_currency_safe, format_currency_inline, format_currency_br, apply_br_number_format
+from ..utils.formatters import format_currency_safe, apply_br_number_format
 from ..utils.pydantic_validators import get_enum_value
 
 
@@ -29,40 +30,62 @@ class SuggestionsEngine:
         state = request.state
         plan_type_value = state.plan_type.value if hasattr(state.plan_type, 'value') else str(state.plan_type)
         mode_value = state.benefit_target_mode.value if hasattr(state.benefit_target_mode, 'value') else str(state.benefit_target_mode)
-        is_bd_supported = plan_type_value == "BD" and mode_value in ["VALUE", "REPLACEMENT_RATE"]
 
-        if not is_bd_supported:
+        # Verificar se CD com renda vitalícia (ACTUARIAL ou ACTUARIAL_EQUIVALENT)
+        cd_conversion_mode = None
+        if plan_type_value == "CD":
+            cd_conversion_mode = state.cd_conversion_mode.value if hasattr(state.cd_conversion_mode, 'value') else str(state.cd_conversion_mode) if state.cd_conversion_mode else None
+
+        is_bd_supported = plan_type_value == "BD" and mode_value in ["VALUE", "REPLACEMENT_RATE"]
+        is_cd_supported = (
+            plan_type_value == "CD" and
+            cd_conversion_mode in ["ACTUARIAL", "ACTUARIAL_EQUIVALENT"] and
+            mode_value in ["VALUE", "REPLACEMENT_RATE"]
+        )
+
+        if not (is_bd_supported or is_cd_supported):
             computation_time = (time.time() - start_time) * 1000
             return SuggestionsResponse(
                 suggestions=[],
                 context={
                     "plan_type": plan_type_value,
                     "benefit_target_mode": mode_value,
-                    "is_bd_supported": False,
-                    "unsupported_reason": "Sugestões inteligentes estão disponíveis para planos BD com Valor Fixo ou Taxa de Reposição."
+                    "cd_conversion_mode": cd_conversion_mode,
+                    "is_supported": False,
+                    "unsupported_reason": "Sugestões inteligentes estão disponíveis para planos BD ou CD com renda vitalícia (ACTUARIAL/ACTUARIAL_EQUIVALENT)."
                 },
                 computation_time_ms=computation_time
             )
 
-        # Executar simulação atual para análise (somente planos BD/Valor)
+        # Executar simulação atual para análise
         current_results = self.actuarial_engine.calculate_individual_simulation(state)
 
         # Gerar contexto detalhado antes de decidir sobre sugestões
         suggestions: List[Suggestion] = []
         context = self._build_context(state, current_results)
-        context["is_bd_value"] = True
+        context["is_bd"] = is_bd_supported
+        context["is_cd"] = is_cd_supported
+        context["cd_conversion_mode"] = cd_conversion_mode
 
         deficit = current_results.deficit_surplus
 
+        # Sugestões específicas para CD com renda vitalícia
+        if is_cd_supported:
+            cd_suggestion = self._suggest_optimize_cd_contribution(state, current_results)
+            if cd_suggestion:
+                suggestions.append(cd_suggestion)
+                context["cd_optimal_contribution"] = cd_suggestion.action_value
+
+        # Sugestões específicas para BD
         # Ajustar contribuição quando há déficit relevante
-        if deficit < -500:
+        if is_bd_supported and deficit < -500:
             balance_suggestion = self._suggest_balance_plan(state, current_results)
             if balance_suggestion:
                 suggestions.append(balance_suggestion)
 
         # Benefício/Taxa sustentável - chamar função apropriada baseada no modo
         # IMPORTANTE: Cada modo só deve gerar sugestões compatíveis
-        if mode_value == "VALUE":
+        if is_bd_supported and mode_value == "VALUE":
             # BD + Valor Fixo: APENAS sugerir benefício sustentável em R$
             sustainable_suggestion = self._suggest_sustainable_benefit(state, current_results)
             if sustainable_suggestion:
@@ -77,19 +100,8 @@ class SuggestionsEngine:
                 context["suggested_sustainable_replacement_rate"] = sustainable_suggestion.action_value
                 context["suggested_sustainable_confidence"] = sustainable_suggestion.confidence
 
-        # Superávit elevado: considerar aumento de benefício
-        if deficit > 5000:
-            benefit_suggestion = self._suggest_improve_benefit(state, current_results)
-            if benefit_suggestion:
-                suggestions.append(benefit_suggestion)
-
-        # Janela para recomendar ajustes na idade de aposentadoria quando aplicável
-        retirement_suggestion = self._suggest_optimize_retirement(state, current_results)
-        if retirement_suggestion:
-            suggestions.append(retirement_suggestion)
-
-        # Em cenários de déficit, ofertar opções de trade-off adicionais
-        if deficit < -200 and len(suggestions) < request.max_suggestions:
+        # Em cenários de déficit, ofertar opções de trade-off adicionais (somente BD)
+        if is_bd_supported and deficit < -200 and len(suggestions) < request.max_suggestions:
             tradeoff_suggestions = self._suggest_balance_tradeoffs(state, current_results, suggestions)
             existing_ids = {s.id for s in suggestions}
             for suggestion in tradeoff_suggestions:
@@ -131,7 +143,7 @@ class SuggestionsEngine:
         context["required_contribution_rate"] = required_rate
         context["current_accrual_rate"] = getattr(state, 'accrual_rate', None)
 
-        salary_months = getattr(state, 'salary_months_per_year', 12) or 12
+        salary_months = getattr(state, 'salary_months_per_year', DEFAULT_SALARY_MONTHS_PER_YEAR) or DEFAULT_SALARY_MONTHS_PER_YEAR
         annual_salary = state.salary * salary_months
         context["annual_payroll_estimate"] = annual_salary
 
@@ -215,97 +227,6 @@ class SuggestionsEngine:
                 trade_off_info=f"Aumento de {delta_label} p.p. preserva o benefício contratado"
             )
         except Exception:
-            pass
-        return None
-    
-    def _suggest_improve_benefit(self, state: SimulatorState, results: SimulatorResults) -> Suggestion:
-        """Sugere como usar superávit para melhorar benefício usando análise de sensibilidade"""
-        try:
-            superavit = results.deficit_surplus
-            
-            # Usar dados atuariais mais precisos se disponíveis
-            if hasattr(results, 'sensitivity_discount_rate') and results.sensitivity_discount_rate:
-                # Calcular usando análise de sensibilidade e VPAs
-                current_benefit = state.target_benefit or 0
-                
-                # Estimar aumento usando VPA dos benefícios (mais preciso)
-                # Superávit pode sustentar X de benefício adicional baseado no VPA
-                additional_monthly = superavit / 240  # Estimativa baseada em 20 anos de aposentadoria
-                
-                # Validar com simulação
-                test_benefit = current_benefit + additional_monthly
-                modified_state = state.model_copy()
-                modified_state.target_benefit = test_benefit
-                test_results = self.actuarial_engine.calculate_individual_simulation(modified_state)
-                
-                # Se ainda há superávit, a sugestão é válida
-                if test_results.deficit_surplus > 0 and additional_monthly > 100:
-                    return Suggestion(
-                        id=str(uuid.uuid4()),
-                        type=SuggestionType.IMPROVE_BENEFIT,
-                        title="Otimizar Benefício com Superávit",
-                        description=f"Baseado em análise atuarial, você pode aumentar seu benefício",
-                        action=SuggestionAction.UPDATE_TARGET_BENEFIT,
-                        action_value=test_benefit,
-                        action_label=f"Aplicar {format_currency_inline(test_benefit)}",
-                        priority=2,
-                        impact_description=f"{format_currency_inline(test_benefit)}",
-                        confidence=0.9,  # Mais confiança por usar dados atuariais
-                        trade_off_info=f"Aumento de {apply_br_number_format(f'R$ {additional_monthly:,.2f}')}/mês mantém equilíbrio atuarial"
-                    )
-            else:
-                # Fallback para método anterior se dados atuariais não estão disponíveis
-                years_retirement = max(20, 85 - state.retirement_age)
-                annual_factor = years_retirement * 12 * 0.8
-                additional_benefit = superavit / annual_factor
-                
-                if additional_benefit > 100:
-                    current_benefit = state.target_benefit or 0
-                    new_benefit = current_benefit + additional_benefit
-                    
-                    return Suggestion(
-                        id=str(uuid.uuid4()),
-                        type=SuggestionType.IMPROVE_BENEFIT,
-                        title="Aumentar Benefício",
-                        description=f"Com superávit de {apply_br_number_format(f'R$ {superavit:,.2f}')}, você pode ter mais",
-                        action=SuggestionAction.UPDATE_TARGET_BENEFIT,
-                        action_value=new_benefit,
-                        action_label=f"Aplicar {format_currency_inline(new_benefit)}",
-                        priority=2,
-                        impact_description=f"{format_currency_inline(new_benefit)}",
-                        confidence=0.75
-                    )
-        except:
-            pass
-        return None
-    
-    def _suggest_optimize_retirement(self, state: SimulatorState, results: SimulatorResults) -> Suggestion:
-        """Sugere otimização da idade de aposentadoria"""
-        try:
-            # Se pessoa é jovem, sugerir aposentar mais cedo mantendo mesmo benefício
-            if state.age < 35 and state.retirement_age > 62:
-                # Testar aposentadoria 2-3 anos mais cedo
-                for earlier_age in [state.retirement_age - 2, state.retirement_age - 3]:
-                    if earlier_age >= 60:
-                        modified_state = state.model_copy()
-                        modified_state.retirement_age = earlier_age
-                        modified_results = self.actuarial_engine.calculate_individual_simulation(modified_state)
-                        
-                        # Se déficit não aumenta muito, vale a pena
-                        if modified_results.deficit_surplus > -10000:  # Déficit tolerável
-                            return Suggestion(
-                                id=str(uuid.uuid4()),
-                                type=SuggestionType.OPTIMIZE_RETIREMENT,
-                                title="Aposentar Mais Cedo",
-                                description=f"Você pode se aposentar {state.retirement_age - earlier_age} anos mais cedo",
-                                action=SuggestionAction.UPDATE_RETIREMENT_AGE,
-                                action_value=float(earlier_age),
-                                action_label=f"Aplicar {earlier_age} anos",
-                                priority=3,
-                                impact_description=f"{earlier_age} anos",
-                                confidence=0.7
-                            )
-        except:
             pass
         return None
     
@@ -441,9 +362,9 @@ class SuggestionsEngine:
                         description=f"Valor calculado para zerar o déficit/superávit usando métodos atuariais avançados",
                         action=SuggestionAction.APPLY_SUSTAINABLE_BENEFIT,
                         action_value=sustainable_benefit,
-                        action_label=f"Aplicar {format_currency_inline(sustainable_benefit)}",
+                        action_label=f"Aplicar {format_currency_safe(sustainable_benefit)}",
                         priority=1,
-                        impact_description=f"{format_currency_inline(sustainable_benefit)}",
+                        impact_description=f"{format_currency_safe(sustainable_benefit)}",
                         confidence=0.98,  # Confiança aumentada devido às validações rigorosas
                         trade_off_info="Benefício calculado para equilíbrio atuarial perfeito"
                     )
@@ -618,12 +539,7 @@ class SuggestionsEngine:
                     benefit_option.title = "Opção: Ajustar Benefício"
                     benefit_option.priority = 2
                     suggestions.append(benefit_option)
-            
-            # Opção 4: Combinação ótima (50% contribuição + 50% benefício)
-            combo_option = self._calculate_combo_balance(state, results)
-            if combo_option:
-                suggestions.append(combo_option)
-                
+
         except:
             pass
             
@@ -685,47 +601,69 @@ class SuggestionsEngine:
             pass
         return None
     
-    def _calculate_combo_balance(self, state: SimulatorState, results: SimulatorResults) -> Suggestion:
-        """Calcula combinação ótima de ajustes para balancear plano"""
+    def _suggest_optimize_cd_contribution(self, state: SimulatorState, results: SimulatorResults) -> Suggestion:
+        """Sugere otimização da taxa de contribuição para CD com renda vitalícia atingir meta"""
         try:
-            # Estratégia: 50% do ajuste via contribuição, 50% via benefício
-            deficit = abs(results.deficit_surplus)
-            
-            # Estimar ajustes necessários (fórmulas simplificadas mas baseadas nos cálculos)
-            current_contrib = state.contribution_rate
-            current_benefit = state.target_benefit or (state.salary * 0.7)
-            
-            # Teste: aumentar contribuição pela metade do necessário
-            contrib_increase = deficit / (state.salary * 12 * (state.retirement_age - state.age) * 0.5)
-            new_contrib = min(current_contrib + contrib_increase, 25.0)
-            
-            # E reduzir benefício pela metade
-            benefit_reduction = deficit / ((state.retirement_age - state.age) * 12 * 0.5)
-            new_benefit = max(current_benefit - benefit_reduction, current_benefit * 0.5)
-            
-            # Validar se funciona
-            modified_state = state.model_copy()
-            modified_state.contribution_rate = new_contrib
-            modified_state.target_benefit = new_benefit
-            test_results = self.actuarial_engine.calculate_individual_simulation(modified_state)
-            
-            if abs(test_results.deficit_surplus) < abs(results.deficit_surplus) * 0.2:  # Melhoria significativa
-                return Suggestion(
-                    id=str(uuid.uuid4()),
-                    type=SuggestionType.TRADE_OFF_OPTIONS,
-                    title="Opção: Ajuste Combinado",
-                    description="Pequenos ajustes em contribuição E benefício",
-                    action=SuggestionAction.UPDATE_MULTIPLE_PARAMS,
-                    action_values={
-                        "contribution_rate": new_contrib,
-                        "target_benefit": new_benefit
-                    },
-                    action_label=f"Aplicar combo",
-                    priority=1,  # Prioridade alta por ser balanceado
-                    impact_description=f"{new_contrib:.1f}% e {format_currency_inline(new_benefit)}".replace('.', ','),
-                    confidence=0.8,
-                    trade_off_info="Vantagem: impacto moderado em ambos • Solução equilibrada"
-                )
-        except:
-            pass
+            # Obter renda mensal atual e meta
+            current_monthly_income = getattr(results, 'monthly_income', 0)
+
+            mode_value = state.benefit_target_mode.value if hasattr(state.benefit_target_mode, 'value') else str(state.benefit_target_mode)
+            if mode_value == "VALUE":
+                target_monthly_income = state.target_benefit
+            else:  # REPLACEMENT_RATE
+                salary_months = getattr(state, 'salary_months_per_year', DEFAULT_SALARY_MONTHS_PER_YEAR) or DEFAULT_SALARY_MONTHS_PER_YEAR
+                target_monthly_income = (state.salary * salary_months / MONTHS_PER_YEAR) * (state.target_replacement_rate / 100)
+
+            if not target_monthly_income or target_monthly_income <= 0:
+                return None
+
+            # Verificar gap significativo (> R$ 200/mês)
+            income_gap = target_monthly_income - current_monthly_income
+            if abs(income_gap) < 200:
+                return None
+
+            # Usar root seeking centralizado
+            from .calculations.vpa_calculations import calculate_optimal_cd_contribution_rate
+
+            optimal_rate = calculate_optimal_cd_contribution_rate(
+                state, self.actuarial_engine, target_monthly_income
+            )
+
+            current_rate = state.contribution_rate or 0
+            rate_increase = optimal_rate - current_rate
+
+            # Validar bounds e diferença mínima
+            if optimal_rate < 1 or optimal_rate > 30 or abs(rate_increase) < 0.5:
+                return None
+
+            optimal_rate = round(optimal_rate, 2)
+
+            # Formatar valores
+            optimal_label = f"{optimal_rate:.1f}".replace('.', ',')
+            delta_label = f"{abs(rate_increase):.1f}".replace('.', ',')
+            target_label = format_currency_safe(target_monthly_income)
+
+            action_verb = "Elevar" if rate_increase > 0 else "Reduzir"
+
+            return Suggestion(
+                id=str(uuid.uuid4()),
+                type=SuggestionType.BALANCE_PLAN,
+                title=f"{action_verb} contribuição para meta de renda vitalícia",
+                description=f"Ajustar taxa para {optimal_label}% atinge {target_label}/mês na aposentadoria.",
+                action=SuggestionAction.OPTIMIZE_CD_CONTRIBUTION_RATE,
+                action_value=optimal_rate,
+                action_label=f"Aplicar {optimal_label}%",
+                priority=1,
+                impact_description=f"{optimal_label}%",
+                confidence=0.90,
+                trade_off_info=f"{action_verb.capitalize()} {delta_label} p.p. garante meta de aposentadoria"
+            )
+
+        except Exception as e:
+            import logging
+            import traceback
+            logger = logging.getLogger(__name__)
+            logger.error(f"[SUGESTÃO_CD] Erro ao calcular sugestão: {e}")
+            logger.error(f"[SUGESTÃO_CD] Traceback: {traceback.format_exc()}")
+
         return None

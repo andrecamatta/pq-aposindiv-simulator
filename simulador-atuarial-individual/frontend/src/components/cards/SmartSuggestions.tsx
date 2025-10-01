@@ -30,29 +30,36 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
   const planType = state.plan_type || 'BD';
   const benefitMode = state.benefit_target_mode || 'VALUE';
   const isBDSupported = planType === 'BD' && (benefitMode === 'VALUE' || benefitMode === 'REPLACEMENT_RATE');
+  const isCDSupported =
+    planType === 'CD' &&
+    (state.cd_conversion_mode === 'ACTUARIAL' || state.cd_conversion_mode === 'ACTUARIAL_EQUIVALENT') &&
+    (benefitMode === 'VALUE' || benefitMode === 'REPLACEMENT_RATE');
+  const isSupported = isBDSupported || isCDSupported;
 
   // Função removida - elimina redundância com impact_description
 
   // Buscar sugestões quando estado mudar
   useEffect(() => {
     if (!loading && state) {
-      if (isBDSupported) {
+      if (isSupported) {
         fetchSuggestions();
       } else {
         setSuggestions([]);
         setContext({
           plan_type: planType,
           benefit_target_mode: benefitMode,
-          is_bd_supported: false,
-          unsupported_reason: 'Sugestões inteligentes estão disponíveis para planos BD com Valor Fixo ou Taxa de Reposição.'
+          cd_conversion_mode: state.cd_conversion_mode,
+          is_supported: false,
+          unsupported_reason: 'Sugestões inteligentes estão disponíveis para planos BD ou CD com renda vitalícia (Cálculo Atuarial).'
         });
         setSuggestionsLoading(false);
       }
     }
   }, [
     loading,
-    isBDSupported,
+    isSupported,
     state.plan_type,
+    state.cd_conversion_mode,
     results?.deficit_surplus,
     state.contribution_rate,
     state.retirement_age,
@@ -63,7 +70,7 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
 
   const fetchSuggestions = async () => {
     try {
-      if (!isBDSupported) {
+      if (!isSupported) {
         return;
       }
       setSuggestionsLoading(true);
@@ -83,7 +90,8 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
       setContext({
         plan_type: planType,
         benefit_target_mode: benefitMode,
-        is_bd_supported: isBDSupported,
+        cd_conversion_mode: state.cd_conversion_mode,
+        is_supported: isSupported,
         error: error instanceof Error ? error.message : 'Erro desconhecido',
         unsupported_reason: 'Erro ao conectar com o servidor de sugestões.'
       });
@@ -154,6 +162,7 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
       
       switch (suggestion.action) {
         case 'update_contribution_rate':
+        case 'optimize_cd_contribution_rate':
           updates.contribution_rate = suggestion.action_value;
           break;
         case 'update_retirement_age':
@@ -251,7 +260,7 @@ const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
     );
   }
 
-  if (!isBDSupported) {
+  if (!isSupported) {
     return (
       <div role="region" aria-labelledby="smart-suggestions-title" className="space-y-1">
         <h3 id="smart-suggestions-title" className="text-sm font-semibold text-gray-900">Sugestões Inteligentes</h3>

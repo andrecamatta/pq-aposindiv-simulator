@@ -19,13 +19,14 @@ class SuggestionType(str, Enum):
 class SuggestionAction(str, Enum):
     """Ações que podem ser aplicadas"""
     UPDATE_CONTRIBUTION_RATE = "update_contribution_rate"
-    UPDATE_RETIREMENT_AGE = "update_retirement_age"  
+    UPDATE_RETIREMENT_AGE = "update_retirement_age"
     UPDATE_TARGET_BENEFIT = "update_target_benefit"
     UPDATE_ACCRUAL_RATE = "update_accrual_rate"
     UPDATE_REPLACEMENT_RATE = "update_replacement_rate"
     UPDATE_MULTIPLE_PARAMS = "update_multiple_params"  # Para múltiplas mudanças
     APPLY_SUSTAINABLE_BENEFIT = "apply_sustainable_benefit"
     APPLY_SUSTAINABLE_REPLACEMENT_RATE = "apply_sustainable_replacement_rate"
+    OPTIMIZE_CD_CONTRIBUTION_RATE = "optimize_cd_contribution_rate"  # Otimizar contribuição CD para meta de renda
 
 
 class Suggestion(BaseModel):

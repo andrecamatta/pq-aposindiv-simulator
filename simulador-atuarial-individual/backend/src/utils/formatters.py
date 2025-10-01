@@ -100,34 +100,6 @@ def format_number_safe(value: Optional[float], decimals: int = 2, default: str =
     return default
 
 
-def format_currency_simple(value: float) -> str:
-    """
-    Formatação simples de moeda sem verificação de None.
-    Usada internamente quando já há garantia de que valor não é None.
-
-    Args:
-        value: Valor numérico a ser formatado
-
-    Returns:
-        String formatada como moeda brasileira
-    """
-    return apply_br_number_format(f"R$ {value:,.2f}")
-
-
-def format_percentage_simple(value: float, decimals: int = 1) -> str:
-    """
-    Formatação simples de porcentagem sem verificação de None.
-
-    Args:
-        value: Valor numérico a ser formatado
-        decimals: Número de casas decimais
-
-    Returns:
-        String formatada como porcentagem
-    """
-    return f"{value:.{decimals}f}%".replace('.', ',')
-
-
 def apply_br_number_format(value: str) -> str:
     """
     Aplica formatação brasileira a string numérica já formatada.
@@ -140,34 +112,6 @@ def apply_br_number_format(value: str) -> str:
         String com formatação brasileira (1.234,56)
     """
     return value.replace(',', 'X').replace('.', ',').replace('X', '.')
-
-
-def format_currency_inline(value: float) -> str:
-    """
-    Formatação inline de moeda para uso em f-strings.
-    Equivale a apply_br_number_format(f"R$ {value:,.2f}")
-
-    Args:
-        value: Valor numérico a ser formatado
-
-    Returns:
-        String formatada como moeda brasileira
-    """
-    return format_currency_simple(value)
-
-
-def format_currency_br(value: float) -> str:
-    """
-    Função utilitária para formatação direta de moeda em padrão brasileiro.
-    Ideal para uso em f-strings substituindo o padrão duplicado.
-
-    Args:
-        value: Valor numérico a ser formatado
-
-    Returns:
-        String formatada como moeda brasileira (ex: "R$ 1.234,56")
-    """
-    return apply_br_number_format(f"R$ {value:,.2f}")
 
 
 def format_number_br(value: float, decimals: int = 2) -> str:

@@ -127,6 +127,8 @@ class ResultsBuilder:
 
             # Decomposição atuarial
             decomposition=self._decomposition,
+            actuarial_present_value_benefits=self._decomposition.get("apv_benefits", 0.0),
+            actuarial_present_value_salary=self._decomposition.get("apv_future_contributions", 0.0),
 
             # Análise de cenários
             scenarios=self._scenarios,
@@ -197,9 +199,15 @@ class ResultsBuilder:
 
 
             # Dados específicos CD
+            individual_balance=self._accumulated_balance,  # Saldo individual acumulado
             accumulated_balance=self._accumulated_balance,
+            net_accumulated_value=net_balance,  # Valor líquido (após custos)
+            accumulated_return=accumulated_return_value,  # Rendimento acumulado
+            effective_return_rate=effective_return,  # Taxa de retorno efetiva
             monthly_income=self._monthly_income,
             monthly_income_cd=self._monthly_income,  # Preencher campo específico CD
+            conversion_factor=conversion_factor_value,  # Fator de conversão
+            administrative_cost_total=administrative_costs,  # Custos administrativos totais
             benefit_duration_years=self._benefit_duration_years,
             conversion_analysis=self._conversion_analysis,
 

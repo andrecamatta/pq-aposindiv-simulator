@@ -7,7 +7,11 @@ from typing import List, Dict, TYPE_CHECKING
 from abc import ABC, abstractmethod
 
 from .constants import (
-    MIN_RETIREMENT_YEARS, MSG_EXTENDED_PROJECTION, MSG_RETIREMENT_PROJECTION
+    MIN_RETIREMENT_YEARS,
+    MSG_EXTENDED_PROJECTION,
+    MSG_RETIREMENT_PROJECTION,
+    MAX_RETIREMENT_PROJECTION_YEARS,
+    MAX_RETIREMENT_AGE_PROJECTION
 )
 from .logging_config import ActuarialLoggerMixin
 from .projections import (
@@ -105,7 +109,7 @@ class BaseProjectionEngine(ActuarialLoggerMixin, ABC):
         """
         if context.is_already_retired:
             # Para aposentados: projetar anos restantes de expectativa
-            max_years_projection = min(30, 95 - state.age)
+            max_years_projection = min(MAX_RETIREMENT_PROJECTION_YEARS, MAX_RETIREMENT_AGE_PROJECTION - state.age)
             total_months = max(12, max_years_projection * 12)
             self.log_info(MSG_RETIREMENT_PROJECTION.format(total_months/12))
 

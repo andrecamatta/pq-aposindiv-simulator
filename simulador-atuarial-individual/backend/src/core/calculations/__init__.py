@@ -27,9 +27,6 @@ from .vpa_calculations import (
     calculate_sustainable_benefit_with_engine
 )
 
-# Módulos projection_math e advanced_actuarial não existem ainda
-# TODO: Implementar quando necessário
-
 __all__ = [
     # Matemática básica
     'calculate_discount_factor',

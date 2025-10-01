@@ -2,8 +2,11 @@ import React from 'react';
 import { Icon } from '../../design-system/components/Icon';
 import { Line } from 'react-chartjs-2';
 import type { SimulatorResults, SimulatorState } from '../../types/simulator.types';
-import { getZeroLineGridConfig } from '../../utils/chartSetup';
-import { formatCurrencyBR } from '../../utils/formatBR';
+import { getCleanGridConfig } from '../../utils/chartSetup';
+import { formatCurrencyBR, formatCompactCurrencyBR } from '../../utils/formatBR';
+
+// Constante para conversões de tempo calendário
+const MONTHS_PER_YEAR = 12;
 
 interface CDLifecycleChartProps {
   results: SimulatorResults;
@@ -11,14 +14,22 @@ interface CDLifecycleChartProps {
 }
 
 const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) => {
-  // Log para debug
-  console.log('[CDLifecycleChart] Results structure:', {
-    hasResults: !!results,
-    hasProjectionYears: !!results?.projection_years,
-    projectionYearsType: Array.isArray(results?.projection_years) ? 'array' : typeof results?.projection_years,
-    hasAccumulatedReserves: !!results?.accumulated_reserves,
-    hasActuarialScenario: !!results?.actuarial_scenario
-  });
+
+  // Função para obter informações da modalidade de conversão
+  const getConversionModeInfo = (mode: string) => {
+    const modeMap: Record<string, { label: string; icon: string }> = {
+      'ACTUARIAL': { label: 'Renda Vitalícia Atuarial', icon: '🎯' },
+      'ACTUARIAL_EQUIVALENT': { label: 'Equivalente Atuarial', icon: '⚖️' },
+      'CERTAIN_5Y': { label: 'Prazo Certo - 5 Anos', icon: '⏰' },
+      'CERTAIN_10Y': { label: 'Prazo Certo - 10 Anos', icon: '⏰' },
+      'CERTAIN_15Y': { label: 'Prazo Certo - 15 Anos', icon: '⏰' },
+      'CERTAIN_20Y': { label: 'Prazo Certo - 20 Anos', icon: '⏰' },
+      'PERCENTAGE': { label: 'Percentual do Saldo', icon: '📊' },
+      'PROGRAMMED': { label: 'Saque Programado', icon: '📉' }
+    };
+
+    return modeMap[mode] || { label: 'Renda Vitalícia Atuarial', icon: '🎯' };
+  };
 
   // Verificações de segurança
   if (!results || !results.projection_years || !Array.isArray(results.projection_years)) {
@@ -43,12 +54,17 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
   // Separar dados em fases de acumulação e aposentadoria
   const accumulationAges = ageLabels.slice(0, retirementIndex + 1);
   const retirementAges = ageLabels.slice(retirementIndex);
-  
-  const accumulationBalances = (results.accumulated_reserves || []).slice(0, retirementIndex + 1);
-  const retirementBalances = (results.accumulated_reserves || []).slice(retirementIndex);
+
+  // Usar dados do cenário atuarial se disponível (mais preciso após aplicar sugestões)
+  // Caso contrário, usar accumulated_reserves como fallback
+  const actuarialReserves = results.actuarial_scenario?.projections?.reserves || results.accumulated_reserves || [];
+
+  const accumulationBalances = actuarialReserves.slice(0, retirementIndex + 1);
+  const retirementBalances = actuarialReserves.slice(retirementIndex);
   
   // Calcular pico de saldo e data de exaustão estimada
-  const peakBalance = Math.max(...(results.accumulated_reserves || []));
+  // Usar reservas do cenário atuarial para consistência
+  const peakBalance = Math.max(...actuarialReserves);
   
   // Para planos CD, o pico sempre ocorre na idade de aposentadoria
   // Isso garante consistência entre métricas e visualização do gráfico
@@ -76,38 +92,35 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
   // Se não foi determinado pela modalidade, calcular pela exaustão do saldo (para modo vitalício)
   if (!exhaustionAge) {
     const exhaustionThreshold = peakBalance * 0.1;
-    const exhaustionIndex = results.accumulated_reserves?.findIndex((balance, index) => 
+    const exhaustionIndex = actuarialReserves.findIndex((balance, index) =>
       index > retirementIndex && balance < exhaustionThreshold
     );
     exhaustionAge = exhaustionIndex && exhaustionIndex > 0 ? ageLabels[exhaustionIndex] : null;
   }
 
-  // Usar dados dos cenários do backend ou calcular localmente como fallback
+  // Usar dados dos cenários do backend quando disponíveis (mais preciso)
   const getScenarioData = () => {
-    // Se temos dados dos cenários do backend, usar esses
-    console.log('[CDLifecycleChart] Verificando cenários:', {
-      hasActuarial: !!results.actuarial_scenario,
-      hasDesired: !!results.desired_scenario,
-      actuarialIncome: results.actuarial_scenario?.monthly_income,
-      desiredIncome: results.desired_scenario?.monthly_income
-    });
+    // Se backend retornou cenários diferenciados, usar eles
+    if (results.desired_scenario?.projections?.reserves) {
+      // Calcular ponto de exaustão para cenário desejado
+      const desiredReserves = results.desired_scenario.projections.reserves;
+      const desiredExhaustionThreshold = Math.max(...desiredReserves) * 0.1;
+      const desiredExhaustionIndex = desiredReserves.findIndex((balance, index) =>
+        index > retirementIndex && balance < desiredExhaustionThreshold
+      );
+      const desiredExhaustionAge = desiredExhaustionIndex > 0 ? ageLabels[desiredExhaustionIndex] : null;
 
-    if (results.actuarial_scenario && results.desired_scenario) {
       return {
-        actuarial: {
-          balances: results.actuarial_scenario.projections.reserves,
-          monthly_income: results.actuarial_scenario.monthly_income,
-          exhaustionAge: null // Será calculado abaixo
-        },
+        actuarial: null, // Não precisamos, já estamos usando actuarialReserves
         desired: {
-          balances: results.desired_scenario.projections.reserves,
+          balances: desiredReserves,
           monthly_income: results.desired_scenario.monthly_income,
-          exhaustionAge: null // Será calculado abaixo
+          exhaustionAge: desiredExhaustionAge
         }
       };
     }
 
-    // Fallback: calcular localmente como antes
+    // Fallback: calcular localmente (quando backend não retornou cenários)
     return calculateAlternativeProjection();
   };
 
@@ -124,7 +137,14 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
 
     // Configurações para cálculo alternativo
     const targetBenefit = state.target_benefit || 0;
-    const conversionRateMonthly = (state.conversion_rate || 0.045) / 12; // Taxa de conversão mensal do estado
+
+    // Converter taxas anuais para mensais usando fórmula composta
+    const conversionRateAnnual = state.cd_conversion_rate || 0.06;
+    const conversionRateMonthly = Math.pow(1 + conversionRateAnnual, 1/12) - 1;
+
+    const adminFeeAnnual = state.admin_fee_rate || 0.015;
+    const adminFeeMonthly = Math.pow(1 + adminFeeAnnual, 1/12) - 1;
+
     const benefitMonthsPerYear = state.benefit_months_per_year || 13;
     
     // Simular evolução do saldo com benefício desejado
@@ -144,12 +164,12 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
       let monthlyBalance = remainingBalance;
       
       // Simular 12 meses para este ano
-      for (let month = 0; month < 12; month++) {
+      for (let month = 0; month < MONTHS_PER_YEAR; month++) {
         const currentMonthInYear = month;
         let monthlyPayment = targetBenefit; // Pagamento base mensal
-        
+
         // Aplicar pagamentos extras baseado na configuração do backend
-        const extraPayments = benefitMonthsPerYear - 12;
+        const extraPayments = benefitMonthsPerYear - MONTHS_PER_YEAR;
         if (extraPayments > 0) {
           if (currentMonthInYear === 11) { // Dezembro - 13º
             if (extraPayments >= 1) {
@@ -165,10 +185,13 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
         
         // Descontar pagamento do saldo
         monthlyBalance -= monthlyPayment;
-        
-        // Capitalizar saldo restante
+
+        // Capitalizar saldo restante com taxa de conversão
         monthlyBalance *= (1 + conversionRateMonthly);
-        
+
+        // Aplicar taxa administrativa (após capitalização)
+        monthlyBalance *= (1 - adminFeeMonthly);
+
         // Garantir que não fique negativo
         monthlyBalance = Math.max(0, monthlyBalance);
         
@@ -213,51 +236,89 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
   const scenarioData = getScenarioData();
   const alternativeProjection = scenarioData?.desired;
 
-  // Construir datasets dinamicamente
+  // Função para gerar labels contextuais baseados na modalidade
+  const getContextualLabels = () => {
+    const conversionMode = state.cd_conversion_mode;
+    const actuarialIncome = results.monthly_income_cd || 0;
+
+    let accumulationLabel = 'Fase de Acumulação';
+    let actuarialLabel = 'Cenário com Contribuição Atual';
+    let desiredLabel = 'Cenário para Meta Desejada';
+
+    // Personalizar labels baseado na modalidade
+    if (conversionMode) {
+      if (conversionMode.includes('CERTAIN')) {
+        const years = conversionMode.split('_')[1].replace('Y', '');
+        actuarialLabel = `Renda por ${years} Anos`;
+      } else if (conversionMode === 'ACTUARIAL') {
+        actuarialLabel = 'Renda Vitalícia Atuarial';
+      } else if (conversionMode === 'PERCENTAGE') {
+        actuarialLabel = 'Saque Percentual';
+      } else if (conversionMode === 'PROGRAMMED') {
+        actuarialLabel = 'Saque Programado';
+      }
+    }
+
+    return { accumulationLabel, actuarialLabel, desiredLabel };
+  };
+
+  const { accumulationLabel, actuarialLabel, desiredLabel } = getContextualLabels();
+
+  // Construir datasets dinamicamente com labels contextuais
   const datasets: any[] = [
     {
-      label: 'Fase de Acumulação',
+      label: accumulationLabel,
       data: accumulationBalances.concat(new Array(ageLabels.length - accumulationBalances.length).fill(null)),
-      borderColor: '#6EE7B7',
-      backgroundColor: 'rgba(110, 231, 183, 0.1)',
+      borderColor: '#10B981',
+      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+      borderWidth: 2.5,
       tension: 0.4,
       fill: true,
       pointRadius: (context: any) => {
         const age = ageLabels[context.dataIndex];
-        return age === peakAge ? 6 : 2;
+        return age === peakAge ? 5 : 0;
       },
       pointBackgroundColor: (context: any) => {
         const age = ageLabels[context.dataIndex];
-        return age === peakAge ? '#34D399' : '#6EE7B7';
+        return age === peakAge ? '#10B981' : 'transparent';
       },
+      pointBorderColor: (context: any) => {
+        const age = ageLabels[context.dataIndex];
+        return age === peakAge ? '#FFFFFF' : 'transparent';
+      },
+      pointBorderWidth: 2,
       segment: {
         borderColor: (ctx: any) => {
           const age = ageLabels[ctx.p0DataIndex];
-          return age >= retirementAge ? 'transparent' : '#6EE7B7';
+          return age >= retirementAge ? 'transparent' : '#10B981';
         }
       }
     },
     {
-      label: alternativeProjection ? 
-        `Cenário Atuarial (${formatCurrencyBR(results.monthly_income_cd || 0, 0)})` : 
-        `Fase de Aposentadoria (${formatCurrencyBR(results.monthly_income_cd || 0, 0)})`,
+      label: actuarialLabel,
       data: new Array(retirementIndex).fill(null).concat(retirementBalances),
-      borderColor: '#FCD34D',
-      backgroundColor: 'rgba(252, 211, 77, 0.1)',
+      borderColor: '#F59E0B',
+      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+      borderWidth: 2.5,
       tension: 0.4,
       fill: alternativeProjection ? false : true,
       pointRadius: (context: any) => {
         const age = ageLabels[context.dataIndex];
-        return age === exhaustionAge ? 6 : 2;
+        return age === exhaustionAge ? 5 : 0;
       },
       pointBackgroundColor: (context: any) => {
         const age = ageLabels[context.dataIndex];
-        return age === exhaustionAge ? '#F87171' : '#FCD34D';
+        return age === exhaustionAge ? '#DC2626' : 'transparent';
       },
+      pointBorderColor: (context: any) => {
+        const age = ageLabels[context.dataIndex];
+        return age === exhaustionAge ? '#FFFFFF' : 'transparent';
+      },
+      pointBorderWidth: 2,
       segment: {
         borderColor: (ctx: any) => {
           const age = ageLabels[ctx.p0DataIndex];
-          return age < retirementAge ? 'transparent' : '#FCD34D';
+          return age < retirementAge ? 'transparent' : '#F59E0B';
         }
       }
     }
@@ -266,34 +327,31 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
   // Adicionar dataset de comparação se disponível
   if (alternativeProjection) {
     datasets.push({
-      label: `Cenário Desejado (${formatCurrencyBR(alternativeProjection.monthly_income, 0)})`,
+      label: desiredLabel,
       data: alternativeProjection.balances,
-      borderColor: '#F87171',
-      backgroundColor: 'rgba(248, 113, 113, 0.1)',
+      borderColor: '#EF4444',
+      backgroundColor: 'transparent',
       tension: 0.4,
       fill: false,
       borderWidth: 2,
-      borderDash: [5, 3],
+      borderDash: [8, 4],
       pointRadius: (context: any) => {
         const age = ageLabels[context.dataIndex];
-        return age === alternativeProjection?.exhaustionAge ? 8 : 2;
+        return age === alternativeProjection?.exhaustionAge ? 5 : 0;
       },
       pointBackgroundColor: (context: any) => {
         const age = ageLabels[context.dataIndex];
-        return age === alternativeProjection?.exhaustionAge ? '#DC2626' : '#F87171';
+        return age === alternativeProjection?.exhaustionAge ? '#DC2626' : 'transparent';
       },
       pointBorderColor: (context: any) => {
         const age = ageLabels[context.dataIndex];
-        return age === alternativeProjection?.exhaustionAge ? '#FFFFFF' : '#F87171';
+        return age === alternativeProjection?.exhaustionAge ? '#FFFFFF' : 'transparent';
       },
-      pointBorderWidth: (context: any) => {
-        const age = ageLabels[context.dataIndex];
-        return age === alternativeProjection?.exhaustionAge ? 2 : 0;
-      },
+      pointBorderWidth: 2,
       segment: {
         borderColor: (ctx: any) => {
           const age = ageLabels[ctx.p0DataIndex];
-          return age < retirementAge ? 'transparent' : '#F87171';
+          return age < retirementAge ? 'transparent' : '#EF4444';
         }
       }
     });
@@ -303,9 +361,9 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
   datasets.push({
     label: 'Linha de Aposentadoria',
     data: ageLabels.map(age => age === retirementAge ? peakBalance * 1.1 : null),
-    borderColor: '#A78BFA',
-    borderWidth: 2,
-    borderDash: [8, 4],
+    borderColor: '#9CA3AF',
+    borderWidth: 1.5,
+    borderDash: [6, 6],
     pointRadius: 0,
     fill: false,
     tension: 0,
@@ -330,6 +388,50 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
           },
           filter: (legendItem: any) => {
             return legendItem.text !== 'Linha de Aposentadoria';
+          },
+          generateLabels: (chart: any) => {
+            const datasets = chart.data.datasets;
+            const labels = [];
+
+            // Adicionar contexto integrado no topo da legenda
+            const conversionMode = state.cd_conversion_mode || 'ACTUARIAL';
+            const modeInfo = getConversionModeInfo(conversionMode);
+            const actuarialIncome = results.monthly_income_cd || 0;
+            const desiredIncome = state.target_benefit || 0;
+            const showComparison = desiredIncome > 0 && Math.abs(desiredIncome - actuarialIncome) > 100;
+
+            // Criar item de contexto integrado
+            labels.push({
+              text: `${modeInfo.icon} ${modeInfo.label} • Atual: ${formatCurrencyBR(actuarialIncome, 0)}${showComparison ? ` • Meta: ${formatCurrencyBR(desiredIncome, 0)}` : ''}`,
+              fillStyle: 'transparent',
+              strokeStyle: 'transparent',
+              lineWidth: 0,
+              pointStyle: 'line',
+              hidden: false,
+              index: -1,
+              fontColor: '#4B5563',
+              fontSize: 13,
+              fontStyle: 'bold'
+            });
+
+            // Adicionar datasets com cores corretas (exceto linha de aposentadoria)
+            datasets.forEach((dataset: any, index: number) => {
+              if (dataset.label !== 'Linha de Aposentadoria') {
+                labels.push({
+                  text: dataset.label,
+                  fillStyle: dataset.backgroundColor || dataset.borderColor,
+                  strokeStyle: dataset.borderColor,
+                  lineWidth: dataset.borderWidth || 2,
+                  pointStyle: dataset.pointStyle || 'line',
+                  hidden: false,
+                  index: index,
+                  fontColor: '#374151',
+                  fontSize: 12
+                });
+              }
+            });
+
+            return labels;
           }
         },
       },
@@ -337,7 +439,9 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
         callbacks: {
           title: function(context: any) {
             const age = context[0].label;
-            return `Idade: ${age} anos`;
+            const retirementAge = state.retirement_age || 65;
+            const phase = age < retirementAge ? 'Acumulação' : 'Aposentadoria';
+            return `Idade: ${age} anos (${phase})`;
           },
           label: function(context: any) {
             const value = context.parsed.y;
@@ -347,20 +451,51 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
           afterLabel: function(context: any) {
             const age = parseInt(context.label);
             const retirementAge = state.retirement_age || 65;
-            
+            const conversionMode = state.cd_conversion_mode;
+
+            const labels = [];
+
             if (age === retirementAge) {
-              return '🎯 Idade de aposentadoria';
+              labels.push('🎯 Idade de aposentadoria');
+
+              // Informação específica da modalidade
+              if (conversionMode?.includes('CERTAIN')) {
+                const years = conversionMode.split('_')[1].replace('Y', '');
+                labels.push(`📅 Início dos ${years} anos de pagamento`);
+              } else if (conversionMode === 'ACTUARIAL') {
+                labels.push('♾️ Início da renda vitalícia');
+              }
             }
+
             if (age === peakAge && age === retirementAge) {
-              return '📈 Pico do saldo';
+              labels.push('📈 Pico do saldo acumulado');
             }
+
             if (age === exhaustionAge) {
-              return '⚠️ Exaustão estimada do saldo';
+              if (conversionMode?.includes('CERTAIN')) {
+                labels.push('✅ Fim do prazo de pagamento');
+              } else {
+                labels.push('⚠️ Exaustão estimada do saldo');
+              }
             }
+
             if (alternativeProjection && age === alternativeProjection?.exhaustionAge) {
-              return '🔴 Exaustão no cenário desejado';
+              labels.push('🔴 Exaustão no cenário para meta desejada');
             }
-            return '';
+
+            return labels.join('\n');
+          },
+          footer: function(context: any) {
+            const age = parseInt(context[0].label);
+            const retirementAge = state.retirement_age || 65;
+
+            if (age < retirementAge) {
+              const yearsToRetire = retirementAge - age;
+              return `${yearsToRetire} anos para aposentadoria`;
+            } else {
+              const yearsInRetirement = age - retirementAge;
+              return `${yearsInRetirement} anos de aposentadoria`;
+            }
           }
         },
       },
@@ -373,32 +508,56 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
         title: {
           display: true,
           text: 'Idade (anos)',
+          font: {
+            size: 12,
+            weight: '500' as const,
+          },
+          color: '#4B5563',
+          padding: { top: 15, bottom: 0 }
         },
         grid: {
           display: false,
         },
+        border: {
+          display: false, // Remove a linha do eixo
+        },
         ticks: {
           display: true,
+          maxTicksLimit: 8, // Limita o número de ticks no eixo X
           font: {
-            size: 11,
+            size: 10,
+            weight: '400' as const,
           },
-          color: '#6B7280',
+          color: '#9CA3AF',
+          padding: 6,
         },
       },
       y: {
         title: {
           display: true,
           text: 'Saldo da Conta Individual (R$)',
+          font: {
+            size: 12,
+            weight: '500' as const,
+          },
+          color: '#4B5563',
+          padding: { top: 0, bottom: 15 }
         },
-        grid: getZeroLineGridConfig(),
+        grid: getCleanGridConfig(),
+        border: {
+          display: false, // Remove a linha do eixo
+        },
         ticks: {
           display: true,
+          maxTicksLimit: 5, // Máximo de 5 ticks para visual clean
           font: {
-            size: 11,
+            size: 10,
+            weight: '400' as const,
           },
-          color: '#6B7280',
+          color: '#9CA3AF',
+          padding: 8,
           callback: function(value: any) {
-            return formatCurrencyBR(value, 0);
+            return formatCompactCurrencyBR(value);
           },
         },
       },
@@ -417,9 +576,9 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
           Evolução do Saldo CD - Ciclo de Vida Completo
         </h3>
       </div>
-      
-      {/* Gráfico */}
-      <div className="h-[26rem]">
+
+      {/* Gráfico com contexto integrado na legenda */}
+      <div className="h-[28rem]">
         <Line data={data} options={options} />
       </div>
     </div>

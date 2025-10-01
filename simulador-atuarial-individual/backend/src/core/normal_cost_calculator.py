@@ -6,6 +6,7 @@ import numpy as np
 from typing import Dict, TYPE_CHECKING
 from .logging_config import ActuarialLoggerMixin
 from ..utils.pydantic_validators import get_enum_value
+from .constants import MIN_EFFECTIVE_RATE
 
 if TYPE_CHECKING:
     from ..models.participant import SimulatorState
@@ -88,7 +89,7 @@ class NormalCostCalculator(ActuarialLoggerMixin):
 
         # Taxa efetiva considerando taxa administrativa
         effective_discount_rate = (1 + context.discount_rate_monthly) / (1 + context.admin_fee_monthly) - 1
-        effective_discount_rate = max(effective_discount_rate, -0.99)
+        effective_discount_rate = max(effective_discount_rate, MIN_EFFECTIVE_RATE)
 
         # Fator de anuidade vitalícia
         annuity_factor = self._calculate_life_annuity_factor(

@@ -15,7 +15,7 @@ from openpyxl.utils import get_column_letter
 import pandas as pd
 
 from .models.report_models import ReportRequest, ReportResponse, ReportConfig
-from ...utils.formatters import format_currency_br
+from ...utils.formatters import format_currency_safe
 from .abstract_report_generator import AbstractReportGenerator
 
 
@@ -414,7 +414,7 @@ class ExcelGenerator(AbstractReportGenerator):
         csv_data.append(["Parâmetro", "Valor"])
         csv_data.append(["Idade Atual", str(request.state.age)])
         csv_data.append(["Gênero", "Masculino" if request.state.gender == "M" else "Feminino"])
-        csv_data.append(["Salário Mensal", format_currency_br(request.state.salary)])
+        csv_data.append(["Salário Mensal", format_currency_safe(request.state.salary)])
         csv_data.append(["Tipo de Plano", request.state.plan_type])
         csv_data.append(["Taxa de Contribuição", f"{request.state.contribution_rate}%"])
         csv_data.append([])
@@ -424,12 +424,12 @@ class ExcelGenerator(AbstractReportGenerator):
         csv_data.append(["Indicador", "Valor"])
 
         if request.state.plan_type == "BD":
-            csv_data.append(["RMBA", format_currency_br(request.results.rmba or 0)])
-            csv_data.append(["RMBC", format_currency_br(request.results.rmbc or 0)])
-            csv_data.append(["Déficit/Superávit", format_currency_br(request.results.deficit_surplus or 0)])
+            csv_data.append(["RMBA", format_currency_safe(request.results.rmba or 0)])
+            csv_data.append(["RMBC", format_currency_safe(request.results.rmbc or 0)])
+            csv_data.append(["Déficit/Superávit", format_currency_safe(request.results.deficit_surplus or 0)])
         else:
-            csv_data.append(["Saldo Final", format_currency_br(request.results.individual_balance or 0)])
-            csv_data.append(["Renda Mensal", format_currency_br(request.results.monthly_income_cd or 0)])
+            csv_data.append(["Saldo Final", format_currency_safe(request.results.individual_balance or 0)])
+            csv_data.append(["Renda Mensal", format_currency_safe(request.results.monthly_income_cd or 0)])
 
         csv_data.append(["Taxa de Reposição", f"{(request.results.replacement_ratio or 0):.3f}"])
 

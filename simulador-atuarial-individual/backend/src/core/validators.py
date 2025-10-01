@@ -4,6 +4,10 @@ Consolida lógica de validação espalhada pelo código
 """
 
 from typing import List, Optional, TYPE_CHECKING
+from .constants import MIN_EFFECTIVE_RATE
+import logging
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..models.participant import SimulatorState
@@ -58,35 +62,55 @@ class StateValidator:
     def validate_rates(state: 'SimulatorState') -> None:
         """
         Valida taxas de desconto, crescimento e contribuição
-        
+
         Args:
             state: Estado do simulador
-            
+
         Raises:
             ValidationError: Se alguma taxa for inválida
         """
         errors = []
-        
+
         # Taxa de desconto
         if state.discount_rate < 0 or state.discount_rate > 1:  # 0% a 100%
             errors.append("Taxa de desconto deve estar entre 0% e 100%")
-        
+
+        # Taxa de acumulação (BD/CD)
+        if hasattr(state, 'accumulation_rate') and state.accumulation_rate is not None:
+            if state.accumulation_rate < 0 or state.accumulation_rate > 1:
+                errors.append("Taxa de acumulação deve estar entre 0% e 100%")
+
+        # Taxa de conversão (BD/CD)
+        if hasattr(state, 'conversion_rate') and state.conversion_rate is not None:
+            if state.conversion_rate < 0 or state.conversion_rate > 1:
+                errors.append("Taxa de conversão deve estar entre 0% e 100%")
+
+            # Validação de coerência: taxa de acumulação geralmente >= taxa de conversão
+            # (acumulação é mais agressiva, conversão é mais conservadora)
+            if hasattr(state, 'accumulation_rate') and state.accumulation_rate is not None:
+                if state.conversion_rate > state.accumulation_rate * 1.5:  # Permitir até 50% a mais
+                    logger.warning(
+                        f"Taxa de conversão ({state.conversion_rate:.2%}) significativamente maior "
+                        f"que taxa de acumulação ({state.accumulation_rate:.2%}). "
+                        "Isso é incomum - revise os valores."
+                    )
+
         # Taxa de crescimento salarial real
         if state.salary_growth_real < -0.1 or state.salary_growth_real > 0.2:  # -10% a +20%
             errors.append("Crescimento salarial real deve estar entre -10% e +20%")
-        
+
         # Taxa de contribuição
         if state.contribution_rate < 0 or state.contribution_rate > 50:  # 0% a 50%
             errors.append("Taxa de contribuição deve estar entre 0% e 50%")
-        
+
         # Taxa administrativa
         if state.admin_fee_rate < 0 or state.admin_fee_rate > 0.1:  # 0% a 10%
             errors.append("Taxa administrativa deve estar entre 0% e 10%")
-        
+
         # Taxa de carregamento
         if state.loading_fee_rate < 0 or state.loading_fee_rate > 0.3:  # 0% a 30%
             errors.append("Taxa de carregamento deve estar entre 0% e 30%")
-        
+
         if errors:
             raise ValidationError("; ".join(errors))
     
@@ -117,7 +141,17 @@ class StateValidator:
         if hasattr(state, 'cd_withdrawal_percentage') and state.cd_withdrawal_percentage is not None:
             if state.cd_withdrawal_percentage < 1 or state.cd_withdrawal_percentage > 20:
                 errors.append("Percentual de saque deve estar entre 1% e 20%")
-        
+
+        # Piso de renda (para modalidade actuarial_equivalent)
+        if hasattr(state, 'cd_floor_percentage') and state.cd_floor_percentage is not None:
+            if state.cd_floor_percentage < 50 or state.cd_floor_percentage > 100:
+                errors.append("Piso de renda deve estar entre 50% e 100%")
+
+        # Crescimento anual do percentual (para modalidade percentage)
+        if hasattr(state, 'cd_percentage_growth') and state.cd_percentage_growth is not None:
+            if state.cd_percentage_growth < 0 or state.cd_percentage_growth > 0.25:
+                errors.append("Crescimento anual deve estar entre 0% e 0.25% a.a.")
+
         if errors:
             raise ValidationError("; ".join(errors))
     
@@ -331,9 +365,9 @@ class CalculationValidator:
             return 0.0
         
         # Limitar taxas a faixas razoáveis
-        if value < -0.99:  # Mínimo -99%
-            print(f"[VALIDATION_WARNING] {name} muito baixa: {value}, limitando a -99%")
-            return -0.99
+        if value < MIN_EFFECTIVE_RATE:
+            logger.warning(f"{name} muito baixa: {value}, limitando a {MIN_EFFECTIVE_RATE}")
+            return MIN_EFFECTIVE_RATE
         elif value > 10.0:  # Máximo 1000%
             print(f"[VALIDATION_WARNING] {name} muito alta: {value}, limitando a 1000%")
             return 10.0

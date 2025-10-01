@@ -1,4 +1,4 @@
-"""Testes unitários para SuggestionsEngine"""
+"""Testes unitários para SuggestionsEngine - Atualizado para nova interface"""
 import pytest
 import sys
 from pathlib import Path
@@ -7,351 +7,360 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.core.suggestions_engine import SuggestionsEngine
+from src.core.actuarial_engine import ActuarialEngine
 from src.models.participant import SimulatorState
-from src.models.results import SimulatorResults
+from src.models.suggestions import SuggestionsRequest, SuggestionsResponse, Suggestion
 
 
 class TestSuggestionsEngine:
     """Testes para a classe SuggestionsEngine"""
-    
+
     @pytest.fixture
-    def base_state(self):
-        """Estado base para testes"""
+    def base_bd_state(self):
+        """Estado base para testes BD"""
         return SimulatorState(
             age=30,
             gender="M",
             salary=5000.0,
+            initial_balance=0.0,
             retirement_age=65,
             contribution_rate=10.0,
             target_benefit=3000.0,
             benefit_target_mode="VALUE",
             mortality_table="BR_EMS_2021",
             discount_rate=0.06,
+            accrual_rate=5.0,
+            salary_growth_real=0.02,
+            projection_years=40,
+            calculation_method="PUC",
             plan_type="BD"
         )
-    
+
     @pytest.fixture
-    def deficit_results(self):
-        """Resultados com déficit para testes"""
-        return SimulatorResults(
-            rmba=150000.0,
-            total_contributions=100000.0,
-            deficit_surplus=50000.0,  # Déficit
-            sustainable_replacement_ratio=45.0,
-            cash_flows=[],
-            accumulated_reserves=[]
+    def deficit_bd_state(self):
+        """Estado BD com déficit para gerar sugestões"""
+        return SimulatorState(
+            age=30,
+            gender="M",
+            salary=5000.0,
+            initial_balance=0.0,
+            retirement_age=65,
+            contribution_rate=5.0,  # Baixa contribuição = déficit
+            target_benefit=4000.0,  # Alto benefício
+            benefit_target_mode="VALUE",
+            mortality_table="BR_EMS_2021",
+            discount_rate=0.06,
+            accrual_rate=5.0,
+            salary_growth_real=0.02,
+            projection_years=40,
+            calculation_method="PUC",
+            plan_type="BD"
         )
-    
+
     @pytest.fixture
-    def surplus_results(self):
-        """Resultados com superávit para testes"""
-        return SimulatorResults(
-            rmba=80000.0,
-            total_contributions=100000.0,
-            deficit_surplus=-20000.0,  # Superávit
-            sustainable_replacement_ratio=85.0,
-            cash_flows=[],
-            accumulated_reserves=[]
+    def base_cd_state(self):
+        """Estado base para testes CD com renda vitalícia"""
+        return SimulatorState(
+            age=35,
+            gender="F",
+            salary=6000.0,
+            retirement_age=60,
+            contribution_rate=12.0,
+            initial_balance=10000.0,
+            target_benefit=3500.0,
+            benefit_target_mode="VALUE",
+            mortality_table="AT_2000",
+            discount_rate=0.05,
+            accrual_rate=0.04,
+            salary_growth_real=0.02,
+            projection_years=30,
+            calculation_method="CD",
+            plan_type="CD",
+            cd_conversion_mode="ACTUARIAL"  # Renda vitalícia
         )
-    
-    def test_engine_initialization(self, base_state, deficit_results):
+
+    @pytest.fixture
+    def suggestions_engine(self):
+        """Engine de sugestões"""
+        actuarial_engine = ActuarialEngine()
+        return SuggestionsEngine(actuarial_engine)
+
+    def test_engine_initialization(self, suggestions_engine):
         """Testa inicialização do engine"""
-        engine = SuggestionsEngine(base_state, deficit_results)
-        
-        assert engine.state == base_state
-        assert engine.results == deficit_results
-        assert hasattr(engine, 'generate_suggestions')
-    
-    def test_generate_suggestions_with_deficit(self, base_state, deficit_results):
-        """Testa geração de sugestões com déficit"""
-        engine = SuggestionsEngine(base_state, deficit_results)
-        suggestions = engine.generate_suggestions()
-        
-        # Deve retornar lista de sugestões
-        assert isinstance(suggestions, list)
-        assert len(suggestions) > 0
-        
+        assert suggestions_engine is not None
+        assert hasattr(suggestions_engine, 'generate_suggestions')
+        assert suggestions_engine.actuarial_engine is not None
+
+    def test_generate_suggestions_bd_with_deficit(self, suggestions_engine, deficit_bd_state):
+        """Testa geração de sugestões para BD com déficit"""
+        request = SuggestionsRequest(
+            state=deficit_bd_state,
+            max_suggestions=5
+        )
+
+        response = suggestions_engine.generate_suggestions(request)
+
+        # Verifica tipo do resultado
+        assert isinstance(response, SuggestionsResponse)
+        assert isinstance(response.suggestions, list)
+        assert isinstance(response.context, dict)
+        assert response.computation_time_ms > 0
+
+        # Deve ter sugestões para cenário com déficit
+        assert len(response.suggestions) > 0
+
         # Verifica estrutura das sugestões
-        for suggestion in suggestions:
-            assert isinstance(suggestion, dict)
-            assert 'type' in suggestion
-            assert 'message' in suggestion
-            assert 'impact' in suggestion
-            assert 'parameters' in suggestion
-    
-    def test_generate_suggestions_with_surplus(self, base_state, surplus_results):
-        """Testa geração de sugestões com superávit"""
-        engine = SuggestionsEngine(base_state, surplus_results)
-        suggestions = engine.generate_suggestions()
-        
-        # Pode ter menos sugestões ou sugestões diferentes
-        assert isinstance(suggestions, list)
-        
-        # Se houver sugestões, devem ter estrutura correta
-        for suggestion in suggestions:
-            assert isinstance(suggestion, dict)
-            assert 'type' in suggestion
-            assert 'message' in suggestion
-    
-    def test_contribution_rate_suggestions(self, base_state, deficit_results):
-        """Testa sugestões de taxa de contribuição"""
-        engine = SuggestionsEngine(base_state, deficit_results)
-        suggestions = engine.generate_suggestions()
-        
-        # Deve haver sugestão de aumentar contribuição em caso de déficit
-        contribution_suggestions = [
-            s for s in suggestions 
-            if s['type'] == 'contribution_rate' or 'contribuição' in s['message'].lower()
-        ]
-        
-        assert len(contribution_suggestions) > 0
-        
-        # Verifica parâmetros da sugestão
-        contrib_suggestion = contribution_suggestions[0]
-        if 'new_contribution_rate' in contrib_suggestion['parameters']:
-            new_rate = contrib_suggestion['parameters']['new_contribution_rate']
-            assert new_rate > base_state.contribution_rate
-    
-    def test_retirement_age_suggestions(self, base_state, deficit_results):
-        """Testa sugestões de idade de aposentadoria"""
-        engine = SuggestionsEngine(base_state, deficit_results)
-        suggestions = engine.generate_suggestions()
-        
-        # Pode haver sugestão de postergar aposentadoria
-        retirement_suggestions = [
-            s for s in suggestions 
-            if s['type'] == 'retirement_age' or 'aposentadoria' in s['message'].lower()
-        ]
-        
-        if len(retirement_suggestions) > 0:
-            retirement_suggestion = retirement_suggestions[0]
-            if 'new_retirement_age' in retirement_suggestion['parameters']:
-                new_age = retirement_suggestion['parameters']['new_retirement_age']
-                assert new_age > base_state.retirement_age
-    
-    def test_benefit_adjustment_suggestions(self, base_state, deficit_results):
-        """Testa sugestões de ajuste de benefício"""
-        engine = SuggestionsEngine(base_state, deficit_results)
-        suggestions = engine.generate_suggestions()
-        
-        # Pode haver sugestão de reduzir benefício alvo
-        benefit_suggestions = [
-            s for s in suggestions 
-            if s['type'] == 'target_benefit' or 'benefício' in s['message'].lower()
-        ]
-        
-        if len(benefit_suggestions) > 0:
-            benefit_suggestion = benefit_suggestions[0]
-            if 'new_target_benefit' in benefit_suggestion['parameters']:
-                new_benefit = benefit_suggestion['parameters']['new_target_benefit']
-                assert new_benefit < base_state.target_benefit
-    
-    def test_suggestion_impact_calculation(self, base_state, deficit_results):
-        """Testa cálculo de impacto das sugestões"""
-        engine = SuggestionsEngine(base_state, deficit_results)
-        suggestions = engine.generate_suggestions()
-        
-        for suggestion in suggestions:
-            impact = suggestion['impact']
-            
-            # Impacto deve ser dicionário com informações relevantes
-            assert isinstance(impact, dict)
-            
-            # Pode ter redução de déficit
-            if 'deficit_reduction' in impact:
-                assert isinstance(impact['deficit_reduction'], (int, float))
-                assert impact['deficit_reduction'] >= 0
-    
-    def test_multiple_suggestions_generation(self, base_state, deficit_results):
-        """Testa geração de múltiplas sugestões"""
-        engine = SuggestionsEngine(base_state, deficit_results)
-        suggestions = engine.generate_suggestions()
-        
-        # Deve gerar várias sugestões para déficit significativo
-        assert len(suggestions) >= 1
-        
-        # Sugestões devem ter tipos diferentes
-        suggestion_types = [s['type'] for s in suggestions]
-        unique_types = set(suggestion_types)
-        
-        # Deve haver diversidade de sugestões
-        assert len(unique_types) >= 1
-    
-    def test_suggestion_applicability(self, base_state, deficit_results):
-        """Testa aplicabilidade das sugestões"""
-        engine = SuggestionsEngine(base_state, deficit_results)
-        suggestions = engine.generate_suggestions()
-        
-        for suggestion in suggestions:
-            # Cada sugestão deve ser aplicável ao contexto
-            assert 'applicable' not in suggestion or suggestion['applicable'] is True
-            
-            # Parâmetros devem ser realistas
-            params = suggestion['parameters']
-            
-            if 'new_contribution_rate' in params:
-                new_rate = params['new_contribution_rate']
-                assert 0 < new_rate <= 50.0  # Até 50%
-            
-            if 'new_retirement_age' in params:
-                new_age = params['new_retirement_age']
-                assert base_state.age < new_age <= 75  # Até 75 anos
-    
-    def test_cd_specific_suggestions(self, base_state, deficit_results):
-        """Testa sugestões específicas para CD"""
-        cd_state = base_state.model_copy()
-        cd_state.plan_type = "CD"
-        cd_state.accrual_rate = 0.04
-        
-        cd_results = deficit_results.model_copy()
-        cd_results.accumulated_balance_retirement = 200000.0
-        cd_results.estimated_benefit = 1500.0
-        
-        engine = SuggestionsEngine(cd_state, cd_results)
-        suggestions = engine.generate_suggestions()
-        
+        for suggestion in response.suggestions:
+            assert isinstance(suggestion, Suggestion)
+            assert suggestion.id
+            assert suggestion.title
+            assert suggestion.description
+            assert suggestion.action
+            assert suggestion.action_label
+            assert suggestion.priority in [1, 2, 3]
+            assert 0 <= suggestion.confidence <= 1
+
+    def test_generate_suggestions_bd_balanced(self, suggestions_engine, base_bd_state):
+        """Testa geração de sugestões para BD equilibrado"""
+        request = SuggestionsRequest(
+            state=base_bd_state,
+            max_suggestions=3
+        )
+
+        response = suggestions_engine.generate_suggestions(request)
+
+        # Deve retornar mesmo para cenário equilibrado
+        assert isinstance(response, SuggestionsResponse)
+        assert isinstance(response.suggestions, list)
+
+        # Pode ter ou não sugestões, mas deve ter contexto
+        assert "is_bd" in response.context
+        assert response.context["is_bd"] is True
+
+    def test_generate_suggestions_cd_actuarial(self, suggestions_engine, base_cd_state):
+        """Testa geração de sugestões para CD com renda vitalícia"""
+        request = SuggestionsRequest(
+            state=base_cd_state,
+            max_suggestions=5
+        )
+
+        response = suggestions_engine.generate_suggestions(request)
+
+        # Verifica estrutura
+        assert isinstance(response, SuggestionsResponse)
+        assert isinstance(response.suggestions, list)
+
+        # CD com renda vitalícia deve ser suportado
+        assert "is_cd" in response.context
+        assert response.context.get("is_supported", True) is True
+
         # Pode ter sugestões específicas para CD
-        cd_suggestion_types = [s['type'] for s in suggestions]
-        
-        # Tipos relevantes para CD
-        relevant_types = ['contribution_rate', 'accrual_rate', 'retirement_age']
-        has_relevant = any(t in relevant_types for t in cd_suggestion_types)
-        
-        # Se houver sugestões, pelo menos uma deve ser relevante para CD
-        if suggestions:
-            assert has_relevant or any('saldo' in s['message'].lower() for s in suggestions)
-    
-    def test_low_replacement_ratio_suggestions(self, base_state):
-        """Testa sugestões para taxa de reposição baixa"""
-        low_ratio_results = SimulatorResults(
-            rmba=80000.0,
-            total_contributions=100000.0,
-            deficit_surplus=20000.0,
-            sustainable_replacement_ratio=25.0,  # Muito baixa
-            cash_flows=[],
-            accumulated_reserves=[]
+        if response.suggestions:
+            for suggestion in response.suggestions:
+                assert isinstance(suggestion, Suggestion)
+
+    def test_unsupported_plan_configuration(self, suggestions_engine):
+        """Testa configuração de plano não suportada"""
+        # CD com modo PERCENTAGE (não vitalício)
+        cd_saldo_state = SimulatorState(
+            age=35,
+            gender="F",
+            salary=6000.0,
+            retirement_age=60,
+            contribution_rate=12.0,
+            initial_balance=10000.0,
+            accrual_rate=0.04,
+            salary_growth_real=0.02,
+            projection_years=30,
+            calculation_method="CD",
+            mortality_table="AT_2000",
+            discount_rate=0.05,
+            plan_type="CD",
+            cd_conversion_mode="PERCENTAGE"  # Não suportado para sugestões
         )
-        
-        engine = SuggestionsEngine(base_state, low_ratio_results)
-        suggestions = engine.generate_suggestions()
-        
-        # Deve sugerir melhorias para taxa de reposição baixa
-        assert len(suggestions) > 0
-        
-        # Mensagens devem abordar insuficiência
-        messages = [s['message'].lower() for s in suggestions]
-        relevant_messages = [
-            msg for msg in messages 
-            if any(word in msg for word in ['baixa', 'insuficiente', 'aumentar', 'melhorar'])
-        ]
-        
-        assert len(relevant_messages) > 0
-    
-    def test_high_contribution_scenario(self, base_state, surplus_results):
-        """Testa cenário com contribuição já alta"""
-        high_contrib_state = base_state.model_copy()
-        high_contrib_state.contribution_rate = 25.0  # Já muito alta
-        
-        engine = SuggestionsEngine(high_contrib_state, surplus_results)
-        suggestions = engine.generate_suggestions()
-        
-        # Não deve sugerir aumentar contribuição ainda mais
-        contribution_increases = [
-            s for s in suggestions 
-            if (s['type'] == 'contribution_rate' and 
-                s['parameters'].get('new_contribution_rate', 0) > high_contrib_state.contribution_rate)
-        ]
-        
-        # Se sugerir aumento, deve ser moderado
-        for suggestion in contribution_increases:
-            new_rate = suggestion['parameters']['new_contribution_rate']
-            assert new_rate <= 30.0  # Limite razoável
-    
-    def test_near_retirement_suggestions(self, base_state, deficit_results):
-        """Testa sugestões para pessoa próxima da aposentadoria"""
-        near_retirement_state = base_state.model_copy()
-        near_retirement_state.age = 62
-        near_retirement_state.retirement_age = 65
-        
-        engine = SuggestionsEngine(near_retirement_state, deficit_results)
-        suggestions = engine.generate_suggestions()
-        
-        # Sugestões devem ser adequadas para pouco tempo restante
-        assert len(suggestions) >= 0  # Pode não ter sugestões viáveis
-        
-        for suggestion in suggestions:
-            # Se sugerir mudanças, devem ser significativas
-            if 'new_contribution_rate' in suggestion['parameters']:
-                new_rate = suggestion['parameters']['new_contribution_rate']
-                # Pode precisar de aumento significativo
-                assert new_rate > near_retirement_state.contribution_rate
-    
-    def test_suggestion_message_quality(self, base_state, deficit_results):
-        """Testa qualidade das mensagens das sugestões"""
-        engine = SuggestionsEngine(base_state, deficit_results)
-        suggestions = engine.generate_suggestions()
-        
-        for suggestion in suggestions:
-            message = suggestion['message']
-            
-            # Mensagem deve ser string não vazia
-            assert isinstance(message, str)
-            assert len(message.strip()) > 0
-            
-            # Deve ter conteúdo descritivo
-            assert len(message) > 20  # Pelo menos uma frase básica
-            
-            # Não deve ter placeholders
-            assert '{' not in message and '}' not in message
-    
-    def test_empty_or_balanced_scenario(self, base_state):
-        """Testa cenário equilibrado sem necessidade de sugestões"""
-        balanced_results = SimulatorResults(
-            rmba=100000.0,
-            total_contributions=100000.0,
-            deficit_surplus=0.0,  # Equilibrado
-            sustainable_replacement_ratio=70.0,  # Boa taxa
-            cash_flows=[],
-            accumulated_reserves=[]
+
+        request = SuggestionsRequest(
+            state=cd_saldo_state,
+            max_suggestions=3
         )
-        
-        engine = SuggestionsEngine(base_state, balanced_results)
-        suggestions = engine.generate_suggestions()
-        
-        # Pode não ter sugestões ou ter sugestões de otimização
-        assert isinstance(suggestions, list)
-        
-        # Se houver sugestões, devem ser de otimização ou diversificação
-        for suggestion in suggestions:
-            message = suggestion['message'].lower()
-            # Não deve usar linguagem de urgência
-            urgent_words = ['crítico', 'urgente', 'insuficiente', 'grave']
-            has_urgent = any(word in message for word in urgent_words)
-            assert not has_urgent
-    
-    def test_suggestion_parameter_validation(self, base_state, deficit_results):
-        """Testa validação dos parâmetros das sugestões"""
-        engine = SuggestionsEngine(base_state, deficit_results)
-        suggestions = engine.generate_suggestions()
-        
-        for suggestion in suggestions:
-            params = suggestion['parameters']
-            
-            # Parâmetros devem ser dicionário
-            assert isinstance(params, dict)
-            
-            # Validar parâmetros específicos
-            if 'new_contribution_rate' in params:
-                rate = params['new_contribution_rate']
-                assert isinstance(rate, (int, float))
-                assert 0 < rate <= 100  # Entre 0% e 100%
-            
-            if 'new_retirement_age' in params:
-                age = params['new_retirement_age']
-                assert isinstance(age, (int, float))
-                assert 18 <= age <= 120  # Idades realistas
-            
-            if 'new_target_benefit' in params:
-                benefit = params['new_target_benefit']
-                assert isinstance(benefit, (int, float))
-                assert benefit > 0
+
+        response = suggestions_engine.generate_suggestions(request)
+
+        # Não deve gerar sugestões
+        assert len(response.suggestions) == 0
+        assert response.context.get("is_supported") is False
+        assert "unsupported_reason" in response.context
+
+    def test_suggestion_types_bd_deficit(self, suggestions_engine, deficit_bd_state):
+        """Testa tipos de sugestões geradas para BD com déficit"""
+        request = SuggestionsRequest(
+            state=deficit_bd_state,
+            max_suggestions=10
+        )
+
+        response = suggestions_engine.generate_suggestions(request)
+
+        # Coleta tipos de sugestões
+        suggestion_types = {s.type for s in response.suggestions}
+
+        # Deve ter pelo menos algumas sugestões
+        assert len(suggestion_types) >= 1
+
+    def test_suggestion_action_values(self, suggestions_engine, deficit_bd_state):
+        """Testa valores de ação das sugestões"""
+        request = SuggestionsRequest(
+            state=deficit_bd_state,
+            max_suggestions=5
+        )
+
+        response = suggestions_engine.generate_suggestions(request)
+
+        for suggestion in response.suggestions:
+            # Se tem action_value, deve ser numérico
+            if suggestion.action_value is not None:
+                assert isinstance(suggestion.action_value, (int, float))
+                assert suggestion.action_value > 0
+
+            # Se tem action_values (múltiplos), deve ser dicionário
+            if suggestion.action_values is not None:
+                assert isinstance(suggestion.action_values, dict)
+                for key, value in suggestion.action_values.items():
+                    assert isinstance(value, (int, float))
+
+    def test_suggestion_priorities(self, suggestions_engine, deficit_bd_state):
+        """Testa priorização das sugestões"""
+        request = SuggestionsRequest(
+            state=deficit_bd_state,
+            max_suggestions=5
+        )
+
+        response = suggestions_engine.generate_suggestions(request)
+
+        if len(response.suggestions) > 1:
+            # Primeira sugestão deve ter prioridade alta (1 ou 2)
+            assert response.suggestions[0].priority in [1, 2]
+
+            # Todas as prioridades devem ser válidas
+            for suggestion in response.suggestions:
+                assert suggestion.priority in [1, 2, 3]
+
+    def test_suggestion_confidence(self, suggestions_engine, base_bd_state):
+        """Testa confiança das sugestões"""
+        request = SuggestionsRequest(
+            state=base_bd_state,
+            max_suggestions=5
+        )
+
+        response = suggestions_engine.generate_suggestions(request)
+
+        for suggestion in response.suggestions:
+            # Confiança deve estar entre 0 e 1
+            assert 0 <= suggestion.confidence <= 1
+            # Sugestões devem ter confiança razoável (> 0.3)
+            assert suggestion.confidence > 0.3
+
+    def test_context_information(self, suggestions_engine, deficit_bd_state):
+        """Testa informações de contexto retornadas"""
+        request = SuggestionsRequest(
+            state=deficit_bd_state,
+            max_suggestions=3
+        )
+
+        response = suggestions_engine.generate_suggestions(request)
+
+        # Contexto deve conter informações essenciais
+        assert "is_bd" in response.context or "is_cd" in response.context
+        assert "plan_type" in response.context
+        assert "benefit_target_mode" in response.context
+
+    def test_max_suggestions_limit(self, suggestions_engine, deficit_bd_state):
+        """Testa limite de número de sugestões"""
+        request = SuggestionsRequest(
+            state=deficit_bd_state,
+            max_suggestions=2
+        )
+
+        response = suggestions_engine.generate_suggestions(request)
+
+        # Não deve retornar mais que o limite
+        assert len(response.suggestions) <= 2
+
+    def test_replacement_rate_mode_bd(self, suggestions_engine):
+        """Testa sugestões para modo taxa de reposição"""
+        state = SimulatorState(
+            age=30,
+            gender="M",
+            salary=5000.0,
+            initial_balance=0.0,
+            retirement_age=65,
+            contribution_rate=8.0,
+            target_replacement_rate=0.8,  # 80%
+            benefit_target_mode="REPLACEMENT_RATE",
+            mortality_table="BR_EMS_2021",
+            discount_rate=0.06,
+            accrual_rate=5.0,
+            salary_growth_real=0.02,
+            projection_years=40,
+            calculation_method="PUC",
+            plan_type="BD"
+        )
+
+        request = SuggestionsRequest(
+            state=state,
+            max_suggestions=5
+        )
+
+        response = suggestions_engine.generate_suggestions(request)
+
+        # Deve funcionar para modo taxa de reposição
+        assert isinstance(response, SuggestionsResponse)
+        mode = str(response.context["benefit_target_mode"])
+        # Deve conter REPLACEMENT_RATE na representação
+        assert "REPLACEMENT_RATE" in mode
+
+    def test_computation_time_reasonable(self, suggestions_engine, base_bd_state):
+        """Testa se tempo de computação é razoável"""
+        request = SuggestionsRequest(
+            state=base_bd_state,
+            max_suggestions=3
+        )
+
+        response = suggestions_engine.generate_suggestions(request)
+
+        # Tempo deve ser positivo e razoável (< 5 segundos)
+        assert response.computation_time_ms > 0
+        assert response.computation_time_ms < 5000
+
+    def test_suggestion_uniqueness(self, suggestions_engine, deficit_bd_state):
+        """Testa se sugestões têm IDs únicos"""
+        request = SuggestionsRequest(
+            state=deficit_bd_state,
+            max_suggestions=5
+        )
+
+        response = suggestions_engine.generate_suggestions(request)
+
+        if len(response.suggestions) > 1:
+            suggestion_ids = [s.id for s in response.suggestions]
+            unique_ids = set(suggestion_ids)
+
+            # Todos os IDs devem ser únicos
+            assert len(suggestion_ids) == len(unique_ids)
+
+    def test_consistency_multiple_calls(self, suggestions_engine, base_bd_state):
+        """Testa consistência em múltiplas chamadas"""
+        request = SuggestionsRequest(
+            state=base_bd_state,
+            max_suggestions=3
+        )
+
+        response1 = suggestions_engine.generate_suggestions(request)
+        response2 = suggestions_engine.generate_suggestions(request)
+
+        # Número de sugestões deve ser consistente
+        assert len(response1.suggestions) == len(response2.suggestions)
+
+        # Tipos de sugestões devem ser os mesmos
+        types1 = [s.type for s in response1.suggestions]
+        types2 = [s.type for s in response2.suggestions]
+        assert types1 == types2

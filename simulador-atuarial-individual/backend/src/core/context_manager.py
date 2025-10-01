@@ -8,7 +8,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..utils.rates import annual_to_monthly_rate
-from .constants import MIN_RETIREMENT_YEARS
+from .constants import (
+    MIN_RETIREMENT_YEARS,
+    MAX_RETIREMENT_PROJECTION_YEARS,
+    MAX_RETIREMENT_AGE_PROJECTION
+)
+from ..models.participant import DEFAULT_SALARY_MONTHS_PER_YEAR, DEFAULT_BENEFIT_MONTHS_PER_YEAR
 
 if TYPE_CHECKING:
     from ..models.participant import SimulatorState
@@ -70,7 +75,7 @@ class ContextManager:
 
     def create_bd_context(self, state: 'SimulatorState') -> ActuarialContext:
         """
-        Cria contexto específico para planos BD.
+        Cria contexto específico para planos BD com taxas diferenciadas.
 
         Args:
             state: Estado atual do simulador
@@ -78,7 +83,24 @@ class ContextManager:
         Returns:
             Contexto atuarial para BD
         """
-        return self._create_standard_context(state)
+        context = self._create_standard_context(state)
+
+        # Para BD, usar taxas específicas ou fallback para discount_rate
+        accumulation_rate = getattr(state, 'accumulation_rate', None) or state.discount_rate
+        conversion_rate = getattr(state, 'conversion_rate', None) or state.discount_rate
+
+        # Substituir taxa de desconto por taxa de acumulação durante fase ativa
+        context.discount_rate_monthly = annual_to_monthly_rate(accumulation_rate)
+
+        # Armazenar taxa de conversão para cálculo de valor presente de benefícios
+        setattr(context, 'conversion_rate_monthly', annual_to_monthly_rate(conversion_rate))
+
+        self.logger.debug(
+            f"Contexto BD: taxa acumulação={accumulation_rate:.4f}, "
+            f"taxa conversão={conversion_rate:.4f}"
+        )
+
+        return context
 
     def create_cd_context(self, state: 'SimulatorState') -> ActuarialContext:
         """
@@ -166,7 +188,7 @@ class ContextManager:
         """
         if is_already_retired:
             # Para aposentados: projetar apenas os anos restantes de expectativa de vida
-            max_years_projection = min(30, 95 - state.age)
+            max_years_projection = min(MAX_RETIREMENT_PROJECTION_YEARS, MAX_RETIREMENT_AGE_PROJECTION - state.age)
             total_months = max(12, max_years_projection * 12)  # Mínimo 1 ano
             self.logger.debug(f"Aposentado: projetando {max_years_projection} anos")
         else:
@@ -193,8 +215,8 @@ class ContextManager:
             Dicionário com valores mensais
         """
         # Número de salários e benefícios por ano
-        salary_months = getattr(state, 'salary_months_per_year', 12) or 12
-        benefit_months = getattr(state, 'benefit_months_per_year', 12) or 12
+        salary_months = getattr(state, 'salary_months_per_year', DEFAULT_SALARY_MONTHS_PER_YEAR) or DEFAULT_SALARY_MONTHS_PER_YEAR
+        benefit_months = getattr(state, 'benefit_months_per_year', DEFAULT_BENEFIT_MONTHS_PER_YEAR) or DEFAULT_BENEFIT_MONTHS_PER_YEAR
 
         # Valores mensais
         monthly_salary = state.salary

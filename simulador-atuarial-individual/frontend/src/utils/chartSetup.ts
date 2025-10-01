@@ -43,6 +43,23 @@ export const getZeroLineGridConfig = () => ({
   },
 });
 
+export const getCleanGridConfig = () => ({
+  display: true,
+  color: function(context: any) {
+    if (context.tick.value === 0) {
+      return '#374151'; // Linha mais escura no zero
+    }
+    return '#F8F9FA'; // Linha muito sutil para o resto
+  },
+  lineWidth: function(context: any) {
+    if (context.tick.value === 0) {
+      return 2; // Linha do zero um pouco mais grossa
+    }
+    return 0.5; // Linhas muito finas para o resto
+  },
+  drawTicks: false, // Remove os pequenos traços nos eixos
+});
+
 export const getBaseChartOptions = () => ({
   responsive: true,
   maintainAspectRatio: false,

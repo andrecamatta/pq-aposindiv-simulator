@@ -69,11 +69,37 @@ export const formatCompactBR = (value: number): string => {
   if (isNaN(value) || value === null || value === undefined) {
     return '0';
   }
-  
+
   return new Intl.NumberFormat('pt-BR', {
     notation: 'compact',
     maximumFractionDigits: 1
   }).format(value);
+};
+
+/**
+ * Formata valores monetários de forma compacta para gráficos
+ * @param value - Valor numérico a ser formatado
+ * @returns String formatada como moeda compacta (ex: "R$ 1,5M", "R$ 250K")
+ */
+export const formatCompactCurrencyBR = (value: number): string => {
+  if (isNaN(value) || value === null || value === undefined) {
+    return 'R$ 0';
+  }
+
+  const absValue = Math.abs(value);
+  const sign = value < 0 ? '-' : '';
+
+  if (absValue >= 1000000000) {
+    return `${sign}R$ ${formatNumberBR(absValue / 1000000000, 1)}B`;
+  } else if (absValue >= 1000000) {
+    return `${sign}R$ ${formatNumberBR(absValue / 1000000, 1)}M`;
+  } else if (absValue >= 1000) {
+    return `${sign}R$ ${formatNumberBR(absValue / 1000, 0)}K`;
+  } else if (absValue >= 1) {
+    return `${sign}R$ ${formatNumberBR(absValue, 0)}`;
+  } else {
+    return 'R$ 0';
+  }
 };
 
 /**

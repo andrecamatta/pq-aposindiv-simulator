@@ -298,28 +298,40 @@ def calculate_accumulated_reserves(
 ) -> List[float]:
     """
     Calcula evolução das reservas acumuladas considerando custos administrativos
-    
+    e taxas diferenciadas para acumulação vs conversão (BD/CD)
+
     Args:
         state: Estado do simulador
         context: Contexto atuarial
         monthly_contributions: Lista de contribuições mensais
         monthly_benefits: Lista de benefícios mensais
         total_months: Total de meses para projeção
-        
+
     Returns:
         Lista de reservas acumuladas mensais
     """
     monthly_reserves = []
     accumulated = state.initial_balance  # Iniciar com saldo inicial
     months_to_retirement = context.months_to_retirement
-    
+
+    # Obter taxa de conversão (se existir) ou usar taxa de acumulação
+    conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
+
     for month in range(total_months):
+        # Determinar qual taxa usar baseado na fase
+        if context.is_already_retired or month >= months_to_retirement:
+            # Fase de aposentadoria: usar taxa de conversão (geralmente mais conservadora)
+            rate_to_use = conversion_rate_monthly
+        else:
+            # Fase de acumulação: usar taxa de acumulação
+            rate_to_use = context.discount_rate_monthly
+
         # Capitalizar saldo existente mensalmente
-        accumulated *= (1 + context.discount_rate_monthly)
-        
+        accumulated *= (1 + rate_to_use)
+
         # Aplicar taxa administrativa mensal sobre o saldo
         accumulated *= (1 - context.admin_fee_monthly)
-        
+
         # Para aposentados: apenas descontar benefícios (sem contribuições)
         # Para ativos: acumular contribuições até aposentadoria, depois descontar benefícios
         if context.is_already_retired:
@@ -331,10 +343,10 @@ def calculate_accumulated_reserves(
         else:
             # Ativos na fase de aposentadoria: descontar benefícios
             accumulated -= monthly_benefits[month]
-        
+
         # Permitir reservas negativas para análise realística de déficits
         monthly_reserves.append(accumulated)
-    
+
     return monthly_reserves
 
 
@@ -364,10 +376,11 @@ def convert_monthly_to_yearly_projections(
         start_month = year_idx * 12
         end_month = min((year_idx + 1) * 12, total_months)
         
-        # Somatório anual considerando todos os pagamentos do ano
-        # IMPORTANTE: Agora soma corretamente todos os pagamentos mensais
-        year_salary = sum(monthly_data["salaries"][start_month:end_month])
-        year_benefit = sum(monthly_data["benefits"][start_month:end_month])
+        # Para salários e benefícios: usar valor mensal representativo (primeiro mês do ano) para gráficos de evolução
+        year_salary = monthly_data["salaries"][start_month] if start_month < len(monthly_data["salaries"]) else 0
+        year_benefit = monthly_data["benefits"][start_month] if start_month < len(monthly_data["benefits"]) else 0
+
+        # Para contribuições: manter somatório anual (usado em cálculos de totais)
         year_contribution = sum(monthly_data["contributions"][start_month:end_month])
         
         # Probabilidade de sobrevivência no final do ano

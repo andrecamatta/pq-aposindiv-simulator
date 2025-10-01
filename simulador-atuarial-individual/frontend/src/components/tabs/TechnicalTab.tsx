@@ -105,6 +105,10 @@ const TechnicalTab: React.FC<TechnicalTabProps> = React.memo(({
                   // Atualizar calculation_method quando mudar plan_type
                   if (value === 'CD') {
                     handleInputChange('calculation_method', 'CD');
+                    // Inicializar cd_conversion_mode se não existir
+                    if (!state.cd_conversion_mode) {
+                      handleInputChange('cd_conversion_mode', 'ACTUARIAL');
+                    }
                   } else if (value === 'BD') {
                     handleInputChange('calculation_method', 'PUC');
                   }

@@ -140,8 +140,7 @@ export const useMortalityTables = () => {
   const loadFromPymort = async (tableId: number): Promise<void> => {
     try {
       const response = await axios.post(`${API_BASE}/load/pymort/${tableId}`);
-      console.log(response.data.message);
-      
+
       // Recarregar lista após alguns segundos (processamento em background)
       setTimeout(() => {
         fetchTables();
@@ -181,8 +180,6 @@ export const useMortalityTables = () => {
         }
       );
 
-      console.log(response.data.message);
-      
       // Recarregar lista
       await fetchTables();
     } catch (err: any) {
@@ -195,8 +192,7 @@ export const useMortalityTables = () => {
   const toggleTableActive = async (tableId: number): Promise<void> => {
     try {
       const response = await axios.post(`${API_BASE}/admin/${tableId}/toggle-active`);
-      console.log(response.data.message);
-      
+
       // Atualizar a tábua na lista local
       setTables(prevTables => 
         prevTables.map(table => 
@@ -215,8 +211,7 @@ export const useMortalityTables = () => {
   const deleteTable = async (tableId: number): Promise<void> => {
     try {
       const response = await axios.delete(`${API_BASE}/${tableId}`);
-      console.log(response.data.message);
-      
+
       // Remover da lista local
       setTables(prevTables => prevTables.filter(table => table.id !== tableId));
     } catch (err: any) {

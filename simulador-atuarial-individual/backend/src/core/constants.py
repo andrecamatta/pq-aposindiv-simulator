@@ -3,13 +3,53 @@ Constantes centralizadas do sistema atuarial
 Elimina números mágicos espalhados pelo código
 """
 
-# Limites de idade e tempo
-MIN_RETIREMENT_YEARS = 25  # Mínimo de anos de aposentadoria para projeção adequada
-MAX_PROJECTION_MONTHS = 50 * 12  # Máximo de meses para projeções (50 anos)
-MAX_AGE_LIMIT = 110  # Idade máxima considerada nas tábuas
-MIN_AGE_LIMIT = 18   # Idade mínima para participação
+# ============================================================
+# CONSTANTES ATUARIAIS - LIMITES DE IDADE E TEMPO
+# ============================================================
 
-# Limites de taxas
+# Limites de idade básicos
+MIN_AGE_LIMIT = 18   # Idade mínima para participação
+MAX_AGE_LIMIT = 110  # Idade máxima considerada nas tábuas
+
+# Limites de idade para projeções
+MAX_RETIREMENT_AGE_PROJECTION = 95  # Idade máxima para aposentados em projeções
+MAX_RETIREMENT_PROJECTION_YEARS = 30  # Anos máximos de projeção para já aposentados
+
+# Limites de aposentadoria
+MIN_RETIREMENT_YEARS = 25  # Mínimo de anos de aposentadoria para projeção adequada
+
+# Limites de anuidades
+MAX_ANNUITY_YEARS = 50  # Anos máximos para cálculo de anuidades vitalícias
+MAX_ANNUITY_MONTHS = MAX_ANNUITY_YEARS * 12  # 600 meses
+MAX_PROJECTION_MONTHS = MAX_ANNUITY_MONTHS  # Máximo de meses para projeções (compatibilidade)
+
+# Períodos padrão CD
+DEFAULT_PROGRAMMED_WITHDRAWAL_YEARS = 20  # Anos padrão para saque programado CD
+DEFAULT_PROGRAMMED_WITHDRAWAL_MONTHS = DEFAULT_PROGRAMMED_WITHDRAWAL_YEARS * 12  # 240 meses
+
+# ============================================================
+# CONSTANTES ATUARIAIS - FATORES E TOLERÂNCIAS
+# ============================================================
+
+# Fatores de proteção contra erros numéricos
+MIN_EFFECTIVE_RATE = -0.99  # Fator mínimo para taxas efetivas (evita divisão por zero)
+MAX_EFFECTIVE_RATE = 10.0   # Fator máximo para taxas efetivas
+
+# Probabilidades iniciais
+INITIAL_SURVIVAL_PROBABILITY = 1.0  # Probabilidade inicial de sobrevivência (100%)
+
+# Thresholds de viabilidade
+ACHIEVABILITY_THRESHOLD = 0.95  # 95% - threshold para considerar objetivo alcançável
+FEASIBILITY_TOLERANCE = 0.05    # 5% - tolerância para análise de viabilidade
+
+# Limites para validação de parâmetros
+MIN_ACHIEVABLE_RATIO = 0.80  # 80% - mínimo aceitável para relação objetivo/realizado
+MAX_ACHIEVABLE_RATIO = 1.20  # 120% - máximo aceitável para relação objetivo/realizado
+
+# ============================================================
+# LIMITES DE TAXAS
+# ============================================================
+
 MAX_CONTRIBUTION_RATE = 50.0  # Taxa máxima de contribuição (50%)
 MIN_DISCOUNT_RATE = 0.001     # Taxa mínima de desconto (0.1%)
 MAX_DISCOUNT_RATE = 0.20      # Taxa máxima de desconto (20%)
@@ -18,8 +58,6 @@ MAX_LOADING_FEE_RATE = 0.30   # Taxa máxima de carregamento (30%)
 
 # Defaults do sistema
 DEFAULT_PROJECTION_DURATION = 15.0  # Anos padrão para duração de passivos
-DEFAULT_BENEFIT_MONTHS_PER_YEAR = 13  # 13º salário padrão
-DEFAULT_SALARY_MONTHS_PER_YEAR = 13   # 13º salário padrão
 
 # Configurações de cálculo
 FINANCIAL_PRECISION = 1e-8  # Precisão para cálculos financeiros
@@ -49,3 +87,6 @@ MSG_RETIREMENT_PROJECTION = "Aposentado: projetando {:.0f} anos de benefícios"
 # Configurações de sensibilidade
 DEFAULT_SENSITIVITY_RANGE = 0.02  # ±2% para análises de sensibilidade
 SENSITIVITY_STEPS = 5  # Número de steps para análise de sensibilidade
+
+# Constantes de tempo
+MONTHS_PER_YEAR = 12  # Meses por ano calendário (para conversões de tempo)

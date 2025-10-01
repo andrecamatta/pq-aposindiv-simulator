@@ -13,6 +13,8 @@ from .projections import (
     calculate_accumulated_reserves,
     convert_monthly_to_yearly_projections
 )
+from ..models.participant import DEFAULT_CD_WITHDRAWAL_PERCENTAGE, DEFAULT_BENEFIT_MONTHS_PER_YEAR
+from .constants import MONTHS_PER_YEAR
 
 if TYPE_CHECKING:
     from ..models.participant import SimulatorState
@@ -214,8 +216,8 @@ class ProjectionBuilder:
         projected_benefits_by_age = []
 
         # Gerar lista de idades (apenas anos completos)
-        for month in range(0, total_months, 12):  # A cada 12 meses
-            age = state.age + (month // 12)
+        for month in range(0, total_months, MONTHS_PER_YEAR):  # A cada 12 meses
+            age = state.age + (month // MONTHS_PER_YEAR)
             projection_ages.append(age)
 
             # Para benefícios e salários, usar valor do primeiro mês do ano
@@ -223,12 +225,12 @@ class ProjectionBuilder:
                 monthly_salary = monthly_salaries[month]
                 monthly_benefit = monthly_benefits[month]
 
-                # Converter para valores anuais considerando múltiplos pagamentos
-                annual_salary = monthly_salary * context.salary_months_per_year if monthly_salary > 0 else 0
-                annual_benefit = monthly_benefit * context.benefit_months_per_year if monthly_benefit > 0 else 0
+                # Manter valores mensais para o gráfico de evolução
+                monthly_salary_value = monthly_salary if monthly_salary > 0 else 0
+                monthly_benefit_value = monthly_benefit if monthly_benefit > 0 else 0
 
-                projected_salaries_by_age.append(annual_salary)
-                projected_benefits_by_age.append(annual_benefit)
+                projected_salaries_by_age.append(monthly_salary_value)
+                projected_benefits_by_age.append(monthly_benefit_value)
             else:
                 projected_salaries_by_age.append(0.0)
                 projected_benefits_by_age.append(0.0)
@@ -288,6 +290,9 @@ class ProjectionBuilder:
         )
         base_projections.update(age_projections)
 
+        # 6. Incluir o monthly_income usado para garantir consistência
+        base_projections["monthly_income_used"] = monthly_income
+
         return base_projections
 
     @classmethod
@@ -336,6 +341,7 @@ class ProjectionBuilder:
 
         # Armazena rendas recalculadas para modalidades dinâmicas
         annual_monthly_incomes = {}
+        first_year_income = None  # Armazena renda do primeiro ano para aplicar piso
 
         # Para modalidades dinâmicas, não usar valor fixo inicial
         if conversion_mode in [CDConversionMode.PERCENTAGE, CDConversionMode.ACTUARIAL_EQUIVALENT]:
@@ -354,27 +360,69 @@ class ProjectionBuilder:
             else:
                 # Durante aposentadoria
                 months_since_retirement = month - months_to_retirement
-                years_since_retirement = months_since_retirement // 12
-                month_in_retirement_year = months_since_retirement % 12
+                years_since_retirement = months_since_retirement // MONTHS_PER_YEAR
+                month_in_retirement_year = months_since_retirement % MONTHS_PER_YEAR
 
-                # No primeiro mês, registrar pico ANTES do primeiro saque
-                if months_since_retirement == 0:
-                    accumulated_balance *= (1 - context.admin_fee_monthly)
-                    monthly_balances.append(max(0, accumulated_balance))
+                # No primeiro mês de cada ano de aposentadoria, recalcular a renda baseada no saldo ATUAL
+                # Isso deve acontecer ANTES de consumir o saldo
+                if month_in_retirement_year == 0:
+                    if conversion_mode == CDConversionMode.ACTUARIAL_EQUIVALENT and mortality_table is not None:
+                        # Recalcular renda no início do ano com o saldo atual
+                        # A taxa administrativa será aplicada no fluxo normal (após capitalização)
+                        # Calcular nova renda anual baseada no saldo remanescente
+                        # Precisamos chamar a função do cd_calculator aqui
+                        from .cd_calculator import CDCalculator
+                        from ..models.participant import DEFAULT_CD_FLOOR_PERCENTAGE
 
-                # Recalcular renda para modalidades dinâmicas
-                if conversion_mode == CDConversionMode.PERCENTAGE:
-                    # Recalcular renda no início de cada ano baseado no saldo atual
-                    if month_in_retirement_year == 0:
-                        percentage = state.cd_withdrawal_percentage or 5.0
+                        cd_calc = CDCalculator()
+                        current_year_income = cd_calc._calculate_actuarial_equivalent_annuity(
+                            accumulated_balance, state, context, mortality_table, years_since_retirement
+                        )
+
+                        # Armazenar renda do primeiro ano para aplicar piso
+                        if years_since_retirement == 0:
+                            first_year_income = current_year_income
+
+                        # Aplicar piso se configurado (a partir do ano 1)
+                        if years_since_retirement > 0 and first_year_income is not None:
+                            floor_pct = state.cd_floor_percentage if state.cd_floor_percentage is not None else DEFAULT_CD_FLOOR_PERCENTAGE
+                            floor_value = first_year_income * (floor_pct / 100.0)
+                            current_year_income = max(current_year_income, floor_value)
+
+                        annual_monthly_incomes[years_since_retirement] = current_year_income
+
+                        # No primeiro mês de aposentadoria (ano 0), registrar pico ANTES do primeiro saque
+                        if months_since_retirement == 0:
+                            monthly_balances.append(max(0, accumulated_balance))
+                    elif conversion_mode == CDConversionMode.PERCENTAGE:
+                        # Recalcular renda no início de cada ano baseado no saldo atual
+                        # A taxa administrativa será aplicada no fluxo normal (após capitalização)
+                        # Aplicar crescimento anual ao percentual de saque
+                        from ..models.participant import DEFAULT_CD_PERCENTAGE_GROWTH
+
+                        base_percentage = state.cd_withdrawal_percentage or DEFAULT_CD_WITHDRAWAL_PERCENTAGE
+                        growth_rate = state.cd_percentage_growth if state.cd_percentage_growth is not None else DEFAULT_CD_PERCENTAGE_GROWTH
+
+                        # Calcular percentual ajustado pelo ano de aposentadoria
+                        adjusted_percentage = base_percentage + (growth_rate * years_since_retirement)
+
                         current_year_income = cls._calculate_percentage_withdrawal(
                             accumulated_balance,
                             context,
-                            percentage
+                            adjusted_percentage
                         )
                         annual_monthly_incomes[years_since_retirement] = current_year_income
-                    elif years_since_retirement in annual_monthly_incomes:
-                        current_year_income = annual_monthly_incomes[years_since_retirement]
+
+                        # No primeiro mês de aposentadoria (ano 0), registrar pico ANTES do primeiro saque
+                        if months_since_retirement == 0:
+                            monthly_balances.append(max(0, accumulated_balance))
+                    elif months_since_retirement == 0:
+                        # Para outras modalidades, apenas registrar pico no primeiro mês
+                        # Taxa administrativa será aplicada no fluxo normal
+                        monthly_balances.append(max(0, accumulated_balance))
+                elif years_since_retirement in annual_monthly_incomes:
+                    # Usar renda já calculada para este ano
+                    current_year_income = annual_monthly_incomes[years_since_retirement]
 
                 # Verificar se ainda está no período de benefícios
                 if benefit_period_months is not None and months_since_retirement >= benefit_period_months:
@@ -384,13 +432,13 @@ class ProjectionBuilder:
                     monthly_benefits.append(0.0)
                 else:
                     # Ainda no período de benefícios
-                    current_month_in_year = month % 12
+                    current_month_in_year = month % MONTHS_PER_YEAR
 
-                    # Usar renda do ano corrente
+                    # Usar renda do ano corrente (recalculada para equivalência atuarial)
                     monthly_benefit_payment = current_year_income
 
                     # Aplicar pagamentos extras (13º, 14º, etc.)
-                    extra_payments = context.benefit_months_per_year - 12
+                    extra_payments = context.benefit_months_per_year - MONTHS_PER_YEAR
                     if extra_payments > 0:
                         if current_month_in_year == 11:  # Dezembro
                             if extra_payments >= 1:
@@ -402,15 +450,17 @@ class ProjectionBuilder:
                     # Consumir saldo
                     accumulated_balance -= monthly_benefit_payment
 
-                    # Capitalizar saldo restante
+                    # Capitalizar saldo restante com taxa de conversão
                     conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
                     accumulated_balance *= (1 + conversion_rate_monthly)
+
+                    # Aplicar taxa administrativa mensal (após capitalização)
                     accumulated_balance *= (1 - context.admin_fee_monthly)
 
                     monthly_benefits.append(monthly_benefit_payment)
 
-                # Para meses após o primeiro mês da aposentadoria
-                if months_since_retirement > 0:
+                # Para meses após o primeiro mês da aposentadoria (exceto quando já foi registrado no início do ano)
+                if months_since_retirement > 0 and not (month_in_retirement_year == 0 and months_since_retirement == 0):
                     monthly_balances.append(max(0, accumulated_balance))
 
         return monthly_balances, monthly_benefits
@@ -428,7 +478,7 @@ class ProjectionBuilder:
                 CDConversionMode.CERTAIN_15Y: 15,
                 CDConversionMode.CERTAIN_20Y: 20
             }
-            return years_map[conversion_mode] * 12
+            return years_map[conversion_mode] * MONTHS_PER_YEAR
 
         return None  # Vitalício
 
@@ -443,7 +493,7 @@ class ProjectionBuilder:
         if balance <= 0 or percentage <= 0:
             return 0.0
 
-        benefit_months_per_year = getattr(context, 'benefit_months_per_year', 12) or 12
+        benefit_months_per_year = getattr(context, 'benefit_months_per_year', DEFAULT_BENEFIT_MONTHS_PER_YEAR) or DEFAULT_BENEFIT_MONTHS_PER_YEAR
         annual_withdrawal = balance * (percentage / 100.0)
         monthly_withdrawal = annual_withdrawal / max(benefit_months_per_year, 1)
         return monthly_withdrawal

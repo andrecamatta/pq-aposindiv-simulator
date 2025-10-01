@@ -50,7 +50,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ results, state, loading }) => {
         });
       } else {
         // TODO: Implementar outros formatos (email)
-        console.log(`Download ${format} não implementado ainda`);
+        alert(`Formato ${format} ainda não está disponível`);
       }
     } catch (error) {
       console.error('Erro no download:', error);

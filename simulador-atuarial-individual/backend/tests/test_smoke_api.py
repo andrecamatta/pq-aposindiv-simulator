@@ -5,6 +5,7 @@ Verifica se os endpoints principais estão funcionando
 import pytest
 import httpx
 from typing import Dict, Any
+from src.models.participant import DEFAULT_SALARY_MONTHS_PER_YEAR, DEFAULT_BENEFIT_MONTHS_PER_YEAR
 
 API_BASE_URL = "http://localhost:8000"
 
@@ -91,8 +92,8 @@ def test_calculate_bd_basic(client: httpx.Client):
         "admin_fee_rate": 0.01,
         "loading_fee_rate": 0.0,
         "payment_timing": "postecipado",
-        "salary_months_per_year": 13,
-        "benefit_months_per_year": 13,
+        "salary_months_per_year": DEFAULT_SALARY_MONTHS_PER_YEAR,
+        "benefit_months_per_year": DEFAULT_BENEFIT_MONTHS_PER_YEAR,
         "projection_years": 40,
         "calculation_method": "PUC"
     }

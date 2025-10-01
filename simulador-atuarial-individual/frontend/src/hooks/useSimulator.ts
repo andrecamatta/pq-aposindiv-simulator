@@ -137,7 +137,9 @@ export const useSimulator = () => {
     // Configurações que afetam cálculos e precisam de feedback mais rápido
     const immediateFields = [
       'age', 'salary', 'target_benefit', 'target_replacement_rate',
-      'contribution_rate', 'accrual_rate', 'retirement_age', 'plan_type'
+      'contribution_rate', 'accrual_rate', 'retirement_age', 'plan_type',
+      'accumulation_rate', 'conversion_rate', 'discount_rate',
+      'salary_growth_real'
     ];
 
     // Verificar quais campos mudaram
@@ -182,15 +184,6 @@ export const useSimulator = () => {
         preparedState.target_replacement_rate = undefined;
       }
 
-      // Log para depuração de CD
-      if (preparedState.plan_type === 'CD') {
-        console.log('[useSimulator] Enviando cálculo CD:', {
-          plan_type: preparedState.plan_type,
-          calculation_method: preparedState.calculation_method,
-          cd_conversion_mode: preparedState.cd_conversion_mode,
-          target_benefit: preparedState.target_benefit
-        });
-      }
 
       lastCalculatedStateRef.current = JSON.stringify(preparedState);
       setLoading(true);

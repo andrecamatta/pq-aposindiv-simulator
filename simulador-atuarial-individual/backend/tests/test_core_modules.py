@@ -21,24 +21,31 @@ class TestActuarialEngine:
             age=30,
             gender="M",
             salary=5000.0,
+            initial_balance=0.0,
             retirement_age=65,
             contribution_rate=10.0,
             target_benefit=3000.0,
+            benefit_target_mode="VALUE",
             mortality_table="BR_EMS_2021",
             discount_rate=0.06,
+            accrual_rate=5.0,
+            salary_growth_real=0.02,
+            projection_years=40,
+            calculation_method="PUC",
             plan_type="BD"
         )
     
     def test_engine_initialization(self, base_state):
         """Testa inicialização do engine"""
-        engine = ActuarialEngine(base_state)
-        assert engine.state == base_state
-        assert hasattr(engine, 'calculate')
-    
+        engine = ActuarialEngine()
+        assert hasattr(engine, 'calculate_individual_simulation')
+        assert hasattr(engine, 'bd_calculator')
+        assert hasattr(engine, 'cd_calculator')
+
     def test_basic_calculation(self, base_state):
         """Testa cálculo básico"""
-        engine = ActuarialEngine(base_state)
-        results = engine.calculate()
+        engine = ActuarialEngine()
+        results = engine.calculate_individual_simulation(base_state)
         
         # Verifica tipo do resultado
         assert isinstance(results, dict) or hasattr(results, '__dict__')
@@ -55,9 +62,9 @@ class TestActuarialEngine:
         cd_state.plan_type = "CD"
         cd_state.initial_balance = 10000.0
         cd_state.accrual_rate = 0.05
-        
-        engine = ActuarialEngine(cd_state)
-        results = engine.calculate()
+
+        engine = ActuarialEngine()
+        results = engine.calculate_individual_simulation(cd_state)
         
         # Deve retornar resultado válido
         assert results is not None
@@ -68,17 +75,17 @@ class TestActuarialEngine:
     
     def test_different_ages(self, base_state):
         """Testa cálculo com diferentes idades"""
+        engine = ActuarialEngine()
+
         # Pessoa jovem
         young_state = base_state.model_copy()
         young_state.age = 25
-        engine_young = ActuarialEngine(young_state)
-        results_young = engine_young.calculate()
-        
+        results_young = engine.calculate_individual_simulation(young_state)
+
         # Pessoa mais velha
         old_state = base_state.model_copy()
         old_state.age = 50
-        engine_old = ActuarialEngine(old_state)
-        results_old = engine_old.calculate()
+        results_old = engine.calculate_individual_simulation(old_state)
         
         # Ambos devem retornar resultados válidos
         assert results_young is not None
@@ -92,14 +99,13 @@ class TestActuarialEngine:
         # Masculino
         male_state = base_state.model_copy()
         male_state.gender = "M"
-        engine_male = ActuarialEngine(male_state)
-        results_male = engine_male.calculate()
+        engine = ActuarialEngine()
+        results_male = engine.calculate_individual_simulation(male_state)
         
         # Feminino
         female_state = base_state.model_copy()
         female_state.gender = "F"
-        engine_female = ActuarialEngine(female_state)
-        results_female = engine_female.calculate()
+        results_female = engine.calculate_individual_simulation(female_state)
         
         # Ambos devem retornar resultados válidos
         assert results_male is not None
@@ -110,14 +116,14 @@ class TestActuarialEngine:
         # Taxa baixa
         low_rate_state = base_state.model_copy()
         low_rate_state.discount_rate = 0.04
-        engine_low = ActuarialEngine(low_rate_state)
-        results_low = engine_low.calculate()
+        engine = ActuarialEngine()
+        results_low = engine.calculate_individual_simulation(low_rate_state)
         
         # Taxa alta
         high_rate_state = base_state.model_copy()
         high_rate_state.discount_rate = 0.08
-        engine_high = ActuarialEngine(high_rate_state)
-        results_high = engine_high.calculate()
+        engine = ActuarialEngine()
+        results_high = engine.calculate_individual_simulation(high_rate_state)
         
         # Ambos devem retornar resultados válidos
         assert results_low is not None
@@ -131,14 +137,14 @@ class TestActuarialEngine:
         # Contribuição baixa
         low_contrib_state = base_state.model_copy()
         low_contrib_state.contribution_rate = 5.0
-        engine_low = ActuarialEngine(low_contrib_state)
-        results_low = engine_low.calculate()
+        engine = ActuarialEngine()
+        results_low = engine.calculate_individual_simulation(low_contrib_state)
         
         # Contribuição alta
         high_contrib_state = base_state.model_copy()
         high_contrib_state.contribution_rate = 20.0
-        engine_high = ActuarialEngine(high_contrib_state)
-        results_high = engine_high.calculate()
+        engine = ActuarialEngine()
+        results_high = engine.calculate_individual_simulation(high_contrib_state)
         
         # Ambos devem retornar resultados válidos
         assert results_low is not None
@@ -150,8 +156,8 @@ class TestActuarialEngine:
         near_retirement_state = base_state.model_copy()
         near_retirement_state.age = 64
         near_retirement_state.retirement_age = 65
-        engine_near = ActuarialEngine(near_retirement_state)
-        results_near = engine_near.calculate()
+        engine = ActuarialEngine()
+        results_near = engine.calculate_individual_simulation(near_retirement_state)
         
         # Deve funcionar mesmo com pouco tempo
         assert results_near is not None
@@ -160,8 +166,8 @@ class TestActuarialEngine:
         high_salary_state = base_state.model_copy()
         high_salary_state.salary = 100000.0
         high_salary_state.target_benefit = 70000.0
-        engine_high_salary = ActuarialEngine(high_salary_state)
-        results_high_salary = engine_high_salary.calculate()
+        engine = ActuarialEngine()
+        results_high_salary = engine.calculate_individual_simulation(high_salary_state)
         
         # Deve lidar com valores altos
         assert results_high_salary is not None
@@ -171,14 +177,14 @@ class TestActuarialEngine:
         # Tábua BR_EMS_2021
         br_state = base_state.model_copy()
         br_state.mortality_table = "BR_EMS_2021"
-        engine_br = ActuarialEngine(br_state)
-        results_br = engine_br.calculate()
+        engine = ActuarialEngine()
+        results_br = engine.calculate_individual_simulation(br_state)
         
         # Tábua AT_2000
         at_state = base_state.model_copy()
         at_state.mortality_table = "AT_2000"
-        engine_at = ActuarialEngine(at_state)
-        results_at = engine_at.calculate()
+        engine = ActuarialEngine()
+        results_at = engine.calculate_individual_simulation(at_state)
         
         # Ambos devem funcionar
         assert results_br is not None
@@ -194,8 +200,8 @@ class TestActuarialEngine:
         replacement_state.target_replacement_rate = 0.7
         replacement_state.target_benefit = None
         
-        engine = ActuarialEngine(replacement_state)
-        results = engine.calculate()
+        engine = ActuarialEngine()
+        results = engine.calculate_individual_simulation(replacement_state)
         
         # Deve calcular normalmente
         assert results is not None
@@ -203,11 +209,11 @@ class TestActuarialEngine:
     def test_calculation_consistency(self, base_state):
         """Testa consistência dos cálculos"""
         # Executa o mesmo cálculo várias vezes
-        engine1 = ActuarialEngine(base_state)
-        results1 = engine1.calculate()
+        engine1 = ActuarialEngine()
+        results1 = engine1.calculate_individual_simulation(base_state)
         
-        engine2 = ActuarialEngine(base_state)
-        results2 = engine2.calculate()
+        engine2 = ActuarialEngine()
+        results2 = engine2.calculate_individual_simulation(base_state)
         
         # Resultados devem ser consistentes
         assert results1 == results2 or (
@@ -251,10 +257,15 @@ class TestModels:
             age=25,
             gender="F",
             salary=8000.0,
+            initial_balance=0.0,
+            accrual_rate=5.0,
             retirement_age=60,
             contribution_rate=15.0,
             mortality_table="AT_2000",
-            discount_rate=0.05
+            discount_rate=0.05,
+            salary_growth_real=0.01,
+            projection_years=40,
+            calculation_method="PUC"
         )
         
         assert valid_state.age == 25
@@ -267,10 +278,15 @@ class TestModels:
             age=30,
             gender="M",
             salary=5000.0,
+            initial_balance=0.0,
+            accrual_rate=5.0,
             retirement_age=65,
             contribution_rate=10.0,
             mortality_table="BR_EMS_2021",
-            discount_rate=0.06
+            discount_rate=0.06,
+            salary_growth_real=0.01,
+            projection_years=40,
+            calculation_method="PUC"
         )
         
         # Cópia simples
@@ -313,12 +329,17 @@ class TestModels:
             age=30,
             gender="M",
             salary=5000.0,
+            initial_balance=0.0,
+            accrual_rate=5.0,
             retirement_age=65,
             contribution_rate=10.0,
             target_benefit=3000.0,
             benefit_target_mode="VALUE",
             mortality_table="BR_EMS_2021",
             discount_rate=0.06,
+            salary_growth_real=0.01,
+            projection_years=40,
+            calculation_method="PUC",
             plan_type="BD"
         )
         
@@ -338,6 +359,9 @@ class TestModels:
             accrual_rate=0.05,
             mortality_table="BR_EMS_2021",
             discount_rate=0.06,
+            salary_growth_real=0.01,
+            projection_years=30,
+            calculation_method="CD",
             plan_type="CD",
             cd_conversion_mode="ACTUARIAL"
         )

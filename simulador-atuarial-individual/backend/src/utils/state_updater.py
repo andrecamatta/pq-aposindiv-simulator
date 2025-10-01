@@ -18,6 +18,7 @@ class StateActionHandler:
             "apply_sustainable_benefit": self._apply_sustainable_benefit,
             "update_replacement_rate": self._update_replacement_rate,
             "update_multiple_params": self._update_multiple_params,
+            "optimize_cd_contribution_rate": self._update_contribution_rate,
         }
     
     def apply_action(self, state: SimulatorState, action: str, value: Any) -> SimulatorState:

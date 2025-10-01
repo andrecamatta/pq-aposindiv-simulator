@@ -24,6 +24,8 @@ export interface SimulatorState {
   // Parâmetros específicos para CD
   cd_conversion_mode?: CDConversionMode;
   cd_withdrawal_percentage?: number;  // Para modo PERCENTAGE
+  cd_floor_percentage?: number;       // Piso de renda para ACTUARIAL_EQUIVALENT (% do 1º ano)
+  cd_percentage_growth?: number;      // Crescimento anual do % de saque (PERCENTAGE)
   accumulation_rate?: number;         // Taxa durante acumulação (CD)
   conversion_rate?: number;           // Taxa para conversão em renda (CD)
   
@@ -199,7 +201,7 @@ export interface WebSocketMessage {
 
 // Tipos para sugestões inteligentes
 export type SuggestionType = "balance_plan" | "improve_benefit" | "reduce_contribution" | "optimize_retirement" | "sustainable_benefit" | "trade_off_options" | "optimize_multiple";
-export type SuggestionAction = "update_contribution_rate" | "update_retirement_age" | "update_target_benefit" | "update_accrual_rate" | "apply_sustainable_benefit" | "apply_sustainable_replacement_rate" | "update_replacement_rate" | "update_multiple_params";
+export type SuggestionAction = "update_contribution_rate" | "update_retirement_age" | "update_target_benefit" | "update_accrual_rate" | "apply_sustainable_benefit" | "apply_sustainable_replacement_rate" | "update_replacement_rate" | "update_multiple_params" | "optimize_cd_contribution_rate";
 
 export interface Suggestion {
   id: string;

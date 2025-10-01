@@ -4,8 +4,16 @@ Implementa fórmulas manuais para comparar com o engine principal
 """
 
 import math
+import logging
 from typing import Dict, List
 from dataclasses import dataclass
+from ..models.participant import (
+    DEFAULT_SALARY_MONTHS_PER_YEAR,
+    DEFAULT_BENEFIT_MONTHS_PER_YEAR,
+    DEFAULT_CONTRIBUTION_RATE
+)
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -14,10 +22,10 @@ class ScenarioParams:
     current_age: int = 30
     retirement_age: int = 65
     salary_monthly: float = 8000.0
-    salary_months_per_year: int = 13
-    contribution_rate: float = 0.08
-    target_benefit_monthly: float = 5000.0
-    benefit_months_per_year: int = 13
+    salary_months_per_year: int = DEFAULT_SALARY_MONTHS_PER_YEAR
+    contribution_rate: float = DEFAULT_CONTRIBUTION_RATE
+    target_benefit_monthly: float = 8000.0
+    benefit_months_per_year: int = DEFAULT_BENEFIT_MONTHS_PER_YEAR
     discount_rate_annual: float = 0.05
     salary_growth_real: float = 0.02
     admin_fee_rate: float = 0.01
@@ -35,10 +43,10 @@ class IndependentActuarialCalculator:
         
     def calculate_independent_analysis(self) -> Dict:
         """Calcula análise atuarial independente completa"""
-        
-        print("=" * 60)
-        print("🔍 ANÁLISE ATUARIAL INDEPENDENTE")
-        print("=" * 60)
+
+        logger.info("=" * 60)
+        logger.info("🔍 ANÁLISE ATUARIAL INDEPENDENTE")
+        logger.info("=" * 60)
         
         # 1. Cálculos básicos
         basic_calcs = self._calculate_basic_values()
@@ -91,13 +99,13 @@ class IndependentActuarialCalculator:
     
     def _calculate_vpa_contributions_manual(self) -> Dict:
         """Calcula VPA das contribuições usando fórmulas manuais"""
-        print("\n📊 CALCULANDO VPA DAS CONTRIBUIÇÕES")
-        
+        logger.info("\n📊 CALCULANDO VPA DAS CONTRIBUIÇÕES")
+
         # Contribuição inicial líquida (após taxa administrativa)
-        monthly_contribution_initial = (self.params.salary_monthly * self.params.contribution_rate * 
+        monthly_contribution_initial = (self.params.salary_monthly * self.params.contribution_rate *
                                       (1 - self.params.admin_fee_rate))
-        
-        print(f"Contribuição mensal inicial (líquida): R$ {monthly_contribution_initial:,.2f}")
+
+        logger.info(f"Contribuição mensal inicial (líquida): R$ {monthly_contribution_initial:,.2f}")
         
         # Anuidade crescente com pagamentos mensais
         # Fórmula: Σ(t=0 to n-1) PMT₀ * (1+g)^t * (1+i)^(-t)
@@ -130,9 +138,9 @@ class IndependentActuarialCalculator:
                     "discount_factor": discount_factor,
                     "pv": pv_contribution
                 })
-        
-        print(f"VPA Total das Contribuições: R$ {vpa_total:,.2f}")
-        
+
+        logger.info(f"VPA Total das Contribuições: R$ {vpa_total:,.2f}")
+
         return {
             "vpa_total": vpa_total,
             "monthly_contribution_initial": monthly_contribution_initial,
@@ -142,10 +150,10 @@ class IndependentActuarialCalculator:
     
     def _calculate_vpa_benefits_manual(self) -> Dict:
         """Calcula VPA dos benefícios usando fórmulas manuais"""
-        print("\n📊 CALCULANDO VPA DOS BENEFÍCIOS")
-        
+        logger.info("\n📊 CALCULANDO VPA DOS BENEFÍCIOS")
+
         monthly_benefit = self.params.target_benefit_monthly
-        print(f"Benefício mensal: R$ {monthly_benefit:,.2f}")
+        logger.info(f"Benefício mensal: R$ {monthly_benefit:,.2f}")
         
         # Diferir por anos_to_retirement, depois anuidade vitalícia
         months_to_retirement = self.years_to_retirement * 12
@@ -166,10 +174,10 @@ class IndependentActuarialCalculator:
             # VPA deste benefício
             pv_benefit = monthly_benefit * discount_factor * survival_probability
             vpa_total += pv_benefit
-        
-        print(f"Meses até aposentadoria: {months_to_retirement}")
-        print(f"Expectativa de vida (meses): {life_expectancy_months}")
-        print(f"VPA Total dos Benefícios: R$ {vpa_total:,.2f}")
+
+        logger.info(f"Meses até aposentadoria: {months_to_retirement}")
+        logger.info(f"Expectativa de vida (meses): {life_expectancy_months}")
+        logger.info(f"VPA Total dos Benefícios: R$ {vpa_total:,.2f}")
         
         return {
             "vpa_total": vpa_total,
@@ -195,45 +203,45 @@ class IndependentActuarialCalculator:
     
     def _print_detailed_analysis(self, analysis: Dict):
         """Imprime análise detalhada formatada"""
-        
-        print("\n" + "=" * 60)
-        print("📋 RESUMO DA ANÁLISE INDEPENDENTE")
-        print("=" * 60)
-        
+
+        logger.info("\n" + "=" * 60)
+        logger.info("📋 RESUMO DA ANÁLISE INDEPENDENTE")
+        logger.info("=" * 60)
+
         basic = analysis["scenario_params"]
-        print(f"⏰ Anos até aposentadoria: {basic['years_to_retirement']}")
-        print(f"💰 Salário anual inicial: R$ {basic['annual_salary_initial']:,.2f}")
-        print(f"💰 Salário anual final: R$ {basic['annual_salary_final']:,.2f}")
-        print(f"💸 Contribuição anual inicial: R$ {basic['annual_contribution_initial']:,.2f}")
-        print(f"🎯 Benefício anual alvo: R$ {basic['annual_benefit_target']:,.2f}")
-        print(f"📊 Taxa de reposição alvo: {basic['replacement_rate_target']:.1%}")
-        
-        print(f"\n📈 VPA Contribuições: R$ {analysis['vpa_contributions']['vpa_total']:,.2f}")
-        print(f"📉 VPA Benefícios: R$ {analysis['vpa_benefits']['vpa_total']:,.2f}")
-        print(f"🧮 RMBA: R$ {analysis['rmba']:,.2f}")
-        print(f"💎 Superávit: R$ {analysis['surplus']:,.2f}")
-        
+        logger.info(f"⏰ Anos até aposentadoria: {basic['years_to_retirement']}")
+        logger.info(f"💰 Salário anual inicial: R$ {basic['annual_salary_initial']:,.2f}")
+        logger.info(f"💰 Salário anual final: R$ {basic['annual_salary_final']:,.2f}")
+        logger.info(f"💸 Contribuição anual inicial: R$ {basic['annual_contribution_initial']:,.2f}")
+        logger.info(f"🎯 Benefício anual alvo: R$ {basic['annual_benefit_target']:,.2f}")
+        logger.info(f"📊 Taxa de reposição alvo: {basic['replacement_rate_target']:.1%}")
+
+        logger.info(f"\n📈 VPA Contribuições: R$ {analysis['vpa_contributions']['vpa_total']:,.2f}")
+        logger.info(f"📉 VPA Benefícios: R$ {analysis['vpa_benefits']['vpa_total']:,.2f}")
+        logger.info(f"🧮 RMBA: R$ {analysis['rmba']:,.2f}")
+        logger.info(f"💎 Superávit: R$ {analysis['surplus']:,.2f}")
+
         checks = analysis["validation_checks"]
-        print(f"\n🔍 VERIFICAÇÕES:")
-        print(f"   • Razão Contribuições/Benefícios: {checks['contribution_benefit_ratio']:.2f}")
-        print(f"   • RMBA vs Salário Anual: {checks['rmba_vs_annual_salary']:.2f}")
-        print(f"   • Cobertura Benefícios: {checks['benefit_coverage_ratio']:.2f}")
-        print(f"   • Razoabilidade Econômica: {checks['economic_reasonableness']}")
-        
-        print("\n" + "=" * 60)
+        logger.info(f"\n🔍 VERIFICAÇÕES:")
+        logger.info(f"   • Razão Contribuições/Benefícios: {checks['contribution_benefit_ratio']:.2f}")
+        logger.info(f"   • RMBA vs Salário Anual: {checks['rmba_vs_annual_salary']:.2f}")
+        logger.info(f"   • Cobertura Benefícios: {checks['benefit_coverage_ratio']:.2f}")
+        logger.info(f"   • Razoabilidade Econômica: {checks['economic_reasonableness']}")
+
+        logger.info("\n" + "=" * 60)
 
 
 def run_independent_validation():
     """Executa validação independente com parâmetros padrão do sistema"""
-    
+
     # Parâmetros idênticos ao caso base do sistema
     params = ScenarioParams(
         current_age=30,
-        retirement_age=65, 
+        retirement_age=65,
         salary_monthly=8000.0,
         salary_months_per_year=13,
-        contribution_rate=0.08,
-        target_benefit_monthly=5000.0,
+        contribution_rate=DEFAULT_CONTRIBUTION_RATE,
+        target_benefit_monthly=8000.0,
         benefit_months_per_year=13,
         discount_rate_annual=0.05,
         salary_growth_real=0.02,

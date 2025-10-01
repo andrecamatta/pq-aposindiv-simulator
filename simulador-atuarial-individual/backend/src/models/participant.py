@@ -42,6 +42,16 @@ class CDConversionMode(str, Enum):
     PROGRAMMED = "PROGRAMMED"      # Saque programado
 
 
+# Constantes de Valores Padrão
+DEFAULT_CONTRIBUTION_RATE = 0.12              # Taxa de contribuição padrão (12%)
+DEFAULT_CD_WITHDRAWAL_PERCENTAGE = 8.0        # Percentual de saque anual do saldo (CD)
+DEFAULT_CD_FLOOR_PERCENTAGE = 70.0            # Piso de renda para ACTUARIAL_EQUIVALENT (70% do primeiro ano)
+DEFAULT_CD_PERCENTAGE_GROWTH = 0.1            # Crescimento anual do percentual de saque (0.1% a.a.)
+DEFAULT_BENEFIT_MONTHS_PER_YEAR = 13          # Pagamentos de benefício por ano (13º)
+DEFAULT_SALARY_MONTHS_PER_YEAR = 13           # Pagamentos de salário por ano (13º)
+DEFAULT_CD_CONVERSION_RATE = 0.045            # Taxa de conversão CD (4.5% a.a.)
+
+
 class DecrementType(str, Enum):
     """Tipos de decrementos atuariais suportados"""
     MORTALITY = "MORTALITY"        # Mortalidade (morte)
@@ -79,6 +89,8 @@ class SimulatorState(BaseModel, EnumMixin):
     # Parâmetros específicos para CD
     cd_conversion_mode: Optional[CDConversionMode] = None
     cd_withdrawal_percentage: Optional[float] = None  # Para modo PERCENTAGE
+    cd_floor_percentage: Optional[float] = None       # Piso de renda para ACTUARIAL_EQUIVALENT (% do 1º ano)
+    cd_percentage_growth: Optional[float] = None      # Crescimento anual do % de saque (PERCENTAGE)
     accumulation_rate: Optional[float] = None         # Taxa durante acumulação (CD)
     conversion_rate: Optional[float] = None           # Taxa para conversão em renda (CD)
     

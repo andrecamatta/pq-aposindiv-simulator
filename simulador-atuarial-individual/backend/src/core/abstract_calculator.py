@@ -70,14 +70,22 @@ class AbstractCalculator(ABC):
         if not state:
             raise ValueError("Estado do simulador não pode ser None")
 
-        if state.age < 18 or state.age > 100:
+        if state.age < 0 or state.age > 120:
             raise ValueError(f"Idade inválida: {state.age}")
 
-        if state.retirement_age <= state.age:
-            raise ValueError(f"Idade de aposentadoria ({state.retirement_age}) deve ser maior que idade atual ({state.age})")
+        if state.retirement_age <= state.age or state.retirement_age > 120:
+            raise ValueError(f"Idade de aposentadoria inválida: {state.retirement_age}")
 
         if state.salary <= 0:
             raise ValueError(f"Salário deve ser positivo: {state.salary}")
+
+    def _validate_rates(self, accumulation_rate: float, conversion_rate: float = None) -> None:
+        """Validação de taxas atuariais"""
+        if accumulation_rate < -0.5 or accumulation_rate > 1.0:
+            raise ValueError(f"Taxa de acumulação fora do intervalo válido: {accumulation_rate}")
+
+        if conversion_rate is not None and (conversion_rate < -0.5 or conversion_rate > 1.0):
+            raise ValueError(f"Taxa de conversão fora do intervalo válido: {conversion_rate}")
 
     def _validate_context(self, context: 'ActuarialContext') -> None:
         """Validação comum de contexto atuarial"""

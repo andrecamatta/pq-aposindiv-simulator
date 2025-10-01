@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from ..models.participant import DecrementType
 from ..models.database import DecrementTable
 from .mortality_tables import MortalityTableCache  # Reutilizar cache existente
+from .constants import MAX_AGE_LIMIT
 
 logger = logging.getLogger(__name__)
 
@@ -299,7 +300,7 @@ class DecrementTableManager:
                     if table:
                         table_data_dict = table.get_table_data()
                         # Converter para numpy array
-                        max_age = max(table_data_dict.keys()) if table_data_dict else 110
+                        max_age = max(table_data_dict.keys()) if table_data_dict else MAX_AGE_LIMIT
                         decrement_rates = np.zeros(max_age + 1)
                         for age, rate in table_data_dict.items():
                             decrement_rates[age] = rate
