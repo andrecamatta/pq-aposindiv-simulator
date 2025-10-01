@@ -68,16 +68,16 @@ def calculate_vpa_benefits_contributions(
 ) -> tuple:
     """
     Calcula VPA de benefícios e contribuições considerando custos administrativos
-    
+
     Args:
         monthly_benefits: Lista de benefícios mensais
         monthly_contributions: Lista de contribuições mensais
         monthly_survival_probs: Probabilidades de sobrevivência
-        discount_rate_monthly: Taxa de desconto mensal
+        discount_rate_monthly: Taxa de desconto mensal (taxa atuarial única)
         timing: Timing dos pagamentos
         months_to_retirement: Meses até aposentadoria
         admin_fee_monthly: Taxa administrativa mensal
-    
+
     Returns:
         Tupla (VPA benefícios, VPA contribuições líquido)
     """
@@ -89,7 +89,7 @@ def calculate_vpa_benefits_contributions(
         timing,
         start_month=months_to_retirement
     )
-    
+
     # VPA das contribuições (sem dedução da taxa administrativa)
     # A taxa admin deve incidir sobre o SALDO, não sobre as contribuições
     # Para o cálculo do VPA, usamos uma taxa de desconto efetiva que já considera a taxa admin
@@ -118,7 +118,7 @@ def calculate_vpa_benefits_contributions(
             start_month=0,
             end_month=months_to_retirement
         )
-    
+
     return vpa_benefits, vpa_contributions_net
 
 
@@ -617,6 +617,114 @@ def calculate_optimal_retirement_age(state: "SimulatorState", engine: "Actuarial
         bounds=(min_age, 100),
         initial_guess=state.retirement_age
     )
+
+
+def calculate_optimal_cd_contribution_rate(
+    state: "SimulatorState",
+    engine: "ActuarialEngine",
+    target_monthly_income: float
+) -> float:
+    """
+    Calcula taxa de contribuição CD que atinge renda mensal alvo usando root seeking.
+
+    Similar a calculate_optimal_contribution_rate mas para CD com renda vitalícia.
+    Usa root_scalar com brentq para encontrar taxa que resulta em monthly_income = target.
+
+    Args:
+        state: Estado do simulador
+        engine: Engine atuarial
+        target_monthly_income: Renda mensal desejada na aposentadoria
+
+    Returns:
+        Taxa de contribuição (%) que atinge a renda alvo
+    """
+    import logging
+    import math
+    from scipy.optimize import root_scalar
+
+    logger = logging.getLogger(__name__)
+
+    def objective_function(contribution_rate: float) -> float:
+        """Função objetivo: diferença entre renda resultante e renda alvo"""
+        test_state = state.model_copy()
+        test_state.contribution_rate = float(contribution_rate)
+
+        try:
+            results = engine.calculate_individual_simulation(test_state)
+            monthly_income = getattr(results, 'monthly_income', 0)
+            gap = monthly_income - target_monthly_income
+
+            logger.debug(f"[FSOLVE_CD] taxa={contribution_rate:.2f}% → renda={monthly_income:.2f} (alvo={target_monthly_income:.2f}, gap={gap:.2f})")
+            return gap
+
+        except Exception as e:
+            logger.error(f"[FSOLVE_CD] Erro com taxa={contribution_rate}: {e}")
+            return float('inf')
+
+    # Bounds: 1% a 30%
+    bounds = (1.0, 30.0)
+    initial_guess = state.contribution_rate or 10.0
+
+    try:
+        # Testar bounds
+        f_min = objective_function(bounds[0])
+        f_max = objective_function(bounds[1])
+
+        logger.debug(f"[FSOLVE_CD] Bounds: f({bounds[0]})={f_min:.2f}, f({bounds[1]})={f_max:.2f}")
+
+        evaluation_points = [(bounds[0], f_min), (bounds[1], f_max)]
+        previous_value = bounds[0]
+        previous_result = f_min
+        bracket = None
+
+        if math.isfinite(f_min) and math.isfinite(f_max) and f_min * f_max <= 0:
+            bracket = (bounds[0], bounds[1])
+        else:
+            # Escanear intervalo em busca de mudança de sinal
+            samples = 12
+            step = (bounds[1] - bounds[0]) / samples
+
+            for i in range(1, samples):
+                test_value = bounds[0] + step * i
+                result_value = objective_function(test_value)
+                evaluation_points.append((test_value, result_value))
+
+                if (math.isfinite(previous_result) and
+                    math.isfinite(result_value) and
+                    previous_result * result_value <= 0):
+                    bracket = (previous_value, test_value)
+                    break
+
+                previous_value = test_value
+                previous_result = result_value
+
+        if bracket:
+            result = root_scalar(
+                objective_function,
+                bracket=bracket,
+                method='brentq',
+                xtol=1e-3
+            )
+
+            if result.converged:
+                optimal_rate = result.root
+                logger.info(f"[FSOLVE_CD] ✅ Convergência: taxa={optimal_rate:.2f}%")
+                return optimal_rate
+            logger.warning(f"[FSOLVE_CD] ⚠️ Não convergiu no bracket {bracket}")
+
+        # Sem bracket: escolher menor gap absoluto
+        finite_points = [p for p in evaluation_points if math.isfinite(p[1])]
+        if finite_points:
+            best_rate, best_gap = min(finite_points, key=lambda x: abs(x[1]))
+            logger.info(f"[FSOLVE_CD] ⚠️ Sem raiz clara; taxa={best_rate:.2f}% (gap={best_gap:.2f})")
+            return best_rate
+
+        logger.warning(f"[FSOLVE_CD] ⚠️ Usando chute inicial {initial_guess}%")
+        return initial_guess
+
+    except Exception as e:
+        logger.error(f"[FSOLVE_CD] Erro na otimização: {e}")
+        return initial_guess
 
 
 def calculate_sustainable_benefit_with_engine(

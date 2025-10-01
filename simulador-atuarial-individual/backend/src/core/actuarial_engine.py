@@ -8,9 +8,18 @@ import logging
 
 from .logging_config import ActuarialLoggerMixin
 from .constants import (
-    MIN_RETIREMENT_YEARS, MSG_EXTENDED_PROJECTION, MSG_RETIREMENT_PROJECTION
+    MIN_RETIREMENT_YEARS,
+    MSG_EXTENDED_PROJECTION,
+    MSG_RETIREMENT_PROJECTION,
+    MAX_ANNUITY_MONTHS,
+    MAX_ANNUITY_YEARS,
+    MAX_AGE_LIMIT,
+    MAX_RETIREMENT_PROJECTION_YEARS,
+    MAX_RETIREMENT_AGE_PROJECTION,
+    DEFAULT_PROGRAMMED_WITHDRAWAL_MONTHS
 )
 from ..models import SimulatorState, SimulatorResults, BenefitTargetMode, PlanType, CDConversionMode
+from ..models.participant import DEFAULT_CD_WITHDRAWAL_PERCENTAGE, DEFAULT_BENEFIT_MONTHS_PER_YEAR
 from .mortality_tables import get_mortality_table, get_mortality_table_info
 from .financial_math import present_value, annuity_value
 from ..utils.rates import annual_to_monthly_rate
@@ -84,8 +93,8 @@ class ActuarialContext:
         # Calcular período total de projeção
         if is_already_retired:
             # Para aposentados: projetar apenas os anos restantes de expectativa de vida
-            # Usar no máximo 30 anos de projeção ou até idade 95
-            max_years_projection = min(30, 95 - state.age)
+            # Usar no máximo definido em constantes
+            max_years_projection = min(MAX_RETIREMENT_PROJECTION_YEARS, MAX_RETIREMENT_AGE_PROJECTION - state.age)
             total_months = max(12, max_years_projection * 12)  # Mínimo 1 ano
             # Note: logging will be handled by the ActuarialEngine instance
         else:
@@ -335,8 +344,8 @@ class ActuarialEngine:
         annuity_factor = 0.0
         cumulative_survival = 1.0
 
-        # Calcular até 50 anos após aposentadoria
-        max_months = min(50 * 12, (110 - state.retirement_age) * 12)
+        # Calcular até limite máximo de anuidades
+        max_months = min(MAX_ANNUITY_MONTHS, (MAX_AGE_LIMIT - state.retirement_age) * 12)
 
         for month in range(max_months):
             retirement_age_years = state.retirement_age + (month / 12)
@@ -375,8 +384,8 @@ class ActuarialEngine:
     
     def _calculate_bd_simulation_with_calculator(self, state: SimulatorState, start_time: float) -> SimulatorResults:
         """Calcula simulação BD delegando completamente para BDCalculator especializada"""
-        # Criar contexto atuarial
-        context = ActuarialContext.from_state(state)
+        # Criar contexto atuarial BD com taxas diferenciadas
+        context = self.bd_calculator.create_bd_context(state)
 
         # Delegar cálculo completo para calculadora BD especializada
         bd_results = self.bd_calculator.calculate_bd_simulation(state, context)
@@ -983,7 +992,7 @@ class ActuarialEngine:
         # Para cada ano da projeção, calcular VPAs restantes
         for year_idx in range(len(projections["years"])):
             year_month = year_idx * 12
-            
+
             # VPA dos benefícios futuros a partir deste ano
             # CORREÇÃO: Usar função consolidada para consistência com RMBA
             if year_idx == 0:
@@ -1151,12 +1160,12 @@ class ActuarialEngine:
         
         elif conversion_mode == CDConversionMode.PERCENTAGE:
             # Percentual do saldo por ano
-            percentage = state.cd_withdrawal_percentage or 5.0  # 5% default
-            return (balance * (percentage / 100)) / (state.benefit_months_per_year or 13)  # Converter para mensal
+            percentage = state.cd_withdrawal_percentage or DEFAULT_CD_WITHDRAWAL_PERCENTAGE
+            return (balance * (percentage / 100)) / (state.benefit_months_per_year or DEFAULT_BENEFIT_MONTHS_PER_YEAR)  # Converter para mensal
         
         else:  # PROGRAMMED - simplificado
-            # Saque programado por 20 anos (default)
-            return balance / (20 * 12)
+            # Saque programado padrão
+            return balance / DEFAULT_PROGRAMMED_WITHDRAWAL_MONTHS
     
     def _calculate_actuarial_annuity(self, balance: float, state: SimulatorState, context: ActuarialContext, mortality_table: np.ndarray) -> float:
         """Calcula anuidade vitalícia atuarial"""
@@ -1167,8 +1176,8 @@ class ActuarialEngine:
         annuity_factor = 0.0
         cumulative_survival = 1.0
         
-        # Calcular até 50 anos após aposentadoria (idade limite)
-        max_months = min(50 * 12, (110 - state.retirement_age) * 12)
+        # Calcular até limite máximo de anuidades
+        max_months = min(MAX_ANNUITY_MONTHS, (MAX_AGE_LIMIT - state.retirement_age) * 12)
         
         for month in range(max_months):
             retirement_age_years = state.retirement_age + (month / 12)
@@ -1301,14 +1310,14 @@ class ActuarialEngine:
             }
             return float(years_map[conversion_mode])
 
-        # Para equivalência atuarial, considerar como vitalícia (duração até 50 anos)
+        # Para equivalência atuarial, considerar como vitalícia
         if conversion_mode == CDConversionMode.ACTUARIAL_EQUIVALENT:
-            return 50.0
-        
+            return float(MAX_ANNUITY_YEARS)
+
         # Para modalidades vitalícias ou dinâmicas, simular mês a mês
         remaining_balance = balance
         months_count = 0
-        max_months = 50 * 12  # Limite máximo de 50 anos
+        max_months = MAX_ANNUITY_MONTHS
         
         # Probabilidade de sobrevivência acumulada
         cumulative_survival = 1.0
@@ -1354,7 +1363,7 @@ class ActuarialEngine:
             
             # Para modalidade percentage, recalcular renda baseada no saldo atual
             if conversion_mode == CDConversionMode.PERCENTAGE:
-                percentage = state.cd_withdrawal_percentage or 5.0
+                percentage = state.cd_withdrawal_percentage or DEFAULT_CD_WITHDRAWAL_PERCENTAGE
                 monthly_income = (remaining_balance * (percentage / 100)) / 12
                 if monthly_income < 1.0:  # Critério de parada quando renda fica muito baixa
                     break

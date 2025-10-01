@@ -12,6 +12,8 @@ from ..utils import (
     get_timing_adjustment,
     calculate_discount_factor
 )
+from ..utils.rates import annual_to_monthly_rate
+from .constants import MIN_EFFECTIVE_RATE
 from .calculations.vpa_calculations import (
     calculate_vpa_benefits_contributions,
     calculate_sustainable_benefit,
@@ -30,6 +32,29 @@ class BDCalculator(AbstractCalculator):
 
     def __init__(self):
         super().__init__()
+
+    def create_bd_context(self, state: 'SimulatorState') -> 'ActuarialContext':
+        """
+        Cria contexto atuarial para BD usando taxa atuarial única (discount_rate)
+
+        Args:
+            state: Estado do simulador
+
+        Returns:
+            Contexto atuarial para BD
+        """
+        from .actuarial_engine import ActuarialContext
+
+        # Validações comuns (herdadas de AbstractCalculator)
+        self._validate_state(state)
+
+        # Para BD: usar apenas discount_rate (taxa atuarial única)
+        # Não usar accumulation_rate nem conversion_rate
+
+        # Criar contexto base (já converte discount_rate para mensal)
+        context = ActuarialContext.from_state(state)
+
+        return context
     
     def calculate_projections(
         self,
@@ -74,7 +99,7 @@ class BDCalculator(AbstractCalculator):
         
         # Para pessoas ativas: RMBA = VPA(Benefícios) - VPA(Contribuições)
         monthly_data = projections["monthly_data"]
-        
+
         # Usar utilitário para calcular VPAs de benefícios e contribuições
         vpa_benefits, vpa_contributions = calculate_vpa_benefits_contributions(
             monthly_data["benefits"],
@@ -114,10 +139,10 @@ class BDCalculator(AbstractCalculator):
         
         # Para pessoas aposentadas: RMBC = VPA dos benefícios restantes
         monthly_data = projections["monthly_data"]
-        
+
         vpa_benefits = 0.0
         timing_adjustment = get_timing_adjustment(context.payment_timing)
-        
+
         for month_idx, benefit in enumerate(monthly_data["benefits"]):
             if benefit > 0:  # Só benefícios positivos
                 survival_prob = get_payment_survival_probability(
@@ -126,12 +151,13 @@ class BDCalculator(AbstractCalculator):
                     context.payment_timing
                 )
 
+                # Usar taxa de desconto atuarial única
                 discount_factor = calculate_discount_factor(
                     context.discount_rate_monthly,
                     month_idx,
                     timing_adjustment
                 )
-                
+
                 present_value = (benefit * survival_prob) / discount_factor
                 vpa_benefits += present_value
         
@@ -174,7 +200,7 @@ class BDCalculator(AbstractCalculator):
             # Taxa efetiva considerando que a taxa admin incide sobre o saldo
             # Taxa efetiva = (1 + retorno) / (1 + taxa_admin) - 1
             effective_discount_rate = (1 + context.discount_rate_monthly) / (1 + context.admin_fee_monthly) - 1
-            effective_discount_rate = max(effective_discount_rate, -0.99)
+            effective_discount_rate = max(effective_discount_rate, MIN_EFFECTIVE_RATE)
 
             annuity_factor = calculate_life_annuity_factor(
                 survival_probs,
@@ -269,7 +295,7 @@ class BDCalculator(AbstractCalculator):
         # Taxa de reposição sustentável usando utilitário
         sustainable_monthly_benefit = 0
         sustainable_replacement_ratio = 0
-        
+
         if final_salary_monthly_base > 0:
             _, vpa_contributions = calculate_vpa_benefits_contributions(
                 monthly_data["benefits"],
@@ -280,7 +306,7 @@ class BDCalculator(AbstractCalculator):
                 context.months_to_retirement,
                 context.admin_fee_monthly
             )
-            
+
             sustainable_monthly_benefit = calculate_sustainable_benefit(
                 state.initial_balance,
                 vpa_contributions,
@@ -291,7 +317,7 @@ class BDCalculator(AbstractCalculator):
                 context.benefit_months_per_year,
                 context.admin_fee_monthly
             )
-            
+
             sustainable_replacement_ratio = (sustainable_monthly_benefit / final_salary_monthly_base * 100) if final_salary_monthly_base > 0 else 0
         
         return {
@@ -371,17 +397,17 @@ class BDCalculator(AbstractCalculator):
     
     
     def _calculate_target_benefit_apv(
-        self, 
+        self,
         state: 'SimulatorState',
-        context: 'ActuarialContext', 
+        context: 'ActuarialContext',
         monthly_target_benefit: float,
         mortality_table: np.ndarray,
         months_to_retirement: int
     ) -> float:
-        """Calcula VPA do benefício alvo como anuidade vitalícia mensal"""
+        """Calcula VPA do benefício alvo como anuidade vitalícia mensal usando taxa atuarial única"""
         target_benefit_apv = 0.0
         cumulative_survival = 1.0
-        
+
         # Calcular sobrevivência até aposentadoria
         for month in range(months_to_retirement):
             current_age_years = state.age + (month / 12)
@@ -394,18 +420,18 @@ class BDCalculator(AbstractCalculator):
             else:
                 cumulative_survival = 0.0
                 break
-        
+
         survival_to_retirement = cumulative_survival
-        
+
         # Calcular anuidade
         max_projection_age = state.age + state.projection_years
         max_months_after_retirement = (max_projection_age - state.retirement_age) * 12
-        
+
         for month_after_retirement in range(max_months_after_retirement):
             total_month = months_to_retirement + month_after_retirement
             current_age_years = state.age + (total_month / 12)
             age_index = int(current_age_years)
-            
+
             if age_index < len(mortality_table):
                 if month_after_retirement == 0:
                     survival_prob = survival_to_retirement
@@ -415,8 +441,9 @@ class BDCalculator(AbstractCalculator):
                     p_x_monthly = 1 - q_x_monthly
                     cumulative_survival *= p_x_monthly
                     survival_prob = cumulative_survival
-                
+
                 benefit_timing_adjustment = get_timing_adjustment(context.payment_timing)
+                # Usar taxa de desconto atuarial única
                 discount_factor = calculate_discount_factor(
                     context.discount_rate_monthly,
                     total_month,
@@ -426,7 +453,7 @@ class BDCalculator(AbstractCalculator):
                 target_benefit_apv += present_value
             else:
                 break
-        
+
         return target_benefit_apv
 
     def _generate_age_projections(
