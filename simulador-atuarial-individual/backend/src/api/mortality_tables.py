@@ -5,6 +5,7 @@ from datetime import datetime
 import logging
 import pandas as pd
 import numpy as np
+import re
 from io import StringIO
 
 from ..database import get_session, engine
@@ -157,6 +158,180 @@ def validate_table_access(table_id: int, session: Session, allow_system: bool = 
     return table
 
 
+def _get_base_table_key(table: MortalityTable) -> str:
+    """
+    Gera uma chave única para agrupar tábuas da mesma família.
+
+    Usa o nome limpo (sem marcadores de gênero) como chave, garantindo que
+    tábuas M/F com nomes iguais mas códigos diferentes sejam agrupadas.
+
+    Exemplo:
+    - SOA_3384_M "Experience... - Male Survivorship (BR-EMSsb-V.2015-m)"
+    - SOA_3383_F "Experience... - Female Survivorship (BR-EMSsb-V.2015-f)"
+    Ambas têm códigos diferentes, mas o nome limpo é igual, então serão agrupadas.
+
+    Returns:
+        str: Chave única baseada no nome limpo da tábua
+    """
+    # Usar o nome limpo como chave de agrupamento
+    # Isso garante que tábuas com mesmo nome sejam agrupadas,
+    # mesmo que tenham códigos/source_ids diferentes
+    return _get_base_name(table.name)
+
+
+def _get_base_code(code: str) -> str:
+    """
+    Remove sufixos de gênero (_M, _F, -M, -F) do código da tábua.
+
+    Exemplos:
+    - "BR_EMS_2021_M" → "BR_EMS_2021"
+    - "SOA_3384_M" → "SOA_3384"
+    - "AT_2000_F" → "AT_2000"
+
+    Returns:
+        str: Código base sem sufixo de gênero
+    """
+    return re.sub(r'[_-]?[MF]$', '', code, flags=re.IGNORECASE)
+
+
+def _get_base_name(name: str) -> str:
+    """
+    Remove sufixos de gênero do nome preservando informações estruturais importantes.
+
+    PRESERVA:
+    - Tipo de tábua (Survivorship, Mortality, Life)
+    - Ano/versão (2015, V.2015, etc)
+    - Códigos estruturais (BR-EMSsb, BR-EMSmt, etc)
+
+    REMOVE:
+    - Marcadores de gênero (Male, Female, Masculino, Feminina, M, F)
+
+    Exemplos:
+    - "Experience... - Male Survivorship (BR-EMSsb-V.2015-m)"
+      → "Experience... - Survivorship (BR-EMSsb-V.2015)"
+    - "BR-EMS 2021 Masculina" → "BR-EMS 2021"
+    - "AT-2000 - Male" → "AT-2000"
+
+    Returns:
+        str: Nome sem marcadores de gênero mas com informações estruturais preservadas
+    """
+    result = name
+
+    # Padrão 1: Remover "- Male/Female " mas preservar o que vem depois (Survivorship, Mortality, etc)
+    # Ex: "Name - Male Survivorship (details)" → "Name - Survivorship (details)"
+    result = re.sub(
+        r'\s*[-–]\s*(Male|Female)\s+(?=(Survivorship|Mortality|Life|Annuitant))',
+        r' - ',
+        result,
+        flags=re.IGNORECASE
+    )
+
+    # Padrão 2: Remover apenas "-m)" ou "-f)" no final de parênteses, preservando o resto
+    # Ex: "(BR-EMSsb-V.2015-m)" → "(BR-EMSsb-V.2015)"
+    result = re.sub(r'[-_][mf]\)$', ')', result, flags=re.IGNORECASE)
+
+    # Padrão 3: Remover sufixos simples de gênero com hífen/traço no final
+    # Ex: "AT-2000 - Male" → "AT-2000"
+    result = re.sub(
+        r'\s*[-–]\s*(Male|Female|Masculino|Feminino|Masculina|Feminina|Homme|Femme)\s*$',
+        '',
+        result,
+        flags=re.IGNORECASE
+    )
+
+    # Padrão 4: Remover sufixos simples de gênero sem pontuação no final
+    # Ex: "BR-EMS 2021 Masculina" → "BR-EMS 2021"
+    result = re.sub(
+        r'\s+(Male|Female|Masculino|Feminino|Masculina|Feminina|Homme|Femme)\s*$',
+        '',
+        result,
+        flags=re.IGNORECASE
+    )
+
+    # Padrão 5: Parênteses contendo APENAS marcador de gênero isolado
+    # Ex: "(M)" ou "(Female)" → remove, mas NÃO "(BR-EMS-M)" que tem estrutura
+    result = re.sub(
+        r'\s*\(\s*(Male|Female|M|F|Masculino|Feminino)\s*\)\s*$',
+        '',
+        result,
+        flags=re.IGNORECASE
+    )
+
+    # Padrão 6: Apenas M/F isolado no final
+    # Ex: "Table - M" → "Table"
+    result = re.sub(r'\s*[-–]\s*[MF]\s*$', '', result, flags=re.IGNORECASE)
+
+    # Limpar espaços duplos e traços duplicados que podem ter surgido
+    result = re.sub(r'\s+', ' ', result)  # Múltiplos espaços → 1 espaço
+    result = re.sub(r'\s*[-–]\s*[-–]\s*', ' - ', result)  # Traços duplicados
+
+    return result.strip()
+
+
+@router.get("/base", response_model=List[Dict[str, Any]])
+async def list_base_mortality_tables(
+    active_only: bool = True,
+    session: Session = Depends(get_session)
+):
+    """
+    Lista tábuas de mortalidade agrupadas por família/código base.
+
+    Agrupa tábuas que são versões M/F da mesma tábua base, usando:
+    - source_id para tábuas pymort/SOA
+    - código base (sem sufixo _M/_F) para outras
+    """
+    repo = MortalityTableRepository(session)
+
+    if active_only:
+        tables = repo.get_active_tables()
+    else:
+        tables = repo.get_all()
+
+    # Agrupar tábuas por chave base
+    base_tables = {}
+    for table in tables:
+        # Gerar chave de agrupamento usando metadados
+        group_key = _get_base_table_key(table)
+
+        # Se já existe entrada para esta chave, acumular flags de gênero
+        if group_key in base_tables:
+            # Preservar flags existentes
+            existing_has_male = base_tables[group_key].get('has_male', False)
+            existing_has_female = base_tables[group_key].get('has_female', False)
+
+            # Acumular flags (OR lógico)
+            new_has_male = existing_has_male or (table.gender in ['M', 'UNISEX'])
+            new_has_female = existing_has_female or (table.gender in ['F', 'UNISEX'])
+
+            # Atualizar entrada completa se nova versão tem prioridade (UNISEX ou M quando existente é F)
+            existing_gender = base_tables[group_key]['gender']
+            if table.gender == 'UNISEX' or (existing_gender == 'F' and table.gender == 'M'):
+                table_dict = _table_to_dict(table)
+                base_tables[group_key] = {
+                    **table_dict,
+                    'code': _get_base_code(table.code),  # Código base real (ex: "BR_EMS_2021")
+                    'name': _get_base_name(table_dict['name']),  # Nome limpo para display
+                    'has_male': new_has_male,
+                    'has_female': new_has_female,
+                }
+            else:
+                # Apenas atualizar flags, manter outros metadados
+                base_tables[group_key]['has_male'] = new_has_male
+                base_tables[group_key]['has_female'] = new_has_female
+        else:
+            # Primeira tábua deste grupo
+            table_dict = _table_to_dict(table)
+            base_tables[group_key] = {
+                **table_dict,
+                'code': _get_base_code(table.code),  # Código base real (ex: "BR_EMS_2021")
+                'name': _get_base_name(table_dict['name']),  # Nome limpo para display
+                'has_male': table.gender in ['M', 'UNISEX'],
+                'has_female': table.gender in ['F', 'UNISEX'],
+            }
+
+    return list(base_tables.values())
+
+
 @router.get("/", response_model=List[Dict[str, Any]])
 async def list_mortality_tables(
     active_only: bool = True,
@@ -164,12 +339,12 @@ async def list_mortality_tables(
 ):
     """Lista todas as tábuas de mortalidade disponíveis"""
     repo = MortalityTableRepository(session)
-    
+
     if active_only:
         tables = repo.get_active_tables()
     else:
         tables = repo.get_all()
-    
+
     return [_table_to_dict(table) for table in tables]
 
 
@@ -416,18 +591,38 @@ async def _load_tables_from_config_background(session: Session, configured_table
 
 @with_background_session
 async def _load_from_pymort_background(session: Session, table_id: int):
-    """Carrega tábua do pymort em background"""
+    """Carrega tábua do pymort em background + gênero complementar se disponível"""
     try:
         repo = MortalityTableRepository(session)
         loader = MortalityTableLoader()
-        
+
+        # Carregar tábua principal
         new_table = loader.load_from_pymort(table_id)
         if new_table:
             repo.create(new_table)
             logger.info(f"Tábua SOA {table_id} carregada com sucesso")
+
+            # Tentar encontrar e carregar tábua do gênero complementar
+            complementary_id = loader.find_complementary_gender_table(new_table.name, table_id)
+            if complementary_id:
+                logger.info(f"Encontrada tábua complementar ID {complementary_id}, carregando...")
+
+                # Verificar se já existe no banco
+                existing_code = f"SOA_{complementary_id}"
+                existing_table = repo.get_by_code(existing_code)
+
+                if not existing_table:
+                    complementary_table = loader.load_from_pymort(complementary_id)
+                    if complementary_table:
+                        repo.create(complementary_table)
+                        logger.info(f"✅ Tábua complementar SOA {complementary_id} carregada automaticamente")
+                    else:
+                        logger.warning(f"Falha ao carregar tábua complementar SOA {complementary_id}")
+                else:
+                    logger.info(f"Tábua complementar SOA {complementary_id} já existe no banco")
         else:
             logger.error(f"Falha ao carregar tábua SOA {table_id}")
-            
+
     except Exception as e:
         logger.error(f"Erro ao carregar tábua pymort {table_id}: {e}")
 

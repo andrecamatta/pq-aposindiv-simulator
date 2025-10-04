@@ -123,7 +123,7 @@ const ParametersSection: React.FC<ParametersSectionProps> = ({
             >
               {mortalityTables.map((table) => (
                 <option key={table.code} value={table.code}>
-                  {table.code} {table.regulatory_approved && '✓'}
+                  {table.name} {table.regulatory_approved && '✓'}
                 </option>
               ))}
             </select>

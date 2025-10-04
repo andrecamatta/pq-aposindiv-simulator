@@ -22,7 +22,7 @@ export const api = axios.create({
 // API REST endpoints
 export const apiService = {
   async getMortalityTables(): Promise<MortalityTable[]> {
-    const response = await api.get('/mortality-tables');
+    const response = await api.get('/api/mortality-tables/base');
     return response.data.tables || response.data;
   },
 
