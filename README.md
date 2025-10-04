@@ -40,11 +40,12 @@ Plataforma web moderna para simulação atuarial de planos de previdência indiv
 ## 📦 Instalação
 
 ### Pré-requisitos
-- Python 3.11+
-- Node.js 18+
-- uv (gerenciador de dependências Python)
+- **Para desenvolvimento local**: Python 3.11+, Node.js 18+, uv (gerenciador de dependências Python)
+- **Para containers**: Docker ou Podman
 
-### Backend
+### Opção 1: Desenvolvimento Local
+
+#### Backend
 ```bash
 cd simulador-atuarial-individual/backend
 uv venv
@@ -52,12 +53,40 @@ uv pip install -r pyproject.toml
 uv run uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Frontend
+#### Frontend
 ```bash
 cd simulador-atuarial-individual/frontend
 npm install
 npm run dev
 ```
+
+### Opção 2: Deploy com Containers (Recomendado)
+
+#### Com Podman (Rootless)
+```bash
+cd simulador-atuarial-individual
+
+# Build das imagens
+podman build -t localhost/prevlab-backend:latest -f backend/Dockerfile backend/
+podman build -t localhost/prevlab-frontend:latest -f frontend/Dockerfile frontend/ --ulimit nofile=90000:90000 --network=none
+
+# Iniciar containers
+chmod +x start-podman.sh
+./start-podman.sh
+```
+
+#### Com Docker Compose
+```bash
+cd simulador-atuarial-individual
+docker-compose up -d --build
+```
+
+#### Acessar aplicação
+- **Frontend**: http://localhost:8080
+- **Backend API**: http://localhost:8000
+- **Documentação API**: http://localhost:8000/docs
+
+Para mais detalhes sobre deployment, consulte [DEPLOY.md](simulador-atuarial-individual/DEPLOY.md).
 
 ## 🔧 Desenvolvimento
 
@@ -104,13 +133,19 @@ simulador-atuarial-individual/
 ## 🛠️ Tecnologias
 
 ### Backend
-- FastAPI, Uvicorn, Numpy, Pydantic, Python-multipart
+- FastAPI, Uvicorn, Numpy, Pydantic, Python-multipart, SQLModel, pymort
 
 ### Frontend
 - React, TypeScript, Vite, Tailwind CSS, Chart.js, React Query, Framer Motion
 
+### Infrastructure & DevOps
+- Docker/Podman (containerização)
+- Nginx (proxy reverso)
+- SQLite (banco de dados)
+- uv (gerenciamento de dependências Python)
+
 ### Ferramentas
-- ESLint, Prettier, TypeScript ESLint, Headless UI
+- ESLint, Prettier, TypeScript ESLint, Headless UI, Playwright (E2E testing)
 
 ## 📈 Status do Projeto
 
@@ -119,8 +154,11 @@ simulador-atuarial-individual/
 - ✅ **Interface Web**: Dashboard interativo
 - ✅ **Design System**: Componentes reutilizáveis
 - ✅ **Visualizações**: Gráficos e tabelas
-- 🔄 **Testes**: Em desenvolvimento
+- ✅ **Containerização**: Deploy com Docker/Podman
+- ✅ **Tábuas de Mortalidade**: 17 tábuas integradas (pymort + BR-EMS 2021)
+- ✅ **Testes E2E**: Playwright configurado
 - 🔄 **Documentação**: Em expansão
+- 🔄 **Deploy Cloud**: Em planejamento
 
 ## 🤝 Contribuição
 
