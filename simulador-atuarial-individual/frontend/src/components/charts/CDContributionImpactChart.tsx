@@ -13,7 +13,7 @@ const CDContributionImpactChart: React.FC<CDContributionImpactChartProps> = ({ r
   // Verificações de segurança
   if (!results || !state) {
     return (
-      <div className="h-[32rem] flex items-center justify-center">
+      <div className="h-[26rem] flex items-center justify-center">
         <div className="text-center">
           <Icon name="bar-chart" size="xl" className="text-gray-400 mb-4" />
           <p className="text-gray-500">Dados insuficientes para gerar o gráfico</p>
@@ -246,16 +246,16 @@ const CDContributionImpactChart: React.FC<CDContributionImpactChartProps> = ({ r
   const currentProjection = calculateProjection(currentRate);
 
   return (
-    <div className="h-[32rem]">
+    <div className="h-[26rem]">
       {/* Título */}
       <div className="mb-4 px-1">
         <h3 className="text-lg font-semibold text-gray-900">
           Impacto da Taxa de Contribuição
         </h3>
       </div>
-      
+
       {/* Gráfico */}
-      <div className="h-[24rem]">
+      <div className="h-[20rem]">
         <Line data={data} options={options} />
       </div>
     </div>

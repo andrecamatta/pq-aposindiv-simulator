@@ -353,7 +353,7 @@ const MortalityComparisonChart: React.FC<MortalityComparisonChartProps> = ({
   };
 
   return (
-    <div className="w-full h-[600px] bg-white rounded-lg border border-gray-200 shadow-sm">
+    <div className="w-full h-[480px] bg-white rounded-lg border border-gray-200 shadow-sm">
       <div className="p-6 h-full">
         <Line data={chartData} options={options} />
       </div>

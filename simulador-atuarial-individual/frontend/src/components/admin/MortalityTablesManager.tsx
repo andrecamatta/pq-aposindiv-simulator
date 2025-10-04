@@ -22,6 +22,7 @@ import { MortalityMainChart, StatisticsPanel, MortalityComparisonChart } from '.
 import { Tooltip } from '../../design-system/components/Tooltip';
 import { cn } from '../../lib/utils';
 import UploadCSVForm from './UploadCSVForm';
+import AddTableView from './AddTableView';
 
 interface MortalityTablesManagerProps {
   onClose: () => void;
@@ -41,10 +42,9 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
     getTableMortalityData
   } = useMortalityTables();
 
-  const [activeView, setActiveView] = useState<'dashboard' | 'upload' | 'search' | 'analysis'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'add' | 'analysis'>('dashboard');
   const [selectedTable, setSelectedTable] = useState<MortalityTableAdmin | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [pymortResults, setPymortResults] = useState<any[]>([]);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   
   // Analysis state
@@ -97,10 +97,10 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
             // Foca na busca do dashboard
             const searchInput = document.querySelector('input[placeholder*="Buscar por nome"]') as HTMLInputElement;
             searchInput?.focus();
-          } else if (activeView === 'search') {
-            // Foca na busca do SOA
-            const soaInput = document.querySelector('input[placeholder*="Digite termos"]') as HTMLInputElement;
-            soaInput?.focus();
+          } else if (activeView === 'add') {
+            // Foca na busca da view de adicionar
+            const addInput = document.querySelector('input[placeholder*="Buscar por nome"]') as HTMLInputElement;
+            addInput?.focus();
           }
           break;
           
@@ -115,20 +115,12 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
         case '2':
           if (event.ctrlKey || event.metaKey) {
             event.preventDefault();
-            setActiveView('search');
+            setActiveView('add');
             setSidebarOpen(false);
           }
           break;
-          
+
         case '3':
-          if (event.ctrlKey || event.metaKey) {
-            event.preventDefault();
-            setActiveView('upload');
-            setSidebarOpen(false);
-          }
-          break;
-          
-        case '4':
           if (event.ctrlKey || event.metaKey) {
             event.preventDefault();
             setActiveView('analysis');
@@ -188,20 +180,6 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
     try {
       setActionLoading(tableId);
       await deleteTable(tableId);
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleSearchPymort = async () => {
-    if (!searchQuery.trim()) return;
-    
-    try {
-      setActionLoading(-1);
-      const results = await searchPymort(searchQuery);
-      setPymortResults(results.results);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -344,36 +322,28 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
   // Navigation Component
   const NavigationMenu = () => {
     const navItems = [
-      { 
-        id: 'dashboard', 
-        label: 'Dashboard', 
-        icon: Database, 
-        disabled: false, 
+      {
+        id: 'dashboard',
+        label: 'Dashboard',
+        icon: Database,
+        disabled: false,
         shortcut: 'Ctrl+1',
         badge: stats.total ? stats.total.toString() : null
       },
-      { 
-        id: 'search', 
-        label: 'Buscar SOA', 
-        icon: Search, 
-        disabled: false, 
+      {
+        id: 'add',
+        label: 'Adicionar Tábua',
+        icon: Upload,
+        disabled: false,
         shortcut: 'Ctrl+2',
         badge: null
       },
-      { 
-        id: 'upload', 
-        label: 'Upload CSV', 
-        icon: Upload, 
-        disabled: false, 
+      {
+        id: 'analysis',
+        label: 'Análises',
+        icon: BarChart3,
+        disabled: false,
         shortcut: 'Ctrl+3',
-        badge: null
-      },
-      { 
-        id: 'analysis', 
-        label: 'Análises', 
-        icon: BarChart3, 
-        disabled: false, 
-        shortcut: 'Ctrl+4',
         badge: selectedTable || comparisonTables.length > 0 ? '●' : null
       },
     ] as const;
@@ -661,64 +631,6 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
     </div>
   );
 
-  const renderSearch = () => (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Buscar Tábuas no pymort (SOA)</h3>
-        <div className="flex gap-4">
-          <input
-            type="text"
-            placeholder="Digite termos como 'annuity', 'mortality', 'pension'..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            onKeyPress={(e) => e.key === 'Enter' && handleSearchPymort()}
-          />
-          <button
-            onClick={handleSearchPymort}
-            disabled={!searchQuery.trim() || actionLoading === -1}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {actionLoading === -1 ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Search className="h-4 w-4" />
-            )}
-            Buscar
-          </button>
-        </div>
-      </div>
-
-      {pymortResults.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="font-medium text-gray-900">Resultados Encontrados:</h4>
-          {pymortResults.map((result) => (
-            <div key={result.id} className="p-4 border border-gray-200 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h5 className="font-medium text-gray-900">{result.name}</h5>
-                  <p className="text-sm text-gray-600">{result.description}</p>
-                  <p className="text-xs text-gray-500">ID: {result.id}</p>
-                </div>
-                <button
-                  onClick={() => handleLoadFromPymort(result.id)}
-                  disabled={actionLoading === result.id}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
-                >
-                  {actionLoading === result.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Database className="h-4 w-4" />
-                  )}
-                  Carregar
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 
   const renderAnalysis = () => (
     <div className="space-y-6">
@@ -880,19 +792,24 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
     </div>
   );
 
-  const renderPlaceholder = (title: string, description: string, icon: React.ReactNode) => (
-    <div className="text-center py-12">
-      <div className="text-gray-300 mb-4">{icon}</div>
-      <h3 className="text-lg font-medium text-gray-900 mb-2">{title}</h3>
-      <p className="text-gray-600">{description}</p>
-    </div>
-  );
+  // Garantir que o elemento modal-root existe
+  React.useEffect(() => {
+    let modalRoot = document.getElementById('modal-root');
+    if (!modalRoot) {
+      modalRoot = document.createElement('div');
+      modalRoot.id = 'modal-root';
+      document.body.appendChild(modalRoot);
+    }
+  }, []);
+
+  const modalRoot = document.getElementById('modal-root') || document.body;
 
   return createPortal(
     <>
       {/* Backdrop + Modal Container */}
       <div
-        className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-[9998] transition-opacity duration-200 flex items-center justify-center p-8"
+        className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm transition-opacity duration-200 flex items-center justify-center p-8"
+        style={{ zIndex: 999999 }}
         onClick={onClose}
         aria-hidden="true"
       >
@@ -932,8 +849,8 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
           </div>
 
           <div className="flex flex-1 overflow-hidden">
-            {/* Desktop Sidebar - Hidden on mobile */}
-            <aside className="hidden md:block w-64 shrink-0 border-r border-gray-200 bg-gray-50">
+            {/* Sidebar de Navegação */}
+            <aside className="w-64 shrink-0 border-r border-gray-200 bg-gray-50">
               <div className="sticky top-0 h-[calc(100vh-120px)] overflow-y-auto p-4">
                 <NavigationMenu />
               </div>
@@ -943,9 +860,14 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
             <div className="flex-1 overflow-y-auto bg-white">
               <div className="p-6">
                 {activeView === 'dashboard' && renderDashboard()}
-                {activeView === 'search' && renderSearch()}
-                {activeView === 'upload' && (
-                  <UploadCSVForm onUpload={handleUpload} loading={uploadLoading} />
+                {activeView === 'add' && (
+                  <AddTableView
+                    onLoadFromPymort={handleLoadFromPymort}
+                    onUploadCSV={handleUpload}
+                    loadingTableId={actionLoading}
+                    uploadLoading={uploadLoading}
+                    installedPymortIds={[]}
+                  />
                 )}
                 {activeView === 'analysis' && renderAnalysis()}
               </div>
@@ -985,7 +907,7 @@ const MortalityTablesManager: React.FC<MortalityTablesManagerProps> = ({ onClose
         </>
       )}
     </>,
-    document.body
+    modalRoot
   );
 };
 

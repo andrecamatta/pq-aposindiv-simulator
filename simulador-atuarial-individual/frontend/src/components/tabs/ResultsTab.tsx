@@ -194,7 +194,7 @@ const ResultsTab: React.FC<ResultsTabProps> = ({ results, state, loading }) => {
       </div>
 
       {/* Visualizações Gráficas */}
-      <div className="grid grid-cols-1 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {state.plan_type === 'CD' ? (
           <>
             {/* CD: Ciclo de Vida Completo */}
@@ -235,7 +235,7 @@ const ResultsTab: React.FC<ResultsTabProps> = ({ results, state, loading }) => {
       {/* Análise Temporal - Condicional por Tipo de Plano */}
       {state.plan_type === 'CD' ? null : (
         // BD: Dois gráficos lado a lado
-        <div className="grid lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Simulação Determinística */}
           <div className="bg-white rounded-xl shadow-sm p-8">
             <div className="mb-6">

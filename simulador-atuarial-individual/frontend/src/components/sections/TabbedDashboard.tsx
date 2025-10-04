@@ -138,12 +138,14 @@ const TabbedDashboard: React.FC<TabbedDashboardProps> = ({
       />
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 bg-white p-8 rounded-lg shadow-md">
+          <div className={`bg-white p-8 rounded-lg shadow-md ${activeTab === 'results' || activeTab === 'tables' ? 'lg:col-span-3' : 'lg:col-span-2'}`}>
             {renderTabContent()}
           </div>
-          <div className="bg-white p-8 rounded-lg shadow-md h-fit">
-            {renderSidebar()}
-          </div>
+          {activeTab !== 'results' && activeTab !== 'tables' && (
+            <div className="bg-white p-8 rounded-lg shadow-md h-fit">
+              {renderSidebar()}
+            </div>
+          )}
         </div>
       </main>
     </div>

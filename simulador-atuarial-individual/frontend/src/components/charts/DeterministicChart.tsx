@@ -17,7 +17,7 @@ const DeterministicChart: React.FC<DeterministicChartProps> = ({ results, curren
   // Verificações de segurança
   if (!results || !results.projection_years || !Array.isArray(results.projection_years)) {
     return (
-      <div className="h-[32rem] flex items-center justify-center">
+      <div className="h-[26rem] flex items-center justify-center">
         <div className="text-center">
           <Icon name="bar-chart" size="xl" className="text-gray-400 mb-4" />
           <p className="text-gray-500">Dados insuficientes para gerar o gráfico</p>
@@ -117,20 +117,20 @@ const DeterministicChart: React.FC<DeterministicChartProps> = ({ results, curren
   };
 
   return (
-    <div className="h-[32rem]">
+    <div className="h-[26rem]">
       {/* Título com Tooltip Explicativo */}
       <div className="flex items-center gap-2 mb-4 px-1">
         <h3 className="text-lg font-semibold text-gray-900">
           Simulação Determinística - Evolução das Reservas
         </h3>
-        <InfoTooltip 
+        <InfoTooltip
           content="Simulação realística assumindo que você viverá durante todo período projetado. Mostra exatamente quanto dinheiro você terá em cada idade, considerando salários, contribuições e benefícios. Reservas negativas = dinheiro insuficiente. Esta é a realidade financeira da sua conta individual."
           iconSize={18}
         />
       </div>
-      
+
       {/* Gráfico */}
-      <div className="h-[26rem]">
+      <div className="h-[21rem]">
         <Line data={data} options={options} />
       </div>
     </div>

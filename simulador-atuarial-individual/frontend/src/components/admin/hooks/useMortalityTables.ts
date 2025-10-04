@@ -72,7 +72,7 @@ export const useMortalityTables = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const API_BASE = 'http://localhost:8000/api/mortality-tables';
+  const API_BASE = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/mortality-tables`;
 
   // Carregar todas as tábuas
   const fetchTables = async () => {
@@ -141,10 +141,33 @@ export const useMortalityTables = () => {
     try {
       const response = await axios.post(`${API_BASE}/load/pymort/${tableId}`);
 
-      // Recarregar lista após alguns segundos (processamento em background)
-      setTimeout(() => {
-        fetchTables();
-      }, 3000);
+      // Polling para verificar quando a tábua foi carregada
+      let attempts = 0;
+      const maxAttempts = 10;
+
+      const checkLoaded = async () => {
+        try {
+          await fetchTables();
+
+          // Verificar se a tábua apareceu na lista
+          const loaded = tables.find(t =>
+            t.source === 'pymort' && t.source_id === tableId.toString()
+          );
+
+          if (loaded || attempts >= maxAttempts) {
+            return;
+          }
+
+          attempts++;
+          setTimeout(checkLoaded, 2000);
+        } catch (err) {
+          console.error('Erro ao verificar carregamento:', err);
+        }
+      };
+
+      // Iniciar polling após 3s (dar tempo para o backend processar)
+      setTimeout(checkLoaded, 3000);
+
     } catch (err: any) {
       console.error('Erro ao carregar do pymort:', err);
       throw new Error(err.response?.data?.detail || 'Erro ao carregar tábua do pymort');

@@ -367,7 +367,7 @@ const MortalityMainChart: React.FC<MortalityMainChartProps> = ({
   };
 
   return (
-    <div className="w-full h-[500px] bg-white rounded-lg border border-gray-200 shadow-sm">
+    <div className="w-full h-[400px] bg-white rounded-lg border border-gray-200 shadow-sm">
       <div className="p-4 h-full">
         <Line data={chartData} options={options} />
       </div>

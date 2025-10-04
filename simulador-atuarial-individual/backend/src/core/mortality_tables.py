@@ -206,7 +206,7 @@ def _load_from_database(table_code: str, gender: str) -> np.ndarray:
                 MortalityTable.is_active == True
             )
             table = session.exec(statement).first()
-            
+
             if not table:
                 # Se não encontrar específica, procurar genérica com o gênero correto
                 statement = select(MortalityTable).where(
@@ -215,7 +215,25 @@ def _load_from_database(table_code: str, gender: str) -> np.ndarray:
                     MortalityTable.is_active == True
                 )
                 table = session.exec(statement).first()
-            
+
+            if not table:
+                # Buscar tábua UNISEX se não encontrar específica
+                statement = select(MortalityTable).where(
+                    MortalityTable.code == table_code,
+                    MortalityTable.gender == 'UNISEX',
+                    MortalityTable.is_active == True
+                )
+                table = session.exec(statement).first()
+
+            if not table:
+                # Buscar tábua sem gênero definido (fallback para tábuas antigas)
+                statement = select(MortalityTable).where(
+                    MortalityTable.code == table_code,
+                    MortalityTable.gender == None,
+                    MortalityTable.is_active == True
+                )
+                table = session.exec(statement).first()
+
             if table:
                 table_data_dict = table.get_table_data()
                 # Converter para numpy array no formato esperado

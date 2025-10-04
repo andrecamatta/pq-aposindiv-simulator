@@ -34,7 +34,7 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
   // Verificações de segurança
   if (!results || !results.projection_years || !Array.isArray(results.projection_years)) {
     return (
-      <div className="h-[32rem] flex items-center justify-center">
+      <div className="h-[26rem] flex items-center justify-center">
         <div className="text-center">
           <Icon name="trending-up" size="xl" className="text-gray-400 mb-4" />
           <p className="text-gray-500">Dados insuficientes para gerar o gráfico</p>
@@ -139,7 +139,7 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
     const targetBenefit = state.target_benefit || 0;
 
     // Converter taxas anuais para mensais usando fórmula composta
-    const conversionRateAnnual = state.cd_conversion_rate || 0.06;
+    const conversionRateAnnual = state.conversion_rate || 0.06;
     const conversionRateMonthly = Math.pow(1 + conversionRateAnnual, 1/12) - 1;
 
     const adminFeeAnnual = state.admin_fee_rate || 0.015;
@@ -510,7 +510,7 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
           text: 'Idade (anos)',
           font: {
             size: 12,
-            weight: '500' as const,
+            weight: 500,
           },
           color: '#4B5563',
           padding: { top: 15, bottom: 0 }
@@ -526,7 +526,7 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
           maxTicksLimit: 8, // Limita o número de ticks no eixo X
           font: {
             size: 10,
-            weight: '400' as const,
+            weight: 400,
           },
           color: '#9CA3AF',
           padding: 6,
@@ -538,7 +538,7 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
           text: 'Saldo da Conta Individual (R$)',
           font: {
             size: 12,
-            weight: '500' as const,
+            weight: 500,
           },
           color: '#4B5563',
           padding: { top: 0, bottom: 15 }
@@ -552,7 +552,7 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
           maxTicksLimit: 5, // Máximo de 5 ticks para visual clean
           font: {
             size: 10,
-            weight: '400' as const,
+            weight: 400,
           },
           color: '#9CA3AF',
           padding: 8,
@@ -569,7 +569,7 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
   };
 
   return (
-    <div className="h-[32rem]">
+    <div className="h-[26rem]">
       {/* Título */}
       <div className="flex items-center gap-2 mb-4 px-1">
         <h3 className="text-lg font-semibold text-gray-900">
@@ -578,7 +578,7 @@ const CDLifecycleChart: React.FC<CDLifecycleChartProps> = ({ results, state }) =
       </div>
 
       {/* Gráfico com contexto integrado na legenda */}
-      <div className="h-[28rem]">
+      <div className="h-[22rem]">
         <Line data={data} options={options} />
       </div>
     </div>

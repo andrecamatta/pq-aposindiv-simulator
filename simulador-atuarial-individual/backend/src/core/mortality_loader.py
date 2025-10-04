@@ -49,9 +49,32 @@ class MortalityTableLoader:
                 return None
             
             # Extrair informações da tábua dos metadados
-            table_name = getattr(xml, 'ContentClassification', f"SOA Table {table_id}")
-            description = ""
-            
+            content_class = getattr(xml, 'ContentClassification', None)
+            # Extrair TableName do ContentClassification se disponível
+            if content_class and hasattr(content_class, 'TableName'):
+                table_name = content_class.TableName
+            else:
+                table_name = f"SOA Table {table_id}"
+
+            # Extrair TableDescription se disponível
+            if content_class and hasattr(content_class, 'TableDescription'):
+                description = content_class.TableDescription
+            else:
+                description = ""
+
+            # Detectar gênero baseado no nome da tábua
+            gender = None
+            table_name_lower = table_name.lower()
+            description_lower = description.lower() if description else ""
+            combined_text = f"{table_name_lower} {description_lower}"
+
+            if 'male' in combined_text and 'female' not in combined_text:
+                gender = 'M'
+            elif 'female' in combined_text or 'feminina' in combined_text:
+                gender = 'F'
+            elif 'unisex' in combined_text or 'unissex' in combined_text:
+                gender = 'UNISEX'
+
             # Processar dados da tábua
             if hasattr(xml, 'Tables') and len(xml.Tables) > 0:
                 # Usar primeira tábua disponível
@@ -107,15 +130,22 @@ class MortalityTableLoader:
                     if not description and table_metadata["table_description"]:
                         description = table_metadata["table_description"]
 
+                # Gerar código com sufixo de gênero quando aplicável
+                code = f"SOA_{table_id}"
+                if gender in ['M', 'F']:
+                    code = f"{code}_{gender}"
+
                 # Criar objeto MortalityTable
                 mortality_table = MortalityTable(
                     name=table_name,
-                    code=f"SOA_{table_id}",
+                    code=code,
                     description=description,
+                    gender=gender,
                     source="pymort",
                     source_id=str(table_id),
                     is_official=True,
                     regulatory_approved=True,
+                    is_active=True,
                     last_loaded=datetime.utcnow()
                 )
                 

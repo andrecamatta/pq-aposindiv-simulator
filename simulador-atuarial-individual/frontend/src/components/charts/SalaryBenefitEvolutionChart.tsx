@@ -22,7 +22,7 @@ const SalaryBenefitEvolutionChart: React.FC<SalaryBenefitEvolutionChartProps> = 
 
   if (!results || !hasValidData) {
     return (
-      <div className="h-[32rem] flex items-center justify-center">
+      <div className="h-[26rem] flex items-center justify-center">
         <div className="text-center">
           <Icon name="trending-up" size="xl" className="text-gray-400 mb-4" />
           <p className="text-gray-500">Dados insuficientes para gerar o gráfico</p>
@@ -213,7 +213,7 @@ const SalaryBenefitEvolutionChart: React.FC<SalaryBenefitEvolutionChartProps> = 
 
 
       {/* Gráfico */}
-      <div className="h-[24rem] relative">
+      <div className="h-[20rem] relative">
         <Bar data={data} options={options} />
       </div>
 

@@ -173,7 +173,7 @@ const VPABarChart: React.FC<VPABarChartProps> = ({ results }) => {
   };
 
   return (
-    <div className="h-[448px]"> {/* Aumentada de h-80 para h-[448px] (40% maior) para melhor visualização */}
+    <div className="h-[360px]">
       <Bar data={data} options={options} />
     </div>
   );

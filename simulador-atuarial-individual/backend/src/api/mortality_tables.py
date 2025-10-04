@@ -671,43 +671,34 @@ async def search_pymort_tables(
     
     try:
         # Base expandida de tábuas SOA conhecidas e funcionais
-        # Incluindo tábuas populares de anuidades, seguros de vida e outras
+        # Alinhada com lista do frontend PymortTablesList
         known_soa_tables = [
             # Tábuas de Anuidades
-            {"id": 825, "name": "1983 GAM Female", "description": "1983 Group Annuity Mortality Table – Female", "category": "Annuitant Mortality"},
-            {"id": 826, "name": "1983 GAM Male", "description": "1983 Group Annuity Mortality Table – Male", "category": "Annuitant Mortality"},
-            {"id": 3262, "name": "2015 VBT Male Smoker", "description": "2015 Valuation Basic Table - Male 100%, Smoker", "category": "Insured Lives Mortality"},
-            {"id": 809, "name": "1951 GAM Male", "description": "1951 Group Annuity Mortality (GAM) Table – Male", "category": "Annuitant Mortality"},
-            {"id": 810, "name": "1951 GAM Female", "description": "1951 Group Annuity Mortality (GAM) Table – Female", "category": "Annuitant Mortality"},
-            
-            # Tábuas CSO
-            {"id": 1, "name": "1941 CSO Basic ANB", "description": "1941 Commissioners Standard Ordinary Basic Table", "category": "CSO/CET"},
-            {"id": 2, "name": "1941 CSO Experience ANB", "description": "1941 Commissioners Standard Ordinary Experience Table", "category": "CSO/CET"},
-            {"id": 3, "name": "1941 CSO Standard ANB", "description": "1941 Commissioners Standard Ordinary Table", "category": "CSO/CET"},
-            {"id": 17, "name": "1958 CSO ANB", "description": "1958 Commissioners Standard Ordinary Table", "category": "CSO/CET"},
-            {"id": 20, "name": "1980 CSO Basic Male ANB", "description": "1980 Commissioners Standard Ordinary Basic Table - Male", "category": "CSO/CET"},
-            {"id": 21, "name": "1980 CSO Basic Female ANB", "description": "1980 Commissioners Standard Ordinary Basic Table - Female", "category": "CSO/CET"},
-            
-            # Tábuas de População
-            {"id": 500, "name": "US Life Tables 1959-61", "description": "United States Life Tables 1959-61 – Total Population", "category": "Population Mortality"},
-            {"id": 501, "name": "US Life Tables 1959-61 Male", "description": "United States Life Tables 1959-61 – Male", "category": "Population Mortality"},
-            {"id": 502, "name": "US Life Tables 1959-61 Female", "description": "United States Life Tables 1959-61 – Female", "category": "Population Mortality"},
-            
-            # Escalas de Projeção
-            {"id": 900, "name": "Projection Scale A", "description": "Mortality Improvement Projection Scale A", "category": "Projection Scale"},
-            {"id": 901, "name": "Projection Scale B", "description": "Mortality Improvement Projection Scale B", "category": "Projection Scale"},
-            
-            # Tábuas de Pensão e Anuidades Modernas
-            {"id": 1426, "name": "UP-94 Male", "description": "1994 Unisex Pension Table - Male", "category": "Pension"},
-            {"id": 1427, "name": "UP-94 Female", "description": "1994 Unisex Pension Table - Female", "category": "Pension"},
-            {"id": 1613, "name": "RP-2000 Combined Healthy", "description": "RP-2000 Combined Healthy Mortality Table", "category": "Pension"},
-            {"id": 1614, "name": "RP-2000 Employee", "description": "RP-2000 Employee Mortality Table", "category": "Pension"},
-            {"id": 1615, "name": "RP-2000 Healthy Annuitant", "description": "RP-2000 Healthy Annuitant Mortality Table", "category": "Annuitant Mortality"},
-            
-            # Tábuas VBT 2015
-            {"id": 3260, "name": "2015 VBT Male Non-Smoker", "description": "2015 Valuation Basic Table - Male 100%, Non-Smoker", "category": "Insured Lives Mortality"},
-            {"id": 3261, "name": "2015 VBT Female Non-Smoker", "description": "2015 Valuation Basic Table - Female 100%, Non-Smoker", "category": "Insured Lives Mortality"},
-            {"id": 3263, "name": "2015 VBT Female Smoker", "description": "2015 Valuation Basic Table - Female 100%, Smoker", "category": "Insured Lives Mortality"},
+            {"id": 825, "name": "1983 GAM Female", "description": "1983 Group Annuity Mortality Table – Female", "category": "Anuidades"},
+            {"id": 826, "name": "1983 GAM Male", "description": "1983 Group Annuity Mortality Table – Male", "category": "Anuidades"},
+            {"id": 809, "name": "1951 GAM Male", "description": "1951 Group Annuity Mortality (GAM) Table – Male", "category": "Anuidades"},
+            {"id": 810, "name": "1951 GAM Female", "description": "1951 Group Annuity Mortality (GAM) Table – Female", "category": "Anuidades"},
+
+            # Tábuas CSO (Commissioners Standard Ordinary)
+            {"id": 1, "name": "1941 CSO Basic ANB", "description": "1941 Commissioners Standard Ordinary Basic Table", "category": "CSO"},
+            {"id": 2, "name": "1941 CSO Experience ANB", "description": "1941 Commissioners Standard Ordinary Experience Table", "category": "CSO"},
+            {"id": 3, "name": "1941 CSO Standard ANB", "description": "1941 Commissioners Standard Ordinary Table", "category": "CSO"},
+            {"id": 17, "name": "1958 CSO ANB", "description": "1958 Commissioners Standard Ordinary Table", "category": "CSO"},
+            {"id": 20, "name": "1980 CSO Basic Male ANB", "description": "1980 Commissioners Standard Ordinary Basic Table - Male", "category": "CSO"},
+            {"id": 21, "name": "1980 CSO Basic Female ANB", "description": "1980 Commissioners Standard Ordinary Basic Table - Female", "category": "CSO"},
+
+            # Tábuas VBT (Valuation Basic Table)
+            {"id": 3262, "name": "2015 VBT Male Smoker", "description": "2015 Valuation Basic Table - Male 100%, Smoker", "category": "VBT"},
+
+            # Tábuas UP (Ultimate Pension)
+            {"id": 1619, "name": "UP-1984 Male", "description": "1984 Uninsured Pensioner Mortality Table - Male", "category": "Previdência"},
+            {"id": 1620, "name": "UP-1984 Female", "description": "1984 Uninsured Pensioner Mortality Table - Female", "category": "Previdência"},
+
+            # Tábuas RP (Retirement Plan)
+            {"id": 1478, "name": "RP-2014 Employee Male", "description": "RP-2014 Mortality Tables - Employee Male", "category": "Previdência"},
+            {"id": 1479, "name": "RP-2014 Employee Female", "description": "RP-2014 Mortality Tables - Employee Female", "category": "Previdência"},
+            {"id": 1487, "name": "RP-2014 Healthy Annuitant Male", "description": "RP-2014 Mortality Tables - Healthy Annuitant Male", "category": "Previdência"},
+            {"id": 1488, "name": "RP-2014 Healthy Annuitant Female", "description": "RP-2014 Mortality Tables - Healthy Annuitant Female", "category": "Previdência"},
         ]
         
         # Filtrar por query se fornecida
