@@ -389,6 +389,43 @@ class CDCalculator(AbstractCalculator):
         
         return monthly_balances, monthly_benefits
     
+    def _convert_mortality_to_survival(
+        self,
+        mortality_table: np.ndarray,
+        start_age: float,
+        max_months: int
+    ) -> List[float]:
+        """
+        Converte tábua de mortalidade (qx anual) em probabilidades de sobrevivência cumulativas mensais.
+
+        Args:
+            mortality_table: Tábua de mortalidade (qx anual por idade)
+            start_age: Idade inicial
+            max_months: Número de meses a projetar
+
+        Returns:
+            Lista de probabilidades de sobrevivência cumulativas mensais
+        """
+        survival_probs = []
+        cumulative_survival = 1.0
+
+        for month in range(max_months):
+            age_years = start_age + (month / 12)
+            age_index = int(age_years)
+
+            if age_index < len(mortality_table):
+                q_x_annual = mortality_table[age_index]
+                q_x_monthly = 1 - ((1 - q_x_annual) ** (1/12))
+                p_x_monthly = 1 - q_x_monthly
+                cumulative_survival *= p_x_monthly
+                survival_probs.append(cumulative_survival)
+            else:
+                # Além da tábua, assumir sobrevivência zero
+                survival_probs.append(0.0)
+                cumulative_survival = 0.0
+
+        return survival_probs
+
     def _calculate_annuity_factor_from_age(
         self,
         current_age: float,
@@ -397,8 +434,23 @@ class CDCalculator(AbstractCalculator):
         conversion_rate_monthly: float = None
     ) -> float:
         """
-        Calcula fator de anuidade vitalícia a partir de uma idade específica
-        Método base reutilizável para diferentes modalidades atuariais
+        DEPRECATED: Use _calculate_annuity_factor_unified para nova implementação.
+
+        Mantido temporariamente para compatibilidade.
+        """
+        return self._calculate_annuity_factor_unified(
+            current_age, context, mortality_table, conversion_rate_monthly
+        )
+
+    def _calculate_annuity_factor_unified(
+        self,
+        current_age: float,
+        context: 'ActuarialContext',
+        mortality_table: np.ndarray,
+        conversion_rate_monthly: float = None
+    ) -> float:
+        """
+        Calcula fator de anuidade vitalícia usando função centralizada.
 
         Args:
             current_age: Idade atual para início da anuidade
@@ -409,6 +461,8 @@ class CDCalculator(AbstractCalculator):
         Returns:
             Fator de anuidade vitalícia
         """
+        from .calculations.vpa_calculations import calculate_actuarial_present_value
+
         if conversion_rate_monthly is None:
             conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
 
@@ -416,26 +470,23 @@ class CDCalculator(AbstractCalculator):
         effective_rate = (1 + conversion_rate_monthly) / (1 + context.admin_fee_monthly) - 1
         effective_rate = max(effective_rate, MIN_EFFECTIVE_RATE)
 
-        annuity_factor = 0.0
-        cumulative_survival = 1.0
-        max_months = min(MAX_ANNUITY_MONTHS, (MAX_AGE_LIMIT - current_age) * 12)
+        # Converter tábua de mortalidade em probabilidades de sobrevivência
+        max_months = min(MAX_ANNUITY_MONTHS, int((MAX_AGE_LIMIT - current_age) * 12))
+        survival_probs = self._convert_mortality_to_survival(mortality_table, current_age, max_months)
 
-        for month in range(max_months):
-            age_years = current_age + (month / 12)
-            age_index = int(age_years)
+        # Criar fluxos unitários (R$ 1,00 por mês)
+        unit_cash_flows = [1.0] * len(survival_probs)
 
-            if age_index < len(mortality_table):
-                q_x_annual = mortality_table[age_index]
-                q_x_monthly = 1 - ((1 - q_x_annual) ** (1/12))
-                p_x_monthly = 1 - q_x_monthly
-                cumulative_survival *= p_x_monthly
+        # Calcular VPA usando função centralizada
+        annuity_factor = calculate_actuarial_present_value(
+            unit_cash_flows,
+            survival_probs,
+            effective_rate,
+            timing="antecipado",  # CD geralmente usa antecipado
+            start_month=0
+        )
 
-                pv_factor = 1 / ((1 + effective_rate) ** month) if effective_rate > -1 else 1
-                annuity_factor += cumulative_survival * pv_factor
-            else:
-                break
-
-        # Ajustar fator para múltiplos pagamentos anuais (13º, 14º, etc.)
+        # Ajustar para múltiplos pagamentos anuais
         benefit_months_per_year = getattr(context, 'benefit_months_per_year', 12) or 12
         if benefit_months_per_year > 12:
             annuity_factor *= (benefit_months_per_year / 12.0)
@@ -449,8 +500,8 @@ class CDCalculator(AbstractCalculator):
         context: 'ActuarialContext',
         mortality_table: np.ndarray
     ) -> float:
-        """Calcula anuidade vitalícia atuarial"""
-        annuity_factor = self._calculate_annuity_factor_from_age(
+        """Calcula anuidade vitalícia atuarial usando função centralizada"""
+        annuity_factor = self._calculate_annuity_factor_unified(
             state.retirement_age,
             context,
             mortality_table
@@ -484,8 +535,8 @@ class CDCalculator(AbstractCalculator):
         # Idade atual (considerando anos de aposentadoria transcorridos)
         current_age = state.retirement_age + years_since_retirement
 
-        # Reutilizar método base para cálculo de anuidade
-        annuity_factor = self._calculate_annuity_factor_from_age(
+        # Usar método unificado para cálculo de anuidade
+        annuity_factor = self._calculate_annuity_factor_unified(
             current_age,
             context,
             mortality_table
@@ -652,7 +703,7 @@ class CDCalculator(AbstractCalculator):
     def _get_conversion_mode_description(self, mode: 'CDConversionMode') -> str:
         """Retorna descrição da modalidade de conversão"""
         from ..models.participant import CDConversionMode
-        
+
         descriptions = {
             CDConversionMode.ACTUARIAL: "Renda vitalícia baseada em tábua de mortalidade",
             CDConversionMode.ACTUARIAL_EQUIVALENT: "Equivalência atuarial - renda recalculada anualmente",
@@ -665,69 +716,8 @@ class CDCalculator(AbstractCalculator):
         }
         return descriptions.get(mode, "Modalidade não definida")
 
-    def _generate_age_projections(
-        self,
-        state: 'SimulatorState',
-        context: 'ActuarialContext',
-        monthly_salaries: List[float],
-        monthly_benefits: List[float],
-        total_months: int
-    ) -> Dict:
-        """
-        Gera vetores de projeção por idade para o frontend
-
-        Args:
-            state: Estado do simulador
-            context: Contexto atuarial
-            monthly_salaries: Salários mensais calculados
-            monthly_benefits: Benefícios mensais calculados (já com cessação aplicada)
-            total_months: Total de meses de projeção
-
-        Returns:
-            Dicionário com vetores por idade
-        """
-        projection_ages = []
-        projected_salaries_by_age = []
-        projected_benefits_by_age = []
-
-        # Gerar lista de idades (apenas anos completos)
-        for month in range(0, total_months, 12):  # A cada 12 meses (início de cada ano)
-            age = state.age + (month // 12)
-            projection_ages.append(age)
-
-            # Para benefícios e salários, calcular valores representativos do ano
-            if month < len(monthly_salaries):
-                monthly_salary = monthly_salaries[month]
-
-                # Para benefícios, calcular a média dos 12 meses do ano (ou até o final se não há 12 meses)
-                year_end_month = min(month + 12, len(monthly_benefits))
-                year_benefits = monthly_benefits[month:year_end_month]
-
-                if year_benefits:
-                    # Calcular benefício médio mensal do ano
-                    avg_monthly_benefit = sum(year_benefits) / len(year_benefits)
-
-                else:
-                    avg_monthly_benefit = 0
-
-                # Converter para valores anuais considerando múltiplos pagamentos
-                # Para salários: multiplicar pela quantidade de salários por ano
-                annual_salary = monthly_salary * context.salary_months_per_year if monthly_salary > 0 else 0
-
-                # Para benefícios: usar média mensal * quantidade de benefícios por ano
-                annual_benefit = avg_monthly_benefit * context.benefit_months_per_year if avg_monthly_benefit > 0 else 0
-
-                projected_salaries_by_age.append(annual_salary)
-                projected_benefits_by_age.append(annual_benefit)
-            else:
-                projected_salaries_by_age.append(0.0)
-                projected_benefits_by_age.append(0.0)
-
-        return {
-            "projection_ages": projection_ages,
-            "projected_salaries_by_age": projected_salaries_by_age,
-            "projected_benefits_by_age": projected_benefits_by_age
-        }
+    # REMOVED: _generate_age_projections - código duplicado
+    # ProjectionBuilder.build_cd_projections() já centraliza essa lógica
 
     def calculate_scenarios(self, state: 'SimulatorState', context: 'ActuarialContext',
                            current_projections: Dict, current_monthly_income: float,
@@ -930,7 +920,7 @@ class CDCalculator(AbstractCalculator):
         from .mortality_tables import get_mortality_table
 
         # Obter tábua de mortalidade
-        mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
+        mortality_table, _ = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
 
         # Calcular projeções temporais
         projections = self.calculate_projections(state, context, mortality_table)

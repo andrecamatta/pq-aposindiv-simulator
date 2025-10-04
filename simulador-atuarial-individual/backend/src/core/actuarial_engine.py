@@ -279,7 +279,7 @@ class ActuarialEngine:
             return 0.0  # Não precisa de contribuição adicional
 
         # Calcular saldo necessário para gerar o benefício desejado
-        mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
+        mortality_table, _ = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
 
         # Estimar saldo necessário invertendo o cálculo de renda mensal
         conversion_mode = state.cd_conversion_mode or CDConversionMode.ACTUARIAL
@@ -377,7 +377,7 @@ class ActuarialEngine:
         self._validate_state(state)
         
         # Delegar para calculadoras especializadas baseado no tipo de plano
-        if state.derived_plan_type == PlanType.BD:
+        if state.plan_type == PlanType.BD:
             return self._calculate_bd_simulation_with_calculator(state, start_time)
         else:  # PlanType.CD
             return self._calculate_cd_simulation_with_calculator(state, start_time)
@@ -417,7 +417,7 @@ class ActuarialEngine:
         
         
         # Obter tábua de mortalidade com suavização
-        mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
+        mortality_table, _ = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
         
         # Delegar cálculo CD para calculadora especializada
         cd_results = self.cd_calculator.calculate_cd_simulation(state, context)
@@ -872,7 +872,7 @@ class ActuarialEngine:
         # Calcular VPA do benefício alvo para cálculo de percentuais
         monthly_data = projections["monthly_data"]
         months_to_retirement = context.months_to_retirement
-        mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
+        mortality_table, _ = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
         
         # Obter o benefício alvo mensal correto baseado no modo
         if state.benefit_target_mode == BenefitTargetMode.REPLACEMENT_RATE:
