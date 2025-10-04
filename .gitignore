@@ -55,6 +55,21 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# Bancos de dados - Ignorar EXCETO o inicial com tábuas
+*.db
+!simulador-atuarial-individual/backend/data/simulador.db
+
+# Docker/Podman - Ignorar volumes e builds temporários
+.docker/
+volumes/
+/tmp/podman-compose-build.log
+
+# Backend - Ignorar dados gerados em runtime
+simulador-atuarial-individual/backend/data/db/
+simulador-atuarial-individual/backend/data/uploads/
+simulador-atuarial-individual/backend/data/reports/
+simulador-atuarial-individual/backend/logs/
+
 # Flask stuff:
 instance/
 .webassets-cache
@@ -244,3 +259,5 @@ Thumbs.db
 
 # Playwright
 .playwright-mcp/
+playwright-report/
+test-results/

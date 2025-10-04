@@ -9,5 +9,10 @@ export default defineConfig({
     port: 5173,
     strictPort: false, // Permite usar próxima porta disponível
     open: false, // Não abrir browser automaticamente
+    watch: {
+      usePolling: true,
+      interval: 300,
+      ignored: ['**/node_modules/**', '**/.git/**'],
+    },
   },
 })
