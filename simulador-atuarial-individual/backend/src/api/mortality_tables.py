@@ -658,79 +658,69 @@ async def upload_csv_table(
         raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
 
 
-@router.get("/admin/search-pymort")
-async def search_pymort_tables(
-    query: str = Query(..., description="Termo de busca"),
-    limit: int = Query(20, description="Limite de resultados")
+@router.get("/pymort-tables/")
+async def list_pymort_tables(
+    offset: int = Query(0, description="Offset para paginação"),
+    limit: int = Query(50, description="Limite de resultados por página"),
+    search: str = Query(None, description="Termo de busca"),
+    category: str = Query(None, description="Filtrar por categoria")
 ):
-    """Busca tábuas no pymort por termo"""
+    """Lista tábuas disponíveis no pymort com paginação e filtros"""
     loader = MortalityTableLoader()
-    
+
     if "pymort" not in loader.get_available_sources():
         raise HTTPException(status_code=400, detail="pymort não está disponível")
-    
+
     try:
-        # Base expandida de tábuas SOA conhecidas e funcionais
-        # Alinhada com lista do frontend PymortTablesList
-        known_soa_tables = [
-            # Tábuas de Anuidades
-            {"id": 825, "name": "1983 GAM Female", "description": "1983 Group Annuity Mortality Table – Female", "category": "Anuidades"},
-            {"id": 826, "name": "1983 GAM Male", "description": "1983 Group Annuity Mortality Table – Male", "category": "Anuidades"},
-            {"id": 809, "name": "1951 GAM Male", "description": "1951 Group Annuity Mortality (GAM) Table – Male", "category": "Anuidades"},
-            {"id": 810, "name": "1951 GAM Female", "description": "1951 Group Annuity Mortality (GAM) Table – Female", "category": "Anuidades"},
+        result = loader.list_pymort_tables(
+            offset=offset,
+            limit=limit,
+            search=search,
+            category=category
+        )
 
-            # Tábuas CSO (Commissioners Standard Ordinary)
-            {"id": 1, "name": "1941 CSO Basic ANB", "description": "1941 Commissioners Standard Ordinary Basic Table", "category": "CSO"},
-            {"id": 2, "name": "1941 CSO Experience ANB", "description": "1941 Commissioners Standard Ordinary Experience Table", "category": "CSO"},
-            {"id": 3, "name": "1941 CSO Standard ANB", "description": "1941 Commissioners Standard Ordinary Table", "category": "CSO"},
-            {"id": 17, "name": "1958 CSO ANB", "description": "1958 Commissioners Standard Ordinary Table", "category": "CSO"},
-            {"id": 20, "name": "1980 CSO Basic Male ANB", "description": "1980 Commissioners Standard Ordinary Basic Table - Male", "category": "CSO"},
-            {"id": 21, "name": "1980 CSO Basic Female ANB", "description": "1980 Commissioners Standard Ordinary Basic Table - Female", "category": "CSO"},
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
 
-            # Tábuas VBT (Valuation Basic Table)
-            {"id": 3262, "name": "2015 VBT Male Smoker", "description": "2015 Valuation Basic Table - Male 100%, Smoker", "category": "VBT"},
-
-            # Tábuas UP (Ultimate Pension)
-            {"id": 1619, "name": "UP-1984 Male", "description": "1984 Uninsured Pensioner Mortality Table - Male", "category": "Previdência"},
-            {"id": 1620, "name": "UP-1984 Female", "description": "1984 Uninsured Pensioner Mortality Table - Female", "category": "Previdência"},
-
-            # Tábuas RP (Retirement Plan)
-            {"id": 1478, "name": "RP-2014 Employee Male", "description": "RP-2014 Mortality Tables - Employee Male", "category": "Previdência"},
-            {"id": 1479, "name": "RP-2014 Employee Female", "description": "RP-2014 Mortality Tables - Employee Female", "category": "Previdência"},
-            {"id": 1487, "name": "RP-2014 Healthy Annuitant Male", "description": "RP-2014 Mortality Tables - Healthy Annuitant Male", "category": "Previdência"},
-            {"id": 1488, "name": "RP-2014 Healthy Annuitant Female", "description": "RP-2014 Mortality Tables - Healthy Annuitant Female", "category": "Previdência"},
-        ]
-        
-        # Filtrar por query se fornecida
-        if query:
-            query_lower = query.lower()
-            filtered_tables = []
-            
-            for table in known_soa_tables:
-                # Buscar em nome, descrição e categoria
-                search_text = f"{table['name']} {table['description']} {table['category']}".lower()
-                
-                # Busca por termos individuais para melhor flexibilidade
-                query_terms = query_lower.split()
-                if any(term in search_text for term in query_terms):
-                    filtered_tables.append(table)
-        else:
-            filtered_tables = known_soa_tables
-        
-        # Ordenar por relevância (tábuas mais modernas primeiro)
-        filtered_tables.sort(key=lambda x: x["id"], reverse=True)
-        
         return {
             "success": True,
-            "query": query,
-            "results": filtered_tables[:limit],
-            "total_found": len(filtered_tables),
-            "note": "Tábuas disponíveis na base SOA conhecida. Para tábuas específicas, use o ID diretamente."
+            "tables": result["tables"],
+            "total": result["total"],
+            "offset": result["offset"],
+            "limit": result["limit"],
+            "has_more": result["has_more"],
+            "filters": {
+                "search": search,
+                "category": category
+            }
         }
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Erro ao buscar no pymort: {e}")
-        raise HTTPException(status_code=500, detail=f"Erro na busca: {str(e)}")
+        logger.error(f"Erro ao listar tábuas pymort: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao listar tábuas: {str(e)}")
+
+
+@router.get("/pymort-categories/")
+async def list_pymort_categories():
+    """Lista categorias disponíveis de tábuas pymort"""
+    return {
+        "categories": [
+            {"value": "all", "label": "Todas"},
+            {"value": "CSO", "label": "CSO"},
+            {"value": "VBT", "label": "VBT"},
+            {"value": "Anuidades (GAM)", "label": "Anuidades (GAM)"},
+            {"value": "Previdência (RP)", "label": "Previdência (RP)"},
+            {"value": "Previdência (UP)", "label": "Previdência (UP)"},
+            {"value": "Anuidades", "label": "Anuidades"},
+            {"value": "Previdência", "label": "Previdência"},
+            {"value": "Seguros", "label": "Seguros"},
+            {"value": "População", "label": "População"},
+            {"value": "Saúde", "label": "Saúde"},
+            {"value": "Outras", "label": "Outras"}
+        ]
+    }
 
 
 @router.get("/{table_id}/statistics")

@@ -33,6 +33,164 @@ class MortalityTableLoader:
     def get_available_sources(self) -> List[str]:
         """Retorna lista de fontes disponíveis"""
         return self.supported_sources.copy()
+
+    def list_pymort_tables(self, offset: int = 0, limit: int = 50, search: str = None, category: str = None) -> Dict[str, Any]:
+        """Lista tábuas disponíveis no pymort com paginação
+
+        Nota: pymort não fornece lista de tábuas diretamente, então usamos
+        uma lista curada de tábuas SOA conhecidas e populares
+        """
+        if not PYMORT_AVAILABLE:
+            logger.error("pymort não está disponível")
+            return {"tables": [], "total": 0}
+
+        try:
+            # Lista curada expandida de tábuas SOA conhecidas e testadas
+            # Baseada em categorias principais: CSO, VBT, GAM, RP, UP, e outras
+            all_tables = [
+                # CSO - Commissioners Standard Ordinary (1941-2001)
+                {'id': 1, 'name': '1941 CSO Basic ANB', 'description': '1941 Commissioners Standard Ordinary Basic Table'},
+                {'id': 2, 'name': '1941 CSO Experience ANB', 'description': '1941 Commissioners Standard Ordinary Experience Table'},
+                {'id': 3, 'name': '1941 CSO Standard ANB', 'description': '1941 Commissioners Standard Ordinary Table'},
+                {'id': 17, 'name': '1958 CSO ANB', 'description': '1958 Commissioners Standard Ordinary Table'},
+                {'id': 20, 'name': '1980 CSO Basic Male ANB', 'description': '1980 Commissioners Standard Ordinary Basic Table - Male'},
+                {'id': 21, 'name': '1980 CSO Basic Female ANB', 'description': '1980 Commissioners Standard Ordinary Basic Table - Female'},
+                {'id': 22, 'name': '1980 CSO Male ANB', 'description': '1980 Commissioners Standard Ordinary - Male'},
+                {'id': 23, 'name': '1980 CSO Female ANB', 'description': '1980 Commissioners Standard Ordinary - Female'},
+                {'id': 42, 'name': '2001 CSO Male Smoker ANB', 'description': '2001 Commissioners Standard Ordinary - Male Smoker'},
+                {'id': 43, 'name': '2001 CSO Male Non-Smoker ANB', 'description': '2001 Commissioners Standard Ordinary - Male Non-Smoker'},
+                {'id': 50, 'name': '2001 CSO Female Smoker ANB', 'description': '2001 Commissioners Standard Ordinary - Female Smoker'},
+                {'id': 51, 'name': '2001 CSO Female Non-Smoker ANB', 'description': '2001 Commissioners Standard Ordinary - Female Non-Smoker'},
+
+                # VBT - Valuation Basic Table (2008, 2015)
+                {'id': 3252, 'name': '2015 VBT Male Non-Smoker', 'description': '2015 Valuation Basic Table - Male 100%, Non-Smoker'},
+                {'id': 3262, 'name': '2015 VBT Male Smoker', 'description': '2015 Valuation Basic Table - Male 100%, Smoker'},
+                {'id': 3272, 'name': '2015 VBT Female Non-Smoker', 'description': '2015 Valuation Basic Table - Female 100%, Non-Smoker'},
+                {'id': 3282, 'name': '2015 VBT Female Smoker', 'description': '2015 Valuation Basic Table - Female 100%, Smoker'},
+
+                # GAM - Group Annuity Mortality
+                {'id': 809, 'name': '1951 GAM Male', 'description': '1951 Group Annuity Mortality (GAM) Table – Male'},
+                {'id': 810, 'name': '1951 GAM Female', 'description': '1951 Group Annuity Mortality (GAM) Table – Female'},
+                {'id': 825, 'name': '1983 GAM Female', 'description': '1983 Group Annuity Mortality Table – Female'},
+                {'id': 826, 'name': '1983 GAM Male', 'description': '1983 Group Annuity Mortality Table – Male'},
+                {'id': 827, 'name': '1983 GAM Unisex', 'description': '1983 Group Annuity Mortality Table – Unisex'},
+
+                # UP - Uninsured Pensioner
+                {'id': 1619, 'name': 'UP-1984 Male', 'description': '1984 Uninsured Pensioner Mortality Table - Male'},
+                {'id': 1620, 'name': 'UP-1984 Female', 'description': '1984 Uninsured Pensioner Mortality Table - Female'},
+
+                # RP - Retirement Plan (2014)
+                {'id': 1478, 'name': 'RP-2014 Employee Male', 'description': 'RP-2014 Mortality Tables - Employee Male'},
+                {'id': 1479, 'name': 'RP-2014 Employee Female', 'description': 'RP-2014 Mortality Tables - Employee Female'},
+                {'id': 1487, 'name': 'RP-2014 Healthy Annuitant Male', 'description': 'RP-2014 Mortality Tables - Healthy Annuitant Male'},
+                {'id': 1488, 'name': 'RP-2014 Healthy Annuitant Female', 'description': 'RP-2014 Mortality Tables - Healthy Annuitant Female'},
+                {'id': 1502, 'name': 'RP-2014 Disabled Retiree Male', 'description': 'RP-2014 Mortality Tables - Disabled Retiree Male'},
+                {'id': 1503, 'name': 'RP-2014 Disabled Retiree Female', 'description': 'RP-2014 Mortality Tables - Disabled Retiree Female'},
+            ]
+
+            # Processar lista para formato estruturado
+            tables_info = []
+            for table in all_tables:
+                table_id = table['id']
+                table_name = table['name']
+                table_desc = table['description']
+
+                # Categorizar baseado no nome
+                category_name = self._categorize_table(table_name, table_desc)
+
+                # Detectar gênero
+                gender = self._detect_gender(table_name, table_desc)
+
+                # Extrair ano se possível
+                year = self._extract_year(table_name)
+
+                tables_info.append({
+                    'id': table_id,
+                    'name': table_name,
+                    'description': table_desc,
+                    'category': category_name,
+                    'gender': gender,
+                    'year': year
+                })
+
+            # Filtrar por busca se fornecido
+            if search:
+                search_lower = search.lower()
+                tables_info = [
+                    t for t in tables_info
+                    if search_lower in t['name'].lower()
+                    or search_lower in t['description'].lower()
+                    or search_lower in t['category'].lower()
+                ]
+
+            # Filtrar por categoria se fornecido
+            if category and category != 'all':
+                tables_info = [t for t in tables_info if t['category'] == category]
+
+            # Ordenar por ID (mais recente primeiro)
+            tables_info.sort(key=lambda x: x['id'], reverse=True)
+
+            total = len(tables_info)
+            paginated = tables_info[offset:offset+limit]
+
+            return {
+                'tables': paginated,
+                'total': total,
+                'offset': offset,
+                'limit': limit,
+                'has_more': offset + limit < total
+            }
+
+        except Exception as e:
+            logger.error(f"Erro ao listar tábuas pymort: {e}")
+            return {"tables": [], "total": 0, "error": str(e)}
+
+    def _categorize_table(self, name: str, desc: str) -> str:
+        """Categoriza tábua baseado no nome e descrição"""
+        combined = f"{name} {desc}".lower()
+
+        if 'cso' in combined:
+            return 'CSO'
+        elif 'vbt' in combined or 'valuation basic' in combined:
+            return 'VBT'
+        elif 'gam' in combined or 'group annuity' in combined:
+            return 'Anuidades (GAM)'
+        elif 'rp-' in combined or 'retirement plan' in combined:
+            return 'Previdência (RP)'
+        elif 'up-' in combined or 'uninsured pension' in combined:
+            return 'Previdência (UP)'
+        elif 'annuit' in combined:
+            return 'Anuidades'
+        elif 'pension' in combined or 'retirement' in combined:
+            return 'Previdência'
+        elif 'insured' in combined or 'insurance' in combined:
+            return 'Seguros'
+        elif 'population' in combined:
+            return 'População'
+        elif 'health' in combined or 'disability' in combined:
+            return 'Saúde'
+        else:
+            return 'Outras'
+
+    def _detect_gender(self, name: str, desc: str) -> str:
+        """Detecta gênero baseado no nome e descrição"""
+        combined = f"{name} {desc}".lower()
+
+        if 'male' in combined and 'female' not in combined:
+            return 'M'
+        elif 'female' in combined:
+            return 'F'
+        elif 'unisex' in combined:
+            return 'UNISEX'
+        else:
+            return 'N/A'
+
+    def _extract_year(self, name: str) -> Optional[int]:
+        """Extrai ano do nome da tábua"""
+        import re
+        # Procurar por anos de 4 dígitos (1900-2099)
+        match = re.search(r'\b(19\d{2}|20\d{2})\b', name)
+        return int(match.group(1)) if match else None
     
     def load_from_pymort(self, table_id: int) -> Optional[MortalityTable]:
         """Carrega tábua do pymort (SOA)"""
