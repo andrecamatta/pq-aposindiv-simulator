@@ -45,11 +45,19 @@ class MortalityTableCache:
         if key in self._cache:
             entry = self._cache[key]
             if not entry.is_expired:
-                return entry.data.copy()  # Retornar cópia para evitar modificação
+                # Retornar cópia apropriada dependendo do tipo
+                if isinstance(entry.data, tuple):
+                    # Para tupla (array, str), copiar apenas o array
+                    return (entry.data[0].copy() if hasattr(entry.data[0], 'copy') else entry.data[0], entry.data[1])
+                elif hasattr(entry.data, 'copy'):
+                    return entry.data.copy()
+                else:
+                    import copy
+                    return copy.deepcopy(entry.data)
             else:
                 # Remover entrada expirada
                 del self._cache[key]
-        
+
         return None
     
     def set(self, key: tuple, data: np.ndarray, ttl: float = None) -> None:
@@ -67,9 +75,19 @@ class MortalityTableCache:
         # Se cache estiver cheio, remover entradas mais antigas
         if len(self._cache) >= self.max_entries:
             self._evict_oldest()
-        
+
+        # Fazer cópia dos dados - se for tupla, copiar cada elemento
+        if isinstance(data, tuple):
+            # Para tupla (array, str), copiar apenas o array
+            cached_data = (data[0].copy() if hasattr(data[0], 'copy') else data[0], data[1])
+        elif hasattr(data, 'copy'):
+            cached_data = data.copy()
+        else:
+            import copy
+            cached_data = copy.deepcopy(data)
+
         entry = CacheEntry(
-            data=data.copy(),
+            data=cached_data,
             timestamp=time.time(),
             ttl_seconds=ttl
         )
@@ -159,48 +177,63 @@ def apply_mortality_aggravation(mortality_table: np.ndarray, aggravation_pct: fl
     return adjusted_table
 
 
-def get_mortality_table(table_code: str, gender: str, aggravation_pct: float = 0.0) -> np.ndarray:
-    """Obtém tábua de mortalidade do banco de dados com suavização opcional"""
+def get_mortality_table(table_code: str, gender: str, aggravation_pct: float = 0.0) -> tuple[np.ndarray, str]:
+    """Obtém tábua de mortalidade do banco de dados com suavização opcional
+
+    Returns:
+        tuple: (mortality_rates_array, actual_table_code)
+    """
     # Cache considerando o percentual de suavização
+    # Agora o cache armazena tuplas (array, code)
     cache_key = (table_code, gender, aggravation_pct)
-    
+
     # Tentar obter do cache otimizado
-    cached_table = _MORTALITY_CACHE.get(cache_key)
-    if cached_table is not None:
-        return cached_table
-    
+    cached_data = _MORTALITY_CACHE.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+
     # Obter a tábua base do banco (sem suavização)
     base_cache_key = (table_code, gender, 0.0)  # Sempre suavização zero para tábua base
-    
-    base_table = _MORTALITY_CACHE.get(base_cache_key)
-    if base_table is None:
+
+    cached_base = _MORTALITY_CACHE.get(base_cache_key)
+    if cached_base is None:
         # Carregar do banco de dados
-        base_table = _load_from_database(table_code, gender)
+        base_table, actual_code = _load_from_database(table_code, gender)
         if base_table is None:
             raise ValueError(f"Tábua {table_code} para gênero {gender} não encontrada no banco de dados")
-        
+
         # Armazenar tábua base no cache com TTL maior (2 horas)
-        _MORTALITY_CACHE.set(base_cache_key, base_table, ttl=7200)
-    
+        _MORTALITY_CACHE.set(base_cache_key, (base_table, actual_code), ttl=7200)
+    else:
+        base_table, actual_code = cached_base
+
     # Aplicar suavização à tábua base
     adjusted_table = apply_mortality_aggravation(base_table, aggravation_pct)
-    
+
     # Armazenar no cache com TTL padrão (1 hora)
-    _MORTALITY_CACHE.set(cache_key, adjusted_table)
-    
-    return adjusted_table
+    _MORTALITY_CACHE.set(cache_key, (adjusted_table, actual_code))
+
+    return adjusted_table, actual_code
 
 
-def _load_from_database(table_code: str, gender: str) -> np.ndarray:
-    """Carrega tábua do banco de dados"""
+def _load_from_database(table_code: str, gender: str) -> tuple[np.ndarray, str]:
+    """Carrega tábua do banco de dados
+
+    Returns:
+        tuple: (mortality_rates_array, actual_table_code)
+    """
+    logger.info(f"[DB LOAD] Carregando tábua: code='{table_code}', gender='{gender}'")
+
     try:
         from ..database import engine
         from ..models.database import MortalityTable
         from sqlmodel import Session, select
-        
+
         with Session(engine) as session:
             # Procurar tábua específica por gênero
             specific_code = f"{table_code}_{gender}"
+            logger.debug(f"[DB LOAD] Tentando código específico: '{specific_code}'")
+
             statement = select(MortalityTable).where(
                 MortalityTable.code == specific_code,
                 MortalityTable.is_active == True
@@ -215,6 +248,51 @@ def _load_from_database(table_code: str, gender: str) -> np.ndarray:
                     MortalityTable.is_active == True
                 )
                 table = session.exec(statement).first()
+
+            if not table and table_code.startswith("SOA_"):
+                # Para tábuas SOA (pymort), buscar diretamente por source_id e gender
+                # Exemplo: SOA_1097_F não existe, então buscar tábua pymort com gender='F' e source_id próximo a 1097
+                try:
+                    # Extrair ID base do código (ex: SOA_1097 -> 1097)
+                    base_id = table_code.replace("SOA_", "").split("_")[0]
+
+                    logger.info(f"[SOA LOOKUP] Buscando tábua pymort com source_id próximo a '{base_id}' e gender='{gender}'")
+
+                    # Buscar tábua com source='pymort', gender correto, e source_id exato ou próximo
+                    # Primeiro tentar source_id exato
+                    statement = select(MortalityTable).where(
+                        MortalityTable.source == 'pymort',
+                        MortalityTable.source_id == base_id,
+                        MortalityTable.gender == gender,
+                        MortalityTable.is_active == True
+                    )
+                    table = session.exec(statement).first()
+
+                    if not table:
+                        # Se não encontrou exato, tentar IDs próximos (±10)
+                        try:
+                            base_num = int(base_id)
+                            for offset in range(1, 11):
+                                for candidate_id in [str(base_num + offset), str(base_num - offset)]:
+                                    statement = select(MortalityTable).where(
+                                        MortalityTable.source == 'pymort',
+                                        MortalityTable.source_id == candidate_id,
+                                        MortalityTable.gender == gender,
+                                        MortalityTable.is_active == True
+                                    )
+                                    table = session.exec(statement).first()
+                                    if table:
+                                        logger.info(f"✅ Encontrada tábua SOA complementar próxima: {table.code} (source_id={candidate_id})")
+                                        break
+                                if table:
+                                    break
+                        except ValueError:
+                            pass
+                    else:
+                        logger.info(f"✅ Encontrada tábua SOA complementar exata: {table.code} para {table_code}_{gender}")
+
+                except Exception as e:
+                    logger.warning(f"[SOA LOOKUP] Erro ao buscar tábua complementar: {e}")
 
             if not table:
                 # Buscar tábua UNISEX se não encontrar específica
@@ -235,60 +313,63 @@ def _load_from_database(table_code: str, gender: str) -> np.ndarray:
                 table = session.exec(statement).first()
 
             if table:
+                logger.info(f"✅ [DB LOAD] Tábua carregada: {table.code} (source={table.source}, gender={table.gender})")
+
                 table_data_dict = table.get_table_data()
                 # Converter para numpy array no formato esperado
                 max_age = max(table_data_dict.keys())
                 mortality_rates = np.zeros(max_age + 1)
                 for age, rate in table_data_dict.items():
                     mortality_rates[age] = rate
-                return mortality_rates
-            
-            logger.warning(f"Tábua {table_code}_{gender} não encontrada no banco")
-            return None
-    
+                return mortality_rates, table.code  # Retornar array e código real
+
+            logger.warning(f"❌ [DB LOAD] Tábua {table_code}_{gender} não encontrada no banco")
+            return None, None
+
     except Exception as e:
-        logger.error(f"Erro ao carregar tábua {table_code}_{gender} do banco: {e}")
-        return None
+        logger.error(f"❌ [DB LOAD] Erro ao carregar tábua {table_code}_{gender} do banco: {e}")
+        return None, None
 
 
 def get_mortality_table_info() -> list[Dict[str, Any]]:
     """Retorna informações sobre todas as tábuas disponíveis do banco de dados"""
     tables_info = []
-    
+
     try:
         from ..database import engine
         from ..models.database import MortalityTable
         from sqlmodel import Session, select
-        
+
         with Session(engine) as session:
             statement = select(MortalityTable).where(MortalityTable.is_active == True)
             db_tables = session.exec(statement).all()
-            
-            # Agrupar tábuas por família (removendo sufixo _M/_F)
-            table_families = {}
+
+            # Retornar todas as tábuas individualmente (sem agrupamento)
             for table in db_tables:
-                # Extrair código da família (remover _M, _F)
-                family_code = table.code
-                if family_code.endswith('_M') or family_code.endswith('_F'):
-                    family_code = family_code[:-2]
-                
-                if family_code not in table_families:
-                    # Usar dados da primeira tábua da família para metadados
-                    table_families[family_code] = {
-                        "code": family_code,
-                        "name": table.name.replace(" Masculina", "").replace(" Feminina", ""),
-                        "description": table.description or "",
-                        "source": table.source,
-                        "is_official": table.is_official,
-                        "regulatory_approved": table.regulatory_approved
-                    }
-            
-            # Adicionar todas as famílias de tábuas
-            tables_info.extend(table_families.values())
-    
+                # Criar nome de exibição mais amigável
+                display_name = table.name
+
+                # Para tábuas com sufixo de gênero, mostrar de forma mais clara
+                if table.gender == "M":
+                    if "Masculina" not in display_name and "Male" not in display_name:
+                        display_name = f"{display_name} (M)"
+                elif table.gender == "F":
+                    if "Feminina" not in display_name and "Female" not in display_name:
+                        display_name = f"{display_name} (F)"
+
+                tables_info.append({
+                    "code": table.code,
+                    "name": display_name,
+                    "description": table.description or "",
+                    "source": table.source,
+                    "gender": table.gender,
+                    "is_official": table.is_official,
+                    "regulatory_approved": table.regulatory_approved
+                })
+
     except Exception as e:
         logger.error(f"Erro ao carregar informações das tábuas do banco: {e}")
-    
+
     return tables_info
 
 

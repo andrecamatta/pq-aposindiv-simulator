@@ -425,9 +425,9 @@ class ActuarialEngine:
         # Extrair resultados da calculadora CD
         projections = cd_results["projections"]
         accumulated_balance = cd_results["final_balance"]
-        
-        # Calcular renda mensal baseada na modalidade de conversão
-        monthly_income = self._calculate_cd_monthly_income(state, context, accumulated_balance, mortality_table)
+
+        # Calcular renda mensal baseada na modalidade de conversão usando cd_calculator
+        monthly_income = self.cd_calculator.calculate_monthly_income(state, context, accumulated_balance, mortality_table)
         
         # Métricas específicas CD
         cd_metrics = self._calculate_cd_metrics(state, context, projections, monthly_income)
@@ -1088,119 +1088,7 @@ class ActuarialEngine:
         setattr(context, 'conversion_rate_monthly', annual_to_monthly_rate(conversion_rate))
 
         return context
-    
-    
-    def _calculate_cd_monthly_income_simple(self, state: SimulatorState, context: ActuarialContext, balance: float, mortality_table: np.ndarray) -> float:
-        """Cálculo simplificado da renda mensal CD para uso interno"""
-        if balance <= 0:
-            return 0.0
 
-        conversion_mode = state.cd_conversion_mode or CDConversionMode.ACTUARIAL
-
-        # Inicializar monthly_rate com valor padrão para evitar UnboundLocalError
-        conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
-        monthly_rate = conversion_rate_monthly
-        
-        if conversion_mode == CDConversionMode.ACTUARIAL:
-            # Anuidade vitalícia usando tábua de mortalidade
-            return self._calculate_actuarial_annuity(balance, state, context, mortality_table)
-
-        elif conversion_mode == CDConversionMode.ACTUARIAL_EQUIVALENT:
-            # Equivalência atuarial - similar ao atuarial mas recalculado anualmente
-            return self._calculate_actuarial_annuity(balance, state, context, mortality_table)
-        
-        elif conversion_mode in [CDConversionMode.CERTAIN_5Y, CDConversionMode.CERTAIN_10Y, 
-                                CDConversionMode.CERTAIN_15Y, CDConversionMode.CERTAIN_20Y]:
-            # Renda certa por N anos
-            years_map = {
-                CDConversionMode.CERTAIN_5Y: 5,
-                CDConversionMode.CERTAIN_10Y: 10,
-                CDConversionMode.CERTAIN_15Y: 15,
-                CDConversionMode.CERTAIN_20Y: 20
-            }
-            years = years_map[conversion_mode]
-            months = years * 12
-            # monthly_rate já foi inicializado no início do método
-            
-            # Considerar pagamentos extras (13º, 14º salário) no cálculo
-            benefit_months_per_year = context.benefit_months_per_year  # Normalmente 13
-            total_payments = years * benefit_months_per_year  # Ex: 20 anos × 13 pagamentos = 260 pagamentos
-            
-            # Fórmula de anuidade temporária ajustada para total de pagamentos reais
-            if monthly_rate > 0:
-                # Calcular o valor presente dos pagamentos considerando que nem todos são mensais
-                # Usar uma abordagem mês a mês para considerar pagamentos extras em dezembro/janeiro
-                pv_total = 0.0
-                payment_count = 0
-                
-                for year in range(years):
-                    for month in range(12):
-                        months_from_start = year * 12 + month
-                        pv_factor = 1 / ((1 + monthly_rate) ** months_from_start)
-                        
-                        # Pagamento normal mensal
-                        pv_total += pv_factor
-                        payment_count += 1
-                        
-                        # Pagamentos extras
-                        extra_payments = benefit_months_per_year - 12
-                        if extra_payments > 0:
-                            if month == 11:  # Dezembro - 13º salário
-                                if extra_payments >= 1:
-                                    pv_total += pv_factor  # 13º salário
-                                    payment_count += 1
-                            if month == 0 and year > 0:  # Janeiro - 14º salário (se aplicável)
-                                if extra_payments >= 2:
-                                    pv_total += pv_factor  # 14º salário  
-                                    payment_count += 1
-                
-                return balance / pv_total if pv_total > 0 else 0
-            else:
-                return balance / total_payments
-        
-        elif conversion_mode == CDConversionMode.PERCENTAGE:
-            # Percentual do saldo por ano
-            percentage = state.cd_withdrawal_percentage or DEFAULT_CD_WITHDRAWAL_PERCENTAGE
-            return (balance * (percentage / 100)) / (state.benefit_months_per_year or DEFAULT_BENEFIT_MONTHS_PER_YEAR)  # Converter para mensal
-        
-        else:  # PROGRAMMED - simplificado
-            # Saque programado padrão
-            return balance / DEFAULT_PROGRAMMED_WITHDRAWAL_MONTHS
-    
-    def _calculate_actuarial_annuity(self, balance: float, state: SimulatorState, context: ActuarialContext, mortality_table: np.ndarray) -> float:
-        """Calcula anuidade vitalícia atuarial"""
-        conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
-        monthly_rate = conversion_rate_monthly
-        
-        # Calcular fator de anuidade vitalícia
-        annuity_factor = 0.0
-        cumulative_survival = 1.0
-        
-        # Calcular até limite máximo de anuidades
-        max_months = min(MAX_ANNUITY_MONTHS, (MAX_AGE_LIMIT - state.retirement_age) * 12)
-        
-        for month in range(max_months):
-            retirement_age_years = state.retirement_age + (month / 12)
-            age_index = int(retirement_age_years)
-            
-            if age_index < len(mortality_table):
-                q_x_annual = mortality_table[age_index]
-                q_x_monthly = 1 - ((1 - q_x_annual) ** (1/12))
-                p_x_monthly = 1 - q_x_monthly
-                cumulative_survival *= p_x_monthly
-                
-                # Valor presente da anuidade mensal
-                pv_factor = 1 / ((1 + monthly_rate) ** month) if monthly_rate > 0 else 1
-                annuity_factor += cumulative_survival * pv_factor
-            else:
-                break
-        
-        return balance / annuity_factor if annuity_factor > 0 else 0
-    
-    def _calculate_cd_monthly_income(self, state: SimulatorState, context: ActuarialContext, balance: float, mortality_table: np.ndarray) -> float:
-        """Calcula renda mensal CD baseada na modalidade de conversão"""
-        return self._calculate_cd_monthly_income_simple(state, context, balance, mortality_table)
-    
     def _calculate_cd_metrics(self, state: SimulatorState, context: ActuarialContext, projections: Dict, monthly_income: float) -> Dict:
         """Calcula métricas específicas para CD"""
         total_contributions = sum(projections["contributions"])
@@ -1255,7 +1143,7 @@ class ActuarialEngine:
             temp_state = state.model_copy()
             temp_state.cd_conversion_mode = conversion_mode_option
 
-            monthly_income = self._calculate_cd_monthly_income_simple(temp_state, context, balance, mortality_table)
+            monthly_income = self.cd_calculator.calculate_monthly_income(temp_state, context, balance, mortality_table)
             modes_analysis[conversion_mode_option] = {
                 "monthly_income": monthly_income,
                 "annual_income": monthly_income * 12,

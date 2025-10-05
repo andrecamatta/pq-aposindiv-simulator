@@ -198,14 +198,11 @@ const SalaryBenefitEvolutionChart: React.FC<SalaryBenefitEvolutionChartProps> = 
     <div>
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900">
-          {isCD
-            ? 'Evolução dos Salários e Contribuições'
-            : 'Evolução Salarial e Benefícios (Valores Mensais)'
-          }
+          Evolução Salarial e Benefícios (Valores Mensais)
         </h2>
         <p className="text-sm text-gray-600 mt-1">
           {isCD
-            ? 'Progressão do salário mensal e contribuições durante a fase de acumulação, seguida pelos benefícios na aposentadoria'
+            ? 'Progressão do salário mensal durante a fase de acumulação, seguida pelos benefícios mensais na aposentadoria'
             : 'Progressão do salário mensal durante a fase ativa e benefícios mensais na aposentadoria'
           }
         </p>

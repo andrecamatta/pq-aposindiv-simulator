@@ -253,8 +253,14 @@ class ProjectionBuilder:
         Constrói projeções CD completas incluindo renda calculada e evolução final do saldo
         Incorpora a lógica anteriormente no CDCalculator.calculate_projections()
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("[CD_PROJ] ===== STARTING build_cd_projections_with_final_balance =====")
+        print("[CD_PROJ] ===== STARTING build_cd_projections_with_final_balance =====", flush=True)
+
         total_months = context.total_months_projection
         months_to_retirement = context.months_to_retirement
+        print(f"[CD_PROJ] total_months={total_months}, months_to_retirement={months_to_retirement}", flush=True)
 
         # 1. Usar projeções base do método existente
         base_projections = cls.build_cd_projections(state, context, mortality_table)
@@ -289,6 +295,16 @@ class ProjectionBuilder:
             state, context, monthly_salaries, monthly_benefits, total_months
         )
         base_projections.update(age_projections)
+
+        # DEBUG: Log what we're returning
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[CD_PROJ] yearly_data keys: {list(yearly_data.keys())}")
+        logger.info(f"[CD_PROJ] yearly salaries len: {len(yearly_data.get('salaries', []))}")
+        logger.info(f"[CD_PROJ] yearly benefits len: {len(yearly_data.get('benefits', []))}")
+        logger.info(f"[CD_PROJ] age_projections keys: {list(age_projections.keys())}")
+        logger.info(f"[CD_PROJ] projection_ages len: {len(age_projections.get('projection_ages', []))}")
+        logger.info(f"[CD_PROJ] projected_benefits_by_age len: {len(age_projections.get('projected_benefits_by_age', []))}")
 
         # 6. Incluir o monthly_income usado para garantir consistência
         base_projections["monthly_income_used"] = monthly_income

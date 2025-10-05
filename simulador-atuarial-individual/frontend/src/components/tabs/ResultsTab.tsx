@@ -167,7 +167,21 @@ const ResultsTab: React.FC<ResultsTabProps> = ({ results, state, loading }) => {
             </div>
             <div className="rounded-md bg-gray-50 p-2">
               <div className="text-[10px] uppercase tracking-wide text-gray-500">Tábua/Método</div>
-              <div className="text-sm font-medium text-gray-900">{state.mortality_table || 'BR_EMS_2021'}{state.calculation_method ? ` • ${state.calculation_method}` : ''}</div>
+              <div className="text-sm font-medium text-gray-900">
+                {state.actual_mortality_table && state.actual_mortality_table !== state.mortality_table ? (
+                  <span title={`Tábua solicitada: ${state.mortality_table}\nTábua usada (lookup automático): ${state.actual_mortality_table}`}>
+                    {state.actual_mortality_table}*
+                  </span>
+                ) : (
+                  state.mortality_table || 'BR_EMS_2021'
+                )}
+                {state.calculation_method ? ` • ${state.calculation_method}` : ''}
+              </div>
+              {state.actual_mortality_table && state.actual_mortality_table !== state.mortality_table && (
+                <div className="text-[9px] text-gray-500 mt-0.5">
+                  *Lookup automático de {state.mortality_table}
+                </div>
+              )}
             </div>
             <div className="rounded-md bg-gray-50 p-2">
               <div className="text-[10px] uppercase tracking-wide text-gray-500">Meses Salário/ano</div>

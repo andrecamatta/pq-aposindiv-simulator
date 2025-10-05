@@ -255,7 +255,7 @@ class MortalityTableInitializer:
             from .mortality_tables import get_mortality_table
             
             # Tentar carregar do sistema antigo
-            table_data = get_mortality_table(code, gender)
+            table_data, _ = get_mortality_table(code, gender)
             
             if table_data is not None and len(table_data) > 0:
                 # Converter array numpy para formato do banco

@@ -33,7 +33,7 @@ const AddTableView: React.FC<AddTableViewProps> = ({
           Adicionar Nova Tábua de Mortalidade
         </h3>
         <p className="text-sm text-gray-600">
-          Escolha entre carregar uma tábua do catálogo pymort (SOA) ou fazer upload de um arquivo CSV personalizado.
+          Escolha entre carregar uma tábua do catálogo SOA ou fazer upload de um arquivo CSV personalizado.
         </p>
       </div>
 
@@ -51,7 +51,7 @@ const AddTableView: React.FC<AddTableViewProps> = ({
             <Database className={`mr-2 h-5 w-5 ${
               activeTab === 'pymort' ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'
             }`} />
-            Catálogo pymort (SOA)
+            Catálogo SOA
           </button>
 
           <button

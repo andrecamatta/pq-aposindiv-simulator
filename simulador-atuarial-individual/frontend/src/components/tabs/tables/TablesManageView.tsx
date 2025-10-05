@@ -91,17 +91,15 @@ const TablesManageView: React.FC = () => {
       <div className="border border-gray-200 rounded-lg overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <span className="material-icons animate-spin text-gray-400" style={{ fontSize: '24px' }}>hourglass_empty</span>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
             <span className="ml-2 text-gray-600">Carregando tábuas...</span>
           </div>
         ) : error ? (
           <div className="text-center py-8">
-            <span className="material-icons text-red-400 mx-auto mb-2" style={{ fontSize: '48px' }}>error</span>
             <p className="text-red-600">{error}</p>
           </div>
         ) : filteredTables.length === 0 ? (
           <div className="text-center py-8">
-            <span className="material-icons text-gray-300 mx-auto mb-2" style={{ fontSize: '48px' }}>storage</span>
             <p className="text-gray-500">Nenhuma tábua encontrada</p>
           </div>
         ) : (
@@ -181,12 +179,10 @@ const TablesManageView: React.FC = () => {
                   <td className="px-4 py-3 text-center">
                     {table.is_active ? (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        <span className="material-icons mr-1" style={{ fontSize: '12px' }}>check_circle</span>
                         Ativa
                       </span>
                     ) : (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                        <span className="material-icons mr-1" style={{ fontSize: '12px' }}>warning</span>
                         Inativa
                       </span>
                     )}
@@ -215,20 +211,8 @@ const TablesManageView: React.FC = () => {
                               setOpenDropdown(null);
                             }}
                             disabled={actionLoading === table.id}
-                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
                           >
-                            {actionLoading === table.id ? (
-                              <span className="material-icons animate-spin text-gray-400" style={{ fontSize: '16px' }}>hourglass_empty</span>
-                            ) : (
-                              <span
-                                className={`material-icons ${
-                                  table.is_active ? 'text-orange-500' : 'text-green-500'
-                                }`}
-                                style={{ fontSize: '16px' }}
-                              >
-                                power_settings_new
-                              </span>
-                            )}
                             {table.is_active ? 'Desativar' : 'Ativar'}
                           </button>
 
@@ -240,9 +224,8 @@ const TablesManageView: React.FC = () => {
                                 setOpenDropdown(null);
                               }}
                               disabled={actionLoading === table.id}
-                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
                             >
-                              <span className="material-icons text-red-500" style={{ fontSize: '16px' }}>delete</span>
                               Excluir
                             </button>
                           )}

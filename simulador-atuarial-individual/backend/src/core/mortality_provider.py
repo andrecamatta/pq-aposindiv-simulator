@@ -87,7 +87,7 @@ class FileMortalityProvider(MortalityTableProvider):
         cache_key = f"{table_name}_{gender}"
         if cache_key not in self._cache:
             try:
-                table = get_mortality_table(table_name, gender)
+                table, _ = get_mortality_table(table_name, gender)
                 self._cache[cache_key] = table
                 self.logger.debug(f"Tábua carregada: {cache_key}")
             except Exception as e:

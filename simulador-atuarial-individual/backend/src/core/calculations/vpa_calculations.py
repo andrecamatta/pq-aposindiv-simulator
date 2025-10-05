@@ -9,6 +9,7 @@ import logging
 from typing import List, Tuple, TYPE_CHECKING
 from .basic_math import calculate_discount_factor
 from scipy.optimize import fsolve, root_scalar
+from ..constants import MAX_ANNUITY_MONTHS
 
 logger = logging.getLogger(__name__)
 
@@ -155,36 +156,34 @@ def calculate_sustainable_benefit(
         return 0.0
     
     # Calcular fator de anuidade vitalícia a partir da aposentadoria
+    # Aplicar taxa administrativa (como no CD)
+    from ..constants import MIN_EFFECTIVE_RATE
+    effective_rate = (1 + discount_rate_monthly) / (1 + admin_fee_monthly) - 1
+    effective_rate = max(effective_rate, MIN_EFFECTIVE_RATE)
+
     annuity_factor = 0.0
-    max_months = len(monthly_survival_probs)
-    
+
+    # Limitar período de cálculo (consistente com CD)
+    max_months = min(
+        len(monthly_survival_probs),
+        months_to_retirement + MAX_ANNUITY_MONTHS
+    )
+
     for month in range(months_to_retirement, max_months):
         if month < len(monthly_survival_probs):
             survival_prob = monthly_survival_probs[month]
-            
+
             if survival_prob > 0:
-                discount_factor = calculate_discount_factor(discount_rate_monthly, month, timing)
-                
-                # Taxa administrativa não deve ser aplicada como desconto direto
-                # Deve ser incorporada na taxa de desconto efetiva
-                net_discount_factor = discount_factor
-                
-                # Considerar múltiplos pagamentos por ano
-                months_in_year = month % 12
-                payment_multiplier = 1.0
-                
-                # Pagamentos extras (13º, 14º, etc.)
-                extra_payments = benefit_months_per_year - 12
-                if extra_payments > 0:
-                    if months_in_year == 11:  # Dezembro
-                        if extra_payments >= 1:
-                            payment_multiplier += 1.0
-                    if months_in_year == 0:  # Janeiro
-                        if extra_payments >= 2:
-                            payment_multiplier += 1.0
-                
-                annuity_factor += survival_prob * net_discount_factor * payment_multiplier
-    
+                # FIX: Usar índice relativo à aposentadoria, não global
+                month_relative_to_retirement = month - months_to_retirement
+                discount_factor = calculate_discount_factor(effective_rate, month_relative_to_retirement, timing)
+
+                annuity_factor += survival_prob * discount_factor
+
+    # Ajustar para múltiplos pagamentos anuais (uniforme, como no CD)
+    if benefit_months_per_year > 12:
+        annuity_factor *= (benefit_months_per_year / 12.0)
+
     # Calcular benefício sustentável
     if annuity_factor > 0:
         return total_resources / annuity_factor

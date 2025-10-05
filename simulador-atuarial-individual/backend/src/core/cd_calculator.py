@@ -123,8 +123,8 @@ class CDCalculator(AbstractCalculator):
             percentage = state.cd_withdrawal_percentage or 5.0
             return self._calculate_percentage_withdrawal(balance, context, percentage)
 
-        else:  # PROGRAMMED - simplificado
-            return balance / DEFAULT_PROGRAMMED_WITHDRAWAL_MONTHS
+        else:  # PROGRAMMED - saque programado com rentabilidade e mortalidade
+            return self._calculate_programmed_withdrawal(balance, state, context, mortality_table)
     
     def calculate_metrics(self, state: 'SimulatorState', projections: Dict, monthly_income: float) -> Dict:
         """
@@ -478,11 +478,16 @@ class CDCalculator(AbstractCalculator):
         unit_cash_flows = [1.0] * len(survival_probs)
 
         # Calcular VPA usando função centralizada
+        # Usar payment_timing do contexto para consistência com BD
+        timing = getattr(context, 'payment_timing', "antecipado")
+        if hasattr(timing, 'value'):  # Se for enum
+            timing = timing.value
+
         annuity_factor = calculate_actuarial_present_value(
             unit_cash_flows,
             survival_probs,
             effective_rate,
-            timing="antecipado",  # CD geralmente usa antecipado
+            timing=timing,
             start_month=0
         )
 
@@ -545,49 +550,47 @@ class CDCalculator(AbstractCalculator):
         return balance / annuity_factor if annuity_factor > 0 else 0
     
     def _calculate_certain_annuity(
-        self, 
-        balance: float, 
-        state: 'SimulatorState', 
-        context: 'ActuarialContext', 
+        self,
+        balance: float,
+        state: 'SimulatorState',
+        context: 'ActuarialContext',
         conversion_mode: 'CDConversionMode'
     ) -> float:
-        """Calcula renda certa por N anos"""
+        """Calcula renda certa por N anos usando função centralizada"""
         from ..models.participant import CDConversionMode
-        
+        from .calculations.basic_math import calculate_discount_factor
+
         years_map = {
             CDConversionMode.CERTAIN_5Y: 5,
             CDConversionMode.CERTAIN_10Y: 10,
             CDConversionMode.CERTAIN_15Y: 15,
             CDConversionMode.CERTAIN_20Y: 20
         }
-        
+
         years = years_map[conversion_mode]
         conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
         benefit_months_per_year = context.benefit_months_per_year
+
         # Taxa efetiva considerando admin fee sobre saldo
         effective_rate = (1 + conversion_rate_monthly) / (1 + context.admin_fee_monthly) - 1
         effective_rate = max(effective_rate, MIN_EFFECTIVE_RATE)
 
-        # Calcular valor presente dos pagamentos considerando pagamentos extras
+        # Obter timing do contexto
+        timing = getattr(context, 'payment_timing', "antecipado")
+        if hasattr(timing, 'value'):
+            timing = timing.value
+
+        # Calcular valor presente usando função centralizada
+        total_months = years * 12
         pv_total = 0.0
 
-        for year in range(years):
-            for month in range(12):
-                months_from_start = year * 12 + month
-                pv_factor = 1 / ((1 + effective_rate) ** months_from_start) if effective_rate > -1 else 1
-                
-                # Pagamento normal mensal
-                pv_total += pv_factor
-                
-                # Pagamentos extras
-                extra_payments = benefit_months_per_year - 12
-                if extra_payments > 0:
-                    if month == 11:  # Dezembro - 13º salário
-                        if extra_payments >= 1:
-                            pv_total += pv_factor
-                    if month == 0 and year > 0:  # Janeiro - 14º salário
-                        if extra_payments >= 2:
-                            pv_total += pv_factor
+        for month in range(total_months):
+            pv_factor = calculate_discount_factor(effective_rate, month, timing)
+            pv_total += pv_factor
+
+        # Ajustar para múltiplos pagamentos anuais (uniforme, como ACTUARIAL)
+        if benefit_months_per_year > 12:
+            pv_total *= (benefit_months_per_year / 12.0)
 
         return balance / pv_total if pv_total > 0 else 0
 
@@ -605,6 +608,48 @@ class CDCalculator(AbstractCalculator):
         annual_withdrawal = balance * (percentage / 100.0)
         monthly_withdrawal = annual_withdrawal / max(benefit_months_per_year, 1)
         return monthly_withdrawal
+
+    def _calculate_programmed_withdrawal(
+        self,
+        balance: float,
+        state: 'SimulatorState',
+        context: 'ActuarialContext',
+        mortality_table: np.ndarray
+    ) -> float:
+        """
+        Calcula saque programado considerando rentabilidade, mortalidade e custos.
+        Similar a CERTAIN, mas com probabilidades de sobrevivência.
+        """
+        from .calculations.basic_math import calculate_discount_factor
+
+        conversion_rate_monthly = getattr(context, 'conversion_rate_monthly', context.discount_rate_monthly)
+        benefit_months_per_year = context.benefit_months_per_year
+
+        # Taxa efetiva considerando admin fee sobre saldo
+        effective_rate = (1 + conversion_rate_monthly) / (1 + context.admin_fee_monthly) - 1
+        effective_rate = max(effective_rate, MIN_EFFECTIVE_RATE)
+
+        # Obter timing do contexto
+        timing = getattr(context, 'payment_timing', "antecipado")
+        if hasattr(timing, 'value'):
+            timing = timing.value
+
+        # Converter tábua em probabilidades de sobrevivência
+        max_months = min(DEFAULT_PROGRAMMED_WITHDRAWAL_MONTHS, int((MAX_AGE_LIMIT - state.retirement_age) * 12))
+        survival_probs = self._convert_mortality_to_survival(mortality_table, state.retirement_age, max_months)
+
+        # Calcular fator de anuidade ponderado por sobrevivência
+        pv_total = 0.0
+        for month in range(len(survival_probs)):
+            if survival_probs[month] > 0:
+                pv_factor = calculate_discount_factor(effective_rate, month, timing)
+                pv_total += survival_probs[month] * pv_factor
+
+        # Ajustar para múltiplos pagamentos anuais (uniforme)
+        if benefit_months_per_year > 12:
+            pv_total *= (benefit_months_per_year / 12.0)
+
+        return balance / pv_total if pv_total > 0 else 0
 
     def _simulate_benefit_duration(
         self,

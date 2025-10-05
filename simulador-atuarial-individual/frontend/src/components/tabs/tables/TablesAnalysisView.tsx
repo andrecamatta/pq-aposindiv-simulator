@@ -272,11 +272,8 @@ const TablesAnalysisView: React.FC = () => {
                         <button
                           onClick={handleToggleTableActive}
                           disabled={actionLoading}
-                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50"
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50"
                         >
-                          <span className={`material-icons ${findTableById(selectedTableCode)?.is_active ? 'text-orange-500' : 'text-green-500'}`} style={{ fontSize: '16px' }}>
-                            power_settings_new
-                          </span>
                           {findTableById(selectedTableCode)?.is_active ? 'Desativar' : 'Ativar'}
                         </button>
 
@@ -284,9 +281,8 @@ const TablesAnalysisView: React.FC = () => {
                           <button
                             onClick={handleDeleteTable}
                             disabled={actionLoading}
-                            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50"
+                            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
                           >
-                            <span className="material-icons text-red-500" style={{ fontSize: '16px' }}>delete</span>
                             Excluir
                           </button>
                         )}
@@ -313,10 +309,9 @@ const TablesAnalysisView: React.FC = () => {
                           key={code}
                           interactive
                           className="select-none"
-                          rightIcon={<span className="material-icons" style={{ fontSize: '12px' }}>close</span>}
                           onClick={() => handleToggleComparison(code, false)}
                         >
-                          {label}
+                          {label} ×
                         </Badge>
                       );
                     })}
@@ -465,7 +460,6 @@ const TablesAnalysisView: React.FC = () => {
         ) : (
           !loading && (
             <div className="text-center py-12 text-gray-500">
-              <span className="material-icons text-gray-300 mx-auto mb-4" style={{ fontSize: '48px' }}>insights</span>
               <p>Selecione uma tábua para visualizar os dados</p>
             </div>
           )

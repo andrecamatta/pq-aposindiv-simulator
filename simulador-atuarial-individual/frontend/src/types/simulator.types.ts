@@ -31,6 +31,7 @@ export interface SimulatorState {
   
   // Base atuarial
   mortality_table: string;
+  actual_mortality_table?: string;  // Tábua realmente usada após lookup automático (ex: SOA complementar)
   mortality_aggravation: number;  // Suavização percentual da tábua (-10% a +20%)
   discount_rate: number;
   salary_growth_real: number;

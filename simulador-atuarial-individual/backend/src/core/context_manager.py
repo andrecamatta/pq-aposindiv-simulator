@@ -168,7 +168,7 @@ class ContextManager:
             monthly_benefit=monthly_config['benefit'],
             admin_fee_monthly=admin_config['admin_fee_monthly'],
             loading_fee_rate=admin_config['loading_fee_rate'],
-            payment_timing="antecipado",  # Padrão atuarial brasileiro
+            payment_timing=str(state.payment_timing.value) if hasattr(state.payment_timing, 'value') else str(state.payment_timing),
             salary_months_per_year=monthly_config['salary_months'],
             benefit_months_per_year=monthly_config['benefit_months'],
             salary_annual_factor=monthly_config['salary_months'],

@@ -79,7 +79,7 @@ export const useMortalityTables = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await axios.get<MortalityTableAdmin[]>(`${API_BASE}/`);
       setTables(response.data);
     } catch (err: any) {
@@ -87,6 +87,17 @@ export const useMortalityTables = () => {
       setError(err.response?.data?.detail || 'Erro ao carregar tábuas de mortalidade');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Carregar tábuas base (sem sufixo _M/_F)
+  const fetchBaseTables = async (): Promise<MortalityTableAdmin[]> => {
+    try {
+      const response = await axios.get<MortalityTableAdmin[]>(`${API_BASE}/base`);
+      return response.data;
+    } catch (err: any) {
+      console.error('Erro ao carregar tábuas base:', err);
+      throw new Error(err.response?.data?.detail || 'Erro ao carregar tábuas base');
     }
   };
 
@@ -253,6 +264,7 @@ export const useMortalityTables = () => {
     loading,
     error,
     fetchTables,
+    fetchBaseTables,
     getTableStatistics,
     getTableMortalityData,
     searchPymort,

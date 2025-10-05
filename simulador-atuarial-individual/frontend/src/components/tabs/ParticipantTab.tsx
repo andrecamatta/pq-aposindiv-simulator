@@ -25,6 +25,14 @@ const ParticipantTab: React.FC<ParticipantTabProps> = ({
     aggravation: state.mortality_aggravation || 0
   });
 
+  // Atualizar actual_mortality_table quando a expectativa mudar
+  React.useEffect(() => {
+    const actualTable = lifeExpectancyData.data?.parameters?.actual_table_used;
+    if (actualTable && actualTable !== state.actual_mortality_table) {
+      onStateChange({ actual_mortality_table: actualTable });
+    }
+  }, [lifeExpectancyData.data, state.actual_mortality_table, onStateChange]);
+
   const formatLifeExpectancy = (years: number): string => {
     const wholeYears = Math.floor(years);
     const months = Math.round((years - wholeYears) * 12);

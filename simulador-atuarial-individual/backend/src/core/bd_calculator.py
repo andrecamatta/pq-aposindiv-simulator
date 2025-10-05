@@ -353,7 +353,7 @@ class BDCalculator(AbstractCalculator):
         # Calcular VPA do benefício alvo para percentuais
         monthly_data = projections["monthly_data"]
         months_to_retirement = context.months_to_retirement
-        mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
+        mortality_table, _ = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
         
         # Obter benefício alvo mensal - compatível com string ou enum
         if str(state.benefit_target_mode) == "REPLACEMENT_RATE":
@@ -456,59 +456,8 @@ class BDCalculator(AbstractCalculator):
 
         return target_benefit_apv
 
-    def _generate_age_projections(
-        self,
-        state: 'SimulatorState',
-        context: 'ActuarialContext',
-        monthly_salaries: list,
-        monthly_benefits: list,
-        total_months: int
-    ) -> Dict:
-        """
-        Gera vetores de projeção por idade para o frontend (BD)
-
-        Args:
-            state: Estado do simulador
-            context: Contexto atuarial
-            monthly_salaries: Salários mensais calculados
-            monthly_benefits: Benefícios mensais calculados
-            total_months: Total de meses de projeção
-
-        Returns:
-            Dicionário com vetores por idade
-        """
-        projection_ages = []
-        projected_salaries_by_age = []
-        projected_benefits_by_age = []
-
-        # Gerar lista de idades (apenas anos completos)
-        for month in range(0, total_months, 12):  # A cada 12 meses (início de cada ano)
-            age = state.age + (month // 12)
-            projection_ages.append(age)
-
-            # Para benefícios e salários, usar valor do primeiro mês do ano (mês base)
-            if month < len(monthly_salaries):
-                monthly_salary = monthly_salaries[month]
-                monthly_benefit = monthly_benefits[month]
-
-                # Converter para valores anuais considerando múltiplos pagamentos
-                # Para salários: multiplicar pela quantidade de salários por ano
-                annual_salary = monthly_salary * context.salary_months_per_year if monthly_salary > 0 else 0
-
-                # Para benefícios: multiplicar pela quantidade de benefícios por ano
-                annual_benefit = monthly_benefit * context.benefit_months_per_year if monthly_benefit > 0 else 0
-
-                projected_salaries_by_age.append(annual_salary)
-                projected_benefits_by_age.append(annual_benefit)
-            else:
-                projected_salaries_by_age.append(0.0)
-                projected_benefits_by_age.append(0.0)
-
-        return {
-            "projection_ages": projection_ages,
-            "projected_salaries_by_age": projected_salaries_by_age,
-            "projected_benefits_by_age": projected_benefits_by_age
-        }
+    # REMOVED: _generate_age_projections - código duplicado
+    # ProjectionBuilder.build_bd_projections() já centraliza essa lógica
 
     def calculate_bd_simulation(self, state: 'SimulatorState', context: 'ActuarialContext') -> Dict:
         """
@@ -522,7 +471,7 @@ class BDCalculator(AbstractCalculator):
             Resultados completos da simulação BD
         """
         # Obter tábua de mortalidade (usando import global)
-        mortality_table = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
+        mortality_table, _ = get_mortality_table(state.mortality_table, state.gender, state.mortality_aggravation)
 
         # Calcular projeções temporais
         projections = self.calculate_projections(state, context, mortality_table)

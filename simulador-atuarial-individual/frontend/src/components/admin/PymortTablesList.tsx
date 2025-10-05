@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Database, Loader2, CheckCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import axios from 'axios';
 
 interface PymortTable {
@@ -97,25 +96,10 @@ const PymortTablesList: React.FC<PymortTablesListProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Info Header */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex items-start gap-3">
-          <Database className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-          <div>
-            <h4 className="text-sm font-medium text-blue-900 mb-1">
-              Catálogo pymort (Society of Actuaries)
-            </h4>
-            <p className="text-sm text-blue-700">
-              Mais de 3.000 tábuas de mortalidade oficiais da SOA. Clique em "Carregar" para adicionar ao seu projeto.
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <span className="material-icons absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" style={{ fontSize: '20px' }}>search</span>
           <input
             type="text"
             placeholder="Buscar por nome ou descrição..."
@@ -163,7 +147,9 @@ const PymortTablesList: React.FC<PymortTablesListProps> = ({
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-blue-600" /></td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
+                </td></tr>
               ) : tables.length === 0 ? (
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Nenhuma tábua encontrada</td></tr>
               ) : (
@@ -176,7 +162,6 @@ const PymortTablesList: React.FC<PymortTablesListProps> = ({
                       <td className="px-4 py-3 text-sm text-gray-900">
                         <div className="max-w-md">
                           <div className="font-medium truncate">{table.name}</div>
-                          <div className="text-xs text-gray-500 truncate">{table.description}</div>
                         </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -188,15 +173,13 @@ const PymortTablesList: React.FC<PymortTablesListProps> = ({
                         <button
                           onClick={() => onLoadTable(table.id)}
                           disabled={isLoading || installed}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors ${
+                          className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
                             installed ? 'bg-green-100 text-green-700 cursor-not-allowed' :
                             isLoading ? 'bg-blue-100 text-blue-600 cursor-wait' :
                             'bg-blue-600 text-white hover:bg-blue-700'
                           }`}
                         >
-                          {isLoading ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" />Carregando</>) :
-                           installed ? (<><CheckCircle className="h-3.5 w-3.5" />Instalada</>) :
-                           (<><Database className="h-3.5 w-3.5" />Carregar</>)}
+                          {isLoading ? 'Carregando...' : installed ? 'Instalada' : 'Carregar'}
                         </button>
                       </td>
                     </tr>
@@ -228,7 +211,7 @@ const PymortTablesList: React.FC<PymortTablesListProps> = ({
               <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
                 <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1}
                   className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                  <ChevronLeft className="h-5 w-5" />
+                  <span className="material-icons" style={{ fontSize: '20px' }}>chevron_left</span>
                 </button>
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   let pageNum;
@@ -246,7 +229,7 @@ const PymortTablesList: React.FC<PymortTablesListProps> = ({
                 })}
                 <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages}
                   className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                  <ChevronRight className="h-5 w-5" />
+                  <span className="material-icons" style={{ fontSize: '20px' }}>chevron_right</span>
                 </button>
               </nav>
             </div>

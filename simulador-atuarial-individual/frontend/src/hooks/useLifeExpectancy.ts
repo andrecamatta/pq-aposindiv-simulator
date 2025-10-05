@@ -15,6 +15,7 @@ interface LifeExpectancyData {
   parameters: {
     gender: string;
     mortality_table: string;
+    actual_table_used?: string;
     smoothing_percent?: number;
     aggravation_percent?: number;
   };

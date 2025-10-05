@@ -23,83 +23,67 @@ logger = logging.getLogger(__name__)
 
 class MortalityTableLoader:
     """Serviço para carregar tábuas de mortalidade de diferentes fontes"""
-    
+
     def __init__(self):
         self.supported_sources = []
         if PYMORT_AVAILABLE:
             self.supported_sources.append("pymort")
         self.supported_sources.extend(["local", "csv", "excel"])
+
+        # Carregar índice completo de tábuas SOA do JuliaActuary
+        self.soa_tables_index = self._load_soa_index()
     
     def get_available_sources(self) -> List[str]:
         """Retorna lista de fontes disponíveis"""
         return self.supported_sources.copy()
 
+    def _load_soa_index(self) -> Dict[str, int]:
+        """Carrega índice completo de tábuas SOA do JuliaActuary
+
+        Retorna dicionário {nome_tabua: id}
+        """
+        try:
+            # Caminho para o arquivo JSON de índice (em src/data/)
+            current_dir = Path(__file__).parent.parent  # backend/src/
+            index_path = current_dir / 'data' / 'soa_tables_index.json'
+
+            if not index_path.exists():
+                logger.warning(f"Arquivo de índice não encontrado: {index_path}")
+                return {}
+
+            with open(index_path, 'r', encoding='utf-8') as f:
+                index = json.load(f)
+
+            logger.info(f"Índice SOA carregado: {len(index)} tábuas disponíveis")
+            return index
+
+        except Exception as e:
+            logger.error(f"Erro ao carregar índice SOA: {e}")
+            return {}
+
     def list_pymort_tables(self, offset: int = 0, limit: int = 50, search: str = None, category: str = None) -> Dict[str, Any]:
         """Lista tábuas disponíveis no pymort com paginação
 
-        Nota: pymort não fornece lista de tábuas diretamente, então usamos
-        uma lista curada de tábuas SOA conhecidas e populares
+        Usa índice completo de 2923 tábuas SOA do JuliaActuary
         """
         if not PYMORT_AVAILABLE:
             logger.error("pymort não está disponível")
             return {"tables": [], "total": 0}
 
         try:
-            # Lista curada expandida de tábuas SOA conhecidas e testadas
-            # Baseada em categorias principais: CSO, VBT, GAM, RP, UP, e outras
-            all_tables = [
-                # CSO - Commissioners Standard Ordinary (1941-2001)
-                {'id': 1, 'name': '1941 CSO Basic ANB', 'description': '1941 Commissioners Standard Ordinary Basic Table'},
-                {'id': 2, 'name': '1941 CSO Experience ANB', 'description': '1941 Commissioners Standard Ordinary Experience Table'},
-                {'id': 3, 'name': '1941 CSO Standard ANB', 'description': '1941 Commissioners Standard Ordinary Table'},
-                {'id': 17, 'name': '1958 CSO ANB', 'description': '1958 Commissioners Standard Ordinary Table'},
-                {'id': 20, 'name': '1980 CSO Basic Male ANB', 'description': '1980 Commissioners Standard Ordinary Basic Table - Male'},
-                {'id': 21, 'name': '1980 CSO Basic Female ANB', 'description': '1980 Commissioners Standard Ordinary Basic Table - Female'},
-                {'id': 22, 'name': '1980 CSO Male ANB', 'description': '1980 Commissioners Standard Ordinary - Male'},
-                {'id': 23, 'name': '1980 CSO Female ANB', 'description': '1980 Commissioners Standard Ordinary - Female'},
-                {'id': 42, 'name': '2001 CSO Male Smoker ANB', 'description': '2001 Commissioners Standard Ordinary - Male Smoker'},
-                {'id': 43, 'name': '2001 CSO Male Non-Smoker ANB', 'description': '2001 Commissioners Standard Ordinary - Male Non-Smoker'},
-                {'id': 50, 'name': '2001 CSO Female Smoker ANB', 'description': '2001 Commissioners Standard Ordinary - Female Smoker'},
-                {'id': 51, 'name': '2001 CSO Female Non-Smoker ANB', 'description': '2001 Commissioners Standard Ordinary - Female Non-Smoker'},
+            # Usar índice completo do JuliaActuary (2923 tábuas)
+            if not self.soa_tables_index:
+                logger.error("Índice SOA não carregado")
+                return {"tables": [], "total": 0}
 
-                # VBT - Valuation Basic Table (2008, 2015)
-                {'id': 3252, 'name': '2015 VBT Male Non-Smoker', 'description': '2015 Valuation Basic Table - Male 100%, Non-Smoker'},
-                {'id': 3262, 'name': '2015 VBT Male Smoker', 'description': '2015 Valuation Basic Table - Male 100%, Smoker'},
-                {'id': 3272, 'name': '2015 VBT Female Non-Smoker', 'description': '2015 Valuation Basic Table - Female 100%, Non-Smoker'},
-                {'id': 3282, 'name': '2015 VBT Female Smoker', 'description': '2015 Valuation Basic Table - Female 100%, Smoker'},
-
-                # GAM - Group Annuity Mortality
-                {'id': 809, 'name': '1951 GAM Male', 'description': '1951 Group Annuity Mortality (GAM) Table – Male'},
-                {'id': 810, 'name': '1951 GAM Female', 'description': '1951 Group Annuity Mortality (GAM) Table – Female'},
-                {'id': 825, 'name': '1983 GAM Female', 'description': '1983 Group Annuity Mortality Table – Female'},
-                {'id': 826, 'name': '1983 GAM Male', 'description': '1983 Group Annuity Mortality Table – Male'},
-                {'id': 827, 'name': '1983 GAM Unisex', 'description': '1983 Group Annuity Mortality Table – Unisex'},
-
-                # UP - Uninsured Pensioner
-                {'id': 1619, 'name': 'UP-1984 Male', 'description': '1984 Uninsured Pensioner Mortality Table - Male'},
-                {'id': 1620, 'name': 'UP-1984 Female', 'description': '1984 Uninsured Pensioner Mortality Table - Female'},
-
-                # RP - Retirement Plan (2014)
-                {'id': 1478, 'name': 'RP-2014 Employee Male', 'description': 'RP-2014 Mortality Tables - Employee Male'},
-                {'id': 1479, 'name': 'RP-2014 Employee Female', 'description': 'RP-2014 Mortality Tables - Employee Female'},
-                {'id': 1487, 'name': 'RP-2014 Healthy Annuitant Male', 'description': 'RP-2014 Mortality Tables - Healthy Annuitant Male'},
-                {'id': 1488, 'name': 'RP-2014 Healthy Annuitant Female', 'description': 'RP-2014 Mortality Tables - Healthy Annuitant Female'},
-                {'id': 1502, 'name': 'RP-2014 Disabled Retiree Male', 'description': 'RP-2014 Mortality Tables - Disabled Retiree Male'},
-                {'id': 1503, 'name': 'RP-2014 Disabled Retiree Female', 'description': 'RP-2014 Mortality Tables - Disabled Retiree Female'},
-            ]
-
-            # Processar lista para formato estruturado
+            # Processar índice para formato estruturado
             tables_info = []
-            for table in all_tables:
-                table_id = table['id']
-                table_name = table['name']
-                table_desc = table['description']
-
+            for table_name, table_id in self.soa_tables_index.items():
                 # Categorizar baseado no nome
-                category_name = self._categorize_table(table_name, table_desc)
+                category_name = self._categorize_table(table_name, table_name)
 
                 # Detectar gênero
-                gender = self._detect_gender(table_name, table_desc)
+                gender = self._detect_gender(table_name, table_name)
 
                 # Extrair ano se possível
                 year = self._extract_year(table_name)
@@ -107,7 +91,7 @@ class MortalityTableLoader:
                 tables_info.append({
                     'id': table_id,
                     'name': table_name,
-                    'description': table_desc,
+                    'description': table_name,  # JuliaActuary não fornece descrição separada
                     'category': category_name,
                     'gender': gender,
                     'year': year
@@ -192,6 +176,39 @@ class MortalityTableLoader:
         match = re.search(r'\b(19\d{2}|20\d{2})\b', name)
         return int(match.group(1)) if match else None
     
+    def find_complementary_gender_table(self, table_name: str, current_id: int) -> Optional[int]:
+        """Encontra ID da tábua com gênero complementar baseado no nome
+
+        Procura por padrões comuns:
+        - "Male" <-> "Female"
+        - "Masculino" <-> "Feminino"
+        """
+        if not self.soa_tables_index:
+            return None
+
+        # Determinar qual gênero procurar
+        table_lower = table_name.lower()
+
+        if 'male' in table_lower and 'female' not in table_lower:
+            # É Male, procurar Female - usar regex para replace case-insensitive
+            import re
+            search_from = re.sub(r'\bmale\b', 'Female', table_name, flags=re.IGNORECASE)
+        elif 'female' in table_lower:
+            # É Female, procurar Male - usar regex para replace case-insensitive
+            import re
+            search_from = re.sub(r'\bfemale\b', 'Male', table_name, flags=re.IGNORECASE)
+        else:
+            # Não identificado, não procurar
+            return None
+
+        # Buscar no índice
+        complementary_id = self.soa_tables_index.get(search_from)
+
+        if complementary_id and complementary_id != current_id:
+            return complementary_id
+
+        return None
+
     def load_from_pymort(self, table_id: int) -> Optional[MortalityTable]:
         """Carrega tábua do pymort (SOA)"""
         if not PYMORT_AVAILABLE:

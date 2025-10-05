@@ -175,10 +175,10 @@ class ResultsBuilder:
             survival_probabilities=self._projections.get("survival_probs", []),
             accumulated_reserves=self._projections.get("reserves", []),
 
-            # Vetores por idade (zerados para CD)
-            projection_ages=None,
-            projected_salaries_by_age=None,
-            projected_benefits_by_age=None,
+            # Vetores por idade (agora preenchidos para CD)
+            projection_ages=self._projections.get("projection_ages"),
+            projected_salaries_by_age=self._projections.get("projected_salaries_by_age"),
+            projected_benefits_by_age=self._projections.get("projected_benefits_by_age"),
 
             # Dados mensais detalhados (para relatórios precisos)
             monthly_data=self._projections.get("monthly_data"),

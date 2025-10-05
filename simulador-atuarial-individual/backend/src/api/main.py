@@ -324,8 +324,8 @@ async def get_life_expectancy(
     aggravation_factor = 1.0 + (aggravation / 100.0)
 
     # Obter dados da tábua de mortalidade (já aplicando a suavização)
-    table_data = get_mortality_table(mortality_table, gender, aggravation)
-    
+    table_data, actual_table_code = get_mortality_table(mortality_table, gender, aggravation)
+
     # Calcular expectativa de vida (suavização já aplicada na tábua)
     life_expectancy = calculate_life_expectancy(
         age=age,
@@ -333,10 +333,10 @@ async def get_life_expectancy(
         mortality_table=table_data,
         aggravation_factor=1.0  # Sem suavização adicional, já aplicada na tábua
     )
-    
+
     # Calcular idade esperada de morte
     expected_death_age = age + life_expectancy
-    
+
     return response_formatter.format_success_response(
         data={
             "life_expectancy": round(life_expectancy, 2),
@@ -345,6 +345,7 @@ async def get_life_expectancy(
             "parameters": {
                 "gender": gender,
                 "mortality_table": mortality_table,
+                "actual_table_used": actual_table_code,  # Tábua realmente usada após lookup
                 "smoothing_percent": aggravation,
                 "aggravation_percent": aggravation  # Mantido por compatibilidade
             }
