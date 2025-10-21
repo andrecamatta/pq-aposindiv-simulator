@@ -8,13 +8,18 @@ services:
       curl -LsSf https://astral.sh/uv/install.sh | sh
       export PATH="$HOME/.cargo/bin:$PATH"
       cd backend
-      uv pip install --system -r pyproject.toml
+      uv pip install --system .
+      mkdir -p /opt/render/project/src/backend/data/mortality_tables
+      cp -r data/mortality_tables/* /opt/render/project/src/backend/data/mortality_tables/ || true
+      if [ ! -f /opt/render/project/src/backend/data/prevlab.db ]; then
+        cp data/simulador.db /opt/render/project/src/backend/data/prevlab.db || true
+      fi
     startCommand: cd backend && uvicorn src.api.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: DATABASE_URL
-        value: sqlite:///./data/db/prevlab.db
+        value: sqlite:////opt/render/project/src/backend/data/prevlab.db
       - key: LOG_LEVEL
         value: info
       - key: WORKERS

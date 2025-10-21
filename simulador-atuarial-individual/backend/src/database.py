@@ -8,7 +8,8 @@ from typing import Generator
 DATABASE_DIR = Path(__file__).parent.parent / "data"
 DATABASE_DIR.mkdir(exist_ok=True)
 
-DATABASE_URL = f"sqlite:///{DATABASE_DIR}/simulador.db"
+# Usar DATABASE_URL do ambiente se existir, senão usar padrão local
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATABASE_DIR}/simulador.db")
 
 # Engine do SQLite com configurações otimizadas
 engine = create_engine(

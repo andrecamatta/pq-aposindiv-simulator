@@ -11,6 +11,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!simulador-atuarial-individual/frontend/src/lib/
 lib64/
 parts/
 sdist/
