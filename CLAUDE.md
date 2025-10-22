@@ -1,43 +1,6 @@
 # Instruções do Projeto - Simulador Atuarial Individual
 
-## 🐳 Subir com Containers (Podman/Docker) - RECOMENDADO
-
-### Iniciar aplicação completa
-```bash
-cd simulador-atuarial-individual
-./start-podman.sh
-```
-
-### URLs
-- **Frontend**: http://localhost:8080
-- **Backend**: http://localhost:8000
-
-### Comandos úteis
-```bash
-# Ver logs
-podman logs -f prevlab-backend
-podman logs -f prevlab-frontend
-
-# Parar containers
-podman stop prevlab-backend prevlab-frontend
-
-# Remover containers
-podman rm prevlab-backend prevlab-frontend
-
-# Rebuild imagens (após mudanças no código)
-podman build --ulimit nofile=90000:90000 --network=none -f ./frontend/Dockerfile -t prevlab-frontend ./frontend
-podman build --ulimit nofile=90000:90000 -f ./backend/Dockerfile -t prevlab-backend ./backend
-```
-
-### Detalhes técnicos
-- **Networking**: `--network=host` (pasta networking para rootless)
-- **Banco de dados**: SQLite com 17 tábuas de mortalidade pré-carregadas
-- **Volumes**: `prevlab-backend-data` (banco), `prevlab-backend-logs` (logs)
-- **Configuração**: `~/.config/containers/containers.conf` (pasta networking)
-
----
-
-## 💻 Subir Localmente (Desenvolvimento)
+## 💻 Desenvolvimento Local
 
 ### Backend
 ```bash
@@ -52,45 +15,83 @@ npm run dev
 ```
 
 ### URLs
-- Backend: http://localhost:8000
-- Frontend: http://localhost:5173
+- **Backend**: http://localhost:8000
+- **Frontend**: http://localhost:5173
+
+### Dependências
+
+#### Backend (Python)
+- Python 3.11+
+- uv (gerenciador de pacotes)
+- SQLite com banco de tábuas de mortalidade
+
+#### Frontend (React/TypeScript)
+- Node.js 20+
+- npm
 
 ---
 
 ## ☁️ Deploy em Produção (Railway.app)
 
-### Deploy Rápido
+### Configuração Automática
+
+O projeto está configurado para deploy automático no Railway via GitHub:
+
+1. **Conecte o repositório** no Railway dashboard
+2. **Railway detecta automaticamente**:
+   - `Dockerfile` (na raiz do repositório)
+   - `railway.toml` (configuração de build e deploy)
+3. **Build e deploy automáticos** a cada push no branch `master`
+
+### Variáveis de Ambiente Obrigatórias
+
+Configure no Railway Dashboard (Settings → Variables):
+
 ```bash
-cd simulador-atuarial-individual
-
-# Conectar repositório ao Railway (via dashboard)
-# https://railway.app/dashboard
-
-# Ou via CLI
-railway login
-railway init
-railway up
+DATABASE_URL=sqlite:///./data/simulador.db
+LOG_LEVEL=info
+WORKERS=2
+CORS_ORIGINS=https://${{RAILWAY_PUBLIC_DOMAIN}}
 ```
 
-### Configuração necessária no Railway Dashboard
+### Volume Persistente (CRÍTICO)
 
-1. **Variáveis de ambiente**:
-   ```bash
-   DATABASE_URL=sqlite:///./data/db/prevlab.db
-   LOG_LEVEL=info
-   WORKERS=2
-   CORS_ORIGINS=https://${{RAILWAY_PUBLIC_DOMAIN}}
-   ```
+O Railway **DEVE** ter um volume para persistir o banco SQLite:
 
-2. **Volume persistente** (CRÍTICO para SQLite):
-   - Mount Path: `/app/data`
-   - Size: 1 GB (mínimo)
+- **Settings → Volumes → New Volume**
+- **Mount Path**: `/app/data`
+- **Size**: 1 GB (mínimo recomendado)
 
-3. **Build**: Usa `Dockerfile.railway` automaticamente
+⚠️ **Sem volume, as tábuas de mortalidade serão perdidas a cada deploy!**
 
 ### URLs
+
 - **Produção**: `https://<seu-projeto>.railway.app`
 - **Health Check**: `https://<seu-projeto>.railway.app/health`
+- **API**: `https://<seu-projeto>.railway.app/api/*`
 
-### Documentação completa
-Ver: `simulador-atuarial-individual/docs/DEPLOY_RAILWAY.md`
+### Arquitetura do Deploy
+
+O Railway usa um **monorepo integrado** com:
+- **Nginx** (porta dinâmica `$PORT`) servindo frontend + proxy para backend
+- **Uvicorn** (porta 8000) rodando FastAPI backend
+- **Supervisor** gerenciando ambos os processos
+- **SQLite** persistido em volume
+
+### Troubleshooting
+
+Se o deploy falhar:
+
+1. Verifique logs no Railway dashboard
+2. Confirme que o volume foi criado e está montado em `/app/data`
+3. Verifique se as variáveis de ambiente estão corretas
+4. Healthcheck demora ~60s, aguarde antes de concluir falha
+
+---
+
+## 📚 Documentação
+
+- Banco de dados: SQLite com 17+ tábuas de mortalidade pré-carregadas
+- API: FastAPI com validação Pydantic
+- Frontend: React 19 + TypeScript + Vite + Tailwind CSS
+- Cálculos atuariais: Biblioteca Pymort
