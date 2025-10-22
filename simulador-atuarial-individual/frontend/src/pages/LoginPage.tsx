@@ -23,12 +23,12 @@ export function LoginPage() {
             <img
               src="/logo.png"
               alt="PrevLab Logo"
-              className="h-8 mx-auto mb-3"
+              className="h-6 mx-auto mb-2"
             />
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">
+            <h1 className="text-xl font-bold text-gray-900 mb-1">
               PrevLab
             </h1>
-            <p className="text-sm text-gray-600">
+            <p className="text-xs text-gray-600">
               Plataforma de Simulação Atuarial
             </p>
           </div>
