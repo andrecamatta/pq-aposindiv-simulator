@@ -23,8 +23,8 @@ export function LoginPage() {
             <img
               src="/logo.png"
               alt="PrevLab Logo"
-              className="h-6 w-auto max-h-6 mx-auto mb-2"
-              style={{ height: '24px', width: 'auto' }}
+              className="h-16 w-auto max-h-16 mx-auto mb-3"
+              style={{ height: '64px', width: 'auto' }}
             />
             <h1 className="text-xl font-bold text-gray-900 mb-1">
               PrevLab
