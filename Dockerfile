@@ -11,7 +11,7 @@ WORKDIR /app/frontend
 
 # Copiar package files e instalar dependências
 COPY simulador-atuarial-individual/frontend/package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 # Copiar código fonte do frontend
 COPY simulador-atuarial-individual/frontend/ ./
