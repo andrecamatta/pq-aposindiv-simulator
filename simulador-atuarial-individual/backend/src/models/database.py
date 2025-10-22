@@ -29,6 +29,17 @@ class User(SQLModel, table=True):
     profiles: List["UserProfile"] = Relationship(back_populates="user")
 
 
+class AllowedEmail(SQLModel, table=True):
+    """Whitelist de emails autorizados a acessar o sistema"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(unique=True, index=True)
+
+    # Metadados
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: Optional[str] = None  # Email de quem adicionou
+    note: Optional[str] = None  # Observações
+
+
 class UserProfile(SQLModel, table=True):
     """Perfis/cenários salvos pelos usuários"""
     id: Optional[int] = Field(default=None, primary_key=True)

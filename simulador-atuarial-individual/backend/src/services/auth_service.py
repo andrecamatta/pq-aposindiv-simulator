@@ -18,13 +18,19 @@ from ..core.auth_config import (
     GOOGLE_TOKEN_URL,
     GOOGLE_USERINFO_URL,
     GOOGLE_SCOPES,
-    is_email_allowed,
 )
-from ..models.database import User
+from ..models.database import User, AllowedEmail
 
 
 class AuthService:
     """Serviço para operações de autenticação"""
+
+    @staticmethod
+    def is_email_allowed(session: Session, email: str) -> bool:
+        """Verifica se um email está na whitelist do banco de dados"""
+        statement = select(AllowedEmail).where(AllowedEmail.email == email.strip().lower())
+        allowed = session.exec(statement).first()
+        return allowed is not None
 
     @staticmethod
     def generate_jwt_token(user_id: int, email: str) -> str:
@@ -107,8 +113,8 @@ class AuthService:
         name = google_user_info.get("name", email.split("@")[0])
         avatar_url = google_user_info.get("picture")
 
-        # Verificar se email está na whitelist
-        if not is_email_allowed(email):
+        # Verificar se email está na whitelist do banco de dados
+        if not AuthService.is_email_allowed(session, email):
             from fastapi import HTTPException
             raise HTTPException(
                 status_code=403,

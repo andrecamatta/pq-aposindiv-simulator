@@ -11,25 +11,6 @@ load_dotenv()
 # ========== Authentication Control ==========
 ENABLE_AUTH: bool = os.getenv("ENABLE_AUTH", "true").lower() == "true"
 
-# ========== Email Whitelist Configuration ==========
-# Lista de emails autorizados (separados por vírgula)
-# Exemplo: "user1@example.com,user2@example.com,admin@example.com"
-# Se vazio ou "*", permite todos os emails
-ALLOWED_EMAILS_RAW: str = os.getenv("ALLOWED_EMAILS", "*")
-ALLOWED_EMAILS: set[str] = (
-    set(email.strip().lower() for email in ALLOWED_EMAILS_RAW.split(",") if email.strip())
-    if ALLOWED_EMAILS_RAW != "*"
-    else set()
-)
-
-def is_email_allowed(email: str) -> bool:
-    """Verifica se um email está na whitelist"""
-    # Se ALLOWED_EMAILS está vazio (configurado como "*"), permite todos
-    if not ALLOWED_EMAILS:
-        return True
-    # Verifica se o email está na whitelist (case-insensitive)
-    return email.strip().lower() in ALLOWED_EMAILS
-
 # ========== Mock User Configuration (Development) ==========
 MOCK_USER_ID: int = 999
 MOCK_USER_NAME: str = os.getenv("MOCK_USER_NAME", "Dev User")
