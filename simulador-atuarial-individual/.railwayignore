@@ -1,0 +1,82 @@
+# ============================================
+# Railway Ignore - PrevLab
+# Arquivos/diretórios ignorados durante deploy
+# ============================================
+
+# ========== Git ==========
+.git/
+.gitignore
+.gitattributes
+
+# ========== Node.js ==========
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.yarn/
+frontend/node_modules/
+
+# ========== Python ==========
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+backend/.venv/
+*.egg-info/
+dist/
+build/
+
+# ========== IDEs ==========
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ========== Testing ==========
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# ========== Logs ==========
+logs/
+*.log
+npm-debug.log*
+
+# ========== Documentação ==========
+README.md
+docs/
+*.md
+!DEPLOY_RAILWAY.md
+
+# ========== Docker (não precisamos no Railway) ==========
+Dockerfile
+docker-compose.yml
+.dockerignore
+start-docker.sh
+start-podman.sh
+docker/
+
+# ========== Outros deploys ==========
+render.yaml
+.env.example
+.env.local
+.env.development
+
+# ========== Temporários ==========
+tmp/
+temp/
+*.tmp
+.cache/
