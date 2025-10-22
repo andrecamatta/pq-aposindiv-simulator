@@ -1,0 +1,130 @@
+# ============================================
+# Dockerfile para Railway.app - PrevLab (Root)
+# Este Dockerfile está na raiz do repositório
+# e referencia o subdiretório simulador-atuarial-individual
+# ============================================
+
+# ========== STAGE 1: Build Frontend ==========
+FROM docker.io/library/node:20-alpine AS frontend-builder
+
+WORKDIR /app/frontend
+
+# Copiar package files e instalar dependências
+COPY simulador-atuarial-individual/frontend/package*.json ./
+RUN npm ci --only=production
+
+# Copiar código fonte do frontend
+COPY simulador-atuarial-individual/frontend/ ./
+
+# Build do frontend para produção
+ARG VITE_API_BASE_URL=/api
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+RUN npm run build
+
+# ========== STAGE 2: Build Backend ==========
+FROM docker.io/library/python:3.11-slim AS backend-builder
+
+WORKDIR /app
+
+# Instalar dependências de sistema para Python packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    gfortran \
+    libopenblas-dev \
+    liblapack-dev \
+    pkg-config \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf-2.0-0 \
+    libffi-dev \
+    shared-mime-info \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar uv para gerenciamento de dependências
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+# Copiar pyproject.toml e instalar dependências
+COPY simulador-atuarial-individual/backend/pyproject.toml ./
+RUN uv pip install --system -r pyproject.toml
+
+# ========== STAGE 3: Production Image ==========
+FROM docker.io/library/python:3.11-slim
+
+WORKDIR /app
+
+# Instalar nginx, supervisor e dependências runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx \
+    supervisor \
+    curl \
+    gettext-base \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf-2.0-0 \
+    libffi7 \
+    libopenblas0 \
+    shared-mime-info \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar Python packages instalados
+COPY --from=backend-builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=backend-builder /usr/local/bin /usr/local/bin
+
+# Copiar código do backend
+COPY simulador-atuarial-individual/backend/src /app/src
+
+# Copiar banco de dados SQLite com tábuas de mortalidade
+RUN mkdir -p /app/data/db
+COPY simulador-atuarial-individual/backend/data/simulador.db /app/data/simulador.db
+
+# Copiar frontend buildado
+COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
+
+# Copiar configurações
+COPY simulador-atuarial-individual/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY simulador-atuarial-individual/frontend/nginx.railway.conf /etc/nginx/sites-available/default
+
+# Criar diretórios necessários
+RUN mkdir -p /app/data/db /app/data/uploads /app/data/reports /app/logs \
+    && mkdir -p /var/log/supervisor \
+    && mkdir -p /run/nginx
+
+# Remover configuração default do nginx
+RUN rm -f /etc/nginx/sites-enabled/default \
+    && ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/
+
+# Variáveis de ambiente padrão
+ENV PYTHONUNBUFFERED=1 \
+    DATABASE_URL=sqlite:///./data/db/prevlab.db \
+    LOG_LEVEL=info \
+    WORKERS=2 \
+    PORT=8080
+
+# Expor porta (Railway define dinamicamente via $PORT)
+EXPOSE ${PORT}
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/health || exit 1
+
+# Script de inicialização
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+# Substituir PORT no nginx.conf (Railway define dinamicamente)\n\
+envsubst '"'"'${PORT}'"'"' < /etc/nginx/sites-available/default > /tmp/nginx.conf\n\
+mv /tmp/nginx.conf /etc/nginx/sites-available/default\n\
+\n\
+# Iniciar supervisor (gerencia nginx + uvicorn)\n\
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf' > /app/start.sh \
+    && chmod +x /app/start.sh
+
+# Iniciar aplicação
+CMD ["/app/start.sh"]

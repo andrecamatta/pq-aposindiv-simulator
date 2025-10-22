@@ -1,0 +1,28 @@
+# ============================================
+# Railway Configuration - PrevLab (Root)
+# ============================================
+# Este arquivo está na RAIZ do repositório
+# e configura o build do monorepo em simulador-atuarial-individual/
+#
+# Docs: https://docs.railway.app/deploy/config-as-code
+# ============================================
+
+[build]
+# Usar Dockerfile na raiz do repositório
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# Estratégia de deploy: Rolling (zero downtime)
+startCommand = "/app/start.sh"
+
+# Health check
+healthcheckPath = "/health"
+healthcheckTimeout = 10
+
+# Restart policy
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3
+
+# Número de réplicas (1 para começar)
+numReplicas = 1
