@@ -16,9 +16,9 @@ GOOGLE_CLIENT_ID=<SEU-CLIENT-ID>.apps.googleusercontent.com
 
 GOOGLE_CLIENT_SECRET=GOCSPX-<SEU-CLIENT-SECRET>
 
-GOOGLE_REDIRECT_URI=https://pq-aposindiv-simulator-production.up.railway.app/auth/callback
+GOOGLE_REDIRECT_URI=https://pq-aposindiv-simulator-production.up.railway.app/api/auth/callback
 
-FRONTEND_URL=https://SEU-FRONTEND.railway.app
+FRONTEND_URL=https://pq-aposindiv-simulator-production.up.railway.app
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -30,17 +30,18 @@ FRONTEND_URL=https://SEU-FRONTEND.railway.app
 2. Substitua <SEU-CLIENT-ID> e <SEU-CLIENT-SECRET> pelos valores
    do Google OAuth Console
 
-3. O GOOGLE_REDIRECT_URI deve apontar para o BACKEND /auth/callback
-   e deve ser EXATAMENTE igual ao configurado no Google Console!
+3. O GOOGLE_REDIRECT_URI deve apontar para o BACKEND /api/auth/callback
+   (inclui o prefixo /api/) e deve ser EXATAMENTE igual ao configurado
+   no Google Console!
 
-4. O FRONTEND_URL deve apontar para a URL do frontend Railway
+4. O FRONTEND_URL deve apontar para a URL base (sem /api/)
 
 5. Após salvar, Railway fará redeploy automático
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📌 GOOGLE OAUTH CONSOLE - Redirect URI (deve apontar para BACKEND):
+📌 GOOGLE OAUTH CONSOLE - Redirect URI (deve apontar para BACKEND com /api/):
 
-   https://pq-aposindiv-simulator-production.up.railway.app/auth/callback
+   https://pq-aposindiv-simulator-production.up.railway.app/api/auth/callback
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
