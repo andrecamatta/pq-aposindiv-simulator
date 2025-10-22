@@ -28,14 +28,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Buscar informações do usuário ao carregar a aplicação
   useEffect(() => {
     const loadUser = async () => {
-      const token = localStorage.getItem(TOKEN_KEY);
-
-      if (!token) {
-        setIsLoading(false);
-        return;
-      }
-
       try {
+        // Verificar se autenticação está habilitada
+        const healthResponse = await fetch(`${API_BASE_URL}/auth/health`);
+        const healthData = await healthResponse.json();
+
+        // Se auth desabilitada, criar mock user automaticamente
+        if (healthData.config?.enabled === false) {
+          console.log('🔓 Autenticação desabilitada - usando mock user');
+          setUser({
+            id: 999,
+            name: 'Dev User',
+            email: 'dev@localhost',
+            avatar_url: 'https://ui-avatars.com/api/?name=Dev+User&background=3b82f6&color=fff',
+            is_active: true,
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // Auth habilitada - verificar token
+        const token = localStorage.getItem(TOKEN_KEY);
+
+        if (!token) {
+          setIsLoading(false);
+          return;
+        }
+
         const response = await fetch(`${API_BASE_URL}/auth/me`, {
           headers: {
             Authorization: `Bearer ${token}`,

@@ -1,8 +1,18 @@
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../design-system/components';
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, user, isLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // Se já estiver autenticado (mock user em dev), redirecionar para home
+  useEffect(() => {
+    if (!isLoading && user) {
+      navigate('/', { replace: true });
+    }
+  }, [user, isLoading, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">

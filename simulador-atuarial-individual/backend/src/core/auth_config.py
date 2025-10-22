@@ -3,6 +3,19 @@ Configurações de autenticação com Google OAuth e JWT
 """
 import os
 from typing import Optional
+from dotenv import load_dotenv
+
+# Carregar variáveis de ambiente do arquivo .env
+load_dotenv()
+
+# ========== Authentication Control ==========
+ENABLE_AUTH: bool = os.getenv("ENABLE_AUTH", "true").lower() == "true"
+
+# ========== Mock User Configuration (Development) ==========
+MOCK_USER_ID: int = 999
+MOCK_USER_NAME: str = os.getenv("MOCK_USER_NAME", "Dev User")
+MOCK_USER_EMAIL: str = os.getenv("MOCK_USER_EMAIL", "dev@localhost")
+MOCK_USER_AVATAR: str = "https://ui-avatars.com/api/?name=Dev+User&background=3b82f6&color=fff"
 
 # ========== JWT Configuration ==========
 SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret-key-CHANGE-IN-PRODUCTION")
@@ -30,6 +43,7 @@ GOOGLE_SCOPES: list[str] = [
 def validate_auth_config() -> dict[str, bool]:
     """Valida se todas as configurações necessárias estão definidas"""
     return {
+        "enabled": ENABLE_AUTH,
         "secret_key_configured": SECRET_KEY != "dev-secret-key-CHANGE-IN-PRODUCTION",
         "google_client_id_configured": GOOGLE_CLIENT_ID is not None,
         "google_client_secret_configured": GOOGLE_CLIENT_SECRET is not None,
@@ -39,5 +53,10 @@ def validate_auth_config() -> dict[str, bool]:
 
 def is_auth_properly_configured() -> bool:
     """Verifica se a autenticação está completamente configurada"""
+    if not ENABLE_AUTH:
+        return True  # Auth desabilitado = sempre "configurado"
+
     config = validate_auth_config()
-    return all(config.values())
+    # Remove 'enabled' da verificação
+    config_without_enabled = {k: v for k, v in config.items() if k != "enabled"}
+    return all(config_without_enabled.values())

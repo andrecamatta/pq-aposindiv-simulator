@@ -1,0 +1,37 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 VARIÁVEIS DE AMBIENTE - RAILWAY PRODUCTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 Cole estas variáveis no Railway Dashboard → Variables:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENABLE_AUTH=true
+
+SECRET_KEY=bc7eb8a342ff774c49bb7feb45eaab2c3aaa2be4664a70f548fc2d1065bbcfe2
+
+GOOGLE_CLIENT_ID=<SEU-CLIENT-ID>.apps.googleusercontent.com
+
+GOOGLE_CLIENT_SECRET=GOCSPX-<SEU-CLIENT-SECRET>
+
+GOOGLE_REDIRECT_URI=https://pq-aposindiv-simulator-production.up.railway.app/auth/success
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️  IMPORTANTE:
+
+1. Substitua <SEU-CLIENT-ID> e <SEU-CLIENT-SECRET> pelos valores
+   do Google OAuth Console
+
+2. O GOOGLE_REDIRECT_URI deve ser EXATAMENTE igual ao configurado
+   no Google Console (sem trailing slash!)
+
+3. Após salvar, Railway fará redeploy automático
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📌 GOOGLE OAUTH CONSOLE - Redirect URI:
+
+   https://pq-aposindiv-simulator-production.up.railway.app/auth/success
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

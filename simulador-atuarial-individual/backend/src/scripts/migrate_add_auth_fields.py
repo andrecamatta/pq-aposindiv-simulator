@@ -40,9 +40,9 @@ def migrate_add_auth_fields():
 
         print("✅ Tabela 'user' encontrada")
 
-        # Lista de colunas para adicionar
+        # Lista de colunas para adicionar (sem UNIQUE - será adicionado via índice)
         columns_to_add = [
-            ("google_id", "TEXT UNIQUE"),
+            ("google_id", "TEXT"),
             ("avatar_url", "TEXT"),
             ("is_active", "BOOLEAN DEFAULT 1"),
             ("last_login_at", "TIMESTAMP"),
@@ -60,10 +60,12 @@ def migrate_add_auth_fields():
                 cursor.execute(f"ALTER TABLE user ADD COLUMN {column_name} {column_type}")
                 added_columns.append(column_name)
 
-        # Criar índice para google_id se a coluna foi adicionada
-        if "google_id" in added_columns:
-            print("📊 Criando índice para google_id...")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_google_id ON user(google_id)")
+        # Criar índice UNIQUE para google_id (funciona mesmo se a coluna já existia)
+        print("📊 Criando índice UNIQUE para google_id...")
+        try:
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_google_id ON user(google_id)")
+        except sqlite3.IntegrityError:
+            print("⚠️  Aviso: Não foi possível criar índice UNIQUE (pode haver duplicatas)")
 
         # Commit das mudanças
         conn.commit()

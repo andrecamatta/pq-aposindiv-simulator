@@ -10,7 +10,7 @@ from ..database import get_session
 from ..services.auth_service import AuthService
 from ..models.database import User
 from .dependencies.auth import get_current_active_user
-from ..core.auth_config import is_auth_properly_configured
+from ..core.auth_config import is_auth_properly_configured, validate_auth_config, ENABLE_AUTH
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -38,7 +38,14 @@ async def login():
     """
     Inicia o fluxo de autenticação com Google OAuth.
     Redireciona o usuário para a página de login do Google.
+    Se autenticação estiver desabilitada, retorna erro 404.
     """
+    if not ENABLE_AUTH:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Autenticação está desabilitada (ENABLE_AUTH=false)",
+        )
+
     if not is_auth_properly_configured():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -58,7 +65,14 @@ async def auth_callback(
     Callback do Google OAuth.
     Recebe o código de autorização, troca por access token,
     obtém informações do usuário e gera JWT.
+    Se autenticação estiver desabilitada, retorna erro 404.
     """
+    if not ENABLE_AUTH:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Autenticação está desabilitada (ENABLE_AUTH=false)",
+        )
+
     if not code:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -132,7 +146,7 @@ async def auth_health():
     """
     config_status = {
         "configured": is_auth_properly_configured(),
-        **{k: v for k, v in __import__("..core.auth_config", fromlist=["validate_auth_config"]).validate_auth_config().items()},
+        **validate_auth_config(),
     }
 
     return {
