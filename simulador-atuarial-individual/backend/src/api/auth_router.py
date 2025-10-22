@@ -10,7 +10,7 @@ from ..database import get_session
 from ..services.auth_service import AuthService
 from ..models.database import User
 from .dependencies.auth import get_current_active_user
-from ..core.auth_config import is_auth_properly_configured, validate_auth_config, ENABLE_AUTH
+from ..core.auth_config import is_auth_properly_configured, validate_auth_config, ENABLE_AUTH, FRONTEND_URL
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -110,8 +110,8 @@ async def auth_callback(
 
     # Redirecionar para o frontend com o token
     # O frontend vai pegar o token da URL e salvar no localStorage
-    frontend_url = f"/auth/success?token={jwt_token}"
-    return RedirectResponse(url=frontend_url)
+    frontend_callback_url = f"{FRONTEND_URL}/auth/success?token={jwt_token}"
+    return RedirectResponse(url=frontend_callback_url)
 
 
 @router.get("/me", response_model=UserResponse)

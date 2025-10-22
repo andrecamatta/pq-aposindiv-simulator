@@ -26,6 +26,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 dias
 GOOGLE_CLIENT_ID: Optional[str] = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET: Optional[str] = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI: Optional[str] = os.getenv("GOOGLE_REDIRECT_URI")
+FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 # URLs do Google OAuth
 GOOGLE_AUTH_URL: str = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -48,6 +49,7 @@ def validate_auth_config() -> dict[str, bool]:
         "google_client_id_configured": GOOGLE_CLIENT_ID is not None,
         "google_client_secret_configured": GOOGLE_CLIENT_SECRET is not None,
         "google_redirect_uri_configured": GOOGLE_REDIRECT_URI is not None,
+        "frontend_url_configured": FRONTEND_URL is not None and FRONTEND_URL != "",
     }
 
 
