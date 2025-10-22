@@ -110,10 +110,8 @@ ENV PYTHONUNBUFFERED=1 \
 # Expor porta (Railway define dinamicamente via $PORT)
 EXPOSE ${PORT}
 
-# Health check
-# start-period aumentado para 60s: tempo para supervisor iniciar nginx + uvicorn
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/health || exit 1
+# NOTA: Railway usa healthcheck do railway.toml, não do Dockerfile
+# O healthcheck é feito via HTTP GET no endpoint /health
 
 # Script de inicialização
 RUN echo '#!/bin/bash\n\

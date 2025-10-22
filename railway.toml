@@ -17,5 +17,6 @@ dockerfilePath = "Dockerfile"
 startCommand = "/app/start.sh"
 
 # Health check
+# Railway aguarda até 300s (5min) para o serviço ficar pronto
 healthcheckPath = "/health"
-healthcheckTimeout = 10
+healthcheckTimeout = 300
