@@ -11,6 +11,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!simulador-atuarial-individual/frontend/src/lib/
 lib64/
 parts/
 sdist/
@@ -257,7 +258,17 @@ Thumbs.db
 *.bak
 *_OLD_INCORRECT*
 
+# Test artifacts and temporary files
+screenshot_*.png
+test_results.json
+test_premissas_*.py
+*_debug.py
+
 # Playwright
 .playwright-mcp/
 playwright-report/
 test-results/
+
+# Generated configs (keep only the main ones)
+*_generated.json
+!package-lock.json
