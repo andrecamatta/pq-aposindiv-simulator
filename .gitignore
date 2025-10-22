@@ -209,6 +209,7 @@ dist
 # Gatsby files
 .cache/
 public
+!simulador-atuarial-individual/frontend/public/
 
 # Vite build output
 dist-ssr
