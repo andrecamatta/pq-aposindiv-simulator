@@ -18,6 +18,7 @@ from ..utils.state_updater import state_action_handler
 from ..utils.response_formatter import response_formatter
 from .mortality_tables import router as mortality_tables_router
 from .reports_router import router as reports_router
+from .auth_router import router as auth_router
 
 # Função para serializar tipos NumPy
 def numpy_serializer(obj):
@@ -109,6 +110,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth_router)
 app.include_router(mortality_tables_router)
 app.include_router(reports_router)
 

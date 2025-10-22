@@ -3,6 +3,45 @@ export type PaymentTiming = "postecipado" | "antecipado";
 export type PlanType = "BD" | "CD";
 export type CDConversionMode = "ACTUARIAL" | "ACTUARIAL_EQUIVALENT" | "CERTAIN_5Y" | "CERTAIN_10Y" | "CERTAIN_15Y" | "CERTAIN_20Y" | "PERCENTAGE" | "PROGRAMMED";
 
+// === TIPOS PARA FAMÍLIA E DEPENDENTES ===
+export type DependentType = "SPOUSE" | "CHILD" | "PARENT" | "EX_SPOUSE" | "OTHER";
+export type BenefitShareType = "EQUAL_QUOTA" | "PROPORTIONAL" | "PRIORITY_CLASS" | "TOTAL_REVERSION";
+export type InheritanceRule = "LUMP_SUM" | "CONTINUED_INCOME" | "TEMPORARY_ANNUITY" | "PROPORTIONAL_SPLIT";
+
+export interface FamilyMember {
+  id?: string;
+  name: string;
+  dependent_type: DependentType;
+
+  // Dados demográficos
+  birth_date?: string;  // ISO date string
+  age?: number;
+  gender?: "M" | "F";
+
+  // Configuração atuarial
+  mortality_table?: string;
+  age_differential?: number;
+
+  // Configuração de benefícios
+  benefit_share_percentage: number;
+  economic_dependency: boolean;
+  eligible_until_age?: number;
+  is_disabled: boolean;
+
+  // Metadados
+  priority_class: number;
+  notes?: string;
+}
+
+export interface FamilyComposition {
+  members: FamilyMember[];
+  benefit_share_type: BenefitShareType;
+  inheritance_rule: InheritanceRule;
+  survivor_benefit_percentage: number;
+  minimum_survivor_income?: number;
+  enable_quota_reversion: boolean;
+}
+
 export interface SimulatorState {
   // Dados do participante
   age: number;
@@ -56,7 +95,11 @@ export interface SimulatorState {
   
   projection_years: number;
   calculation_method: "PUC" | "EAN";
-  
+
+  // === FAMÍLIA E DEPENDENTES ===
+  family?: FamilyComposition;
+  include_survivor_benefits: boolean;
+
   // Metadados
   last_update?: string;
   calculation_id?: string;
@@ -174,7 +217,24 @@ export interface SimulatorResults {
     feasibility: string;
     recommendation: string;
   };
-  
+
+  // === ANÁLISE DE SOBREVIVÊNCIA E HERANÇA ===
+  survivor_analysis?: {
+    vpa_survivor_benefits: number;
+    survivor_details: Array<{
+      member_id: string;
+      member_name: string;
+      vpa: number;
+      cash_flows: number[];
+      inheritance_value_by_age?: number[];  // Valor da função de heritor por idade
+    }>;
+  };
+
+  // Métricas de cobertura familiar
+  survivor_income_ratio?: number;      // Renda sobrevivente / Benefício original
+  inheritance_balance?: number;        // Saldo remanescente (CD)
+  family_protection_score?: number;    // Score de proteção (0-100)
+
   // Metadados
   calculation_timestamp: string;
   computation_time_ms: number;

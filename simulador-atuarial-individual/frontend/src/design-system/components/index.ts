@@ -59,6 +59,7 @@ export {
 export { default as LoadingSpinner } from './LoadingSpinner';
 export { Accordion, AccordionItem } from './Accordion';
 export { Modal, ModalFooter } from './Modal';
+export { Drawer, DrawerFooter } from './Drawer';
 export { default as Toast } from './Toast';
 export { ToastProvider, useToast } from './ToastProvider';
 export { default as TabNavigation, tabs } from './TabNavigation';
@@ -67,3 +68,5 @@ export { default as ConnectionStatus } from './ConnectionStatus';
 export type { ConnectionState } from './ConnectionStatus';
 export { default as CurrencyInput } from './CurrencyInput';
 export { default as InfoTooltip } from './InfoTooltip';
+export { Icon } from './Icon';
+export type { IconProps } from './Icon';

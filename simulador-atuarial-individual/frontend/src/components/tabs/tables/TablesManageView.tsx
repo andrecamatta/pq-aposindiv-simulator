@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { MoreHorizontal } from 'lucide-react';
 import { useMortalityTables } from '../../admin/hooks/useMortalityTables';
 import type { MortalityTableAdmin } from '../../admin/hooks/useMortalityTables';
 import { Tooltip } from '../../../design-system/components/Tooltip';
@@ -196,10 +197,10 @@ const TablesManageView: React.FC = () => {
                           e.stopPropagation();
                           toggleDropdown(table.id);
                         }}
-                        className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                        className="flex items-center justify-center rounded-full p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                         title="Mais ações"
                       >
-                        <span className="material-icons text-gray-400" style={{ fontSize: '16px' }}>more_horiz</span>
+                        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                       </button>
 
                       {openDropdown === table.id && (

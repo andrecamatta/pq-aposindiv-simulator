@@ -1,6 +1,6 @@
 import numpy as np
 import math
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional
 from datetime import datetime
 from dataclasses import dataclass
 import time
@@ -195,6 +195,7 @@ class ActuarialEngine:
         from .rmbc_calculator import RMBCCalculator
         from .normal_cost_calculator import NormalCostCalculator
         from .projection_engine import ProjectionEngine
+        from .survivor_pension_calculator import SurvivorPensionCalculator
 
         # Cache mantido para compatibilidade
         self.cache = {}
@@ -206,6 +207,7 @@ class ActuarialEngine:
         self.rmbc_calculator = rmbc_calculator or RMBCCalculator()
         self.normal_cost_calculator = normal_cost_calculator or NormalCostCalculator()
         self.projection_engine = projection_engine or ProjectionEngine()
+        self.survivor_pension_calculator = SurvivorPensionCalculator()
 
         # Dependency injection para factories e builders
         self.results_builder = ResultsBuilder()
@@ -399,16 +401,35 @@ class ActuarialEngine:
         # Projeções atuariais para gráfico separado
         actuarial_projections = self._calculate_actuarial_projections(state, context, bd_results["projections"])
 
+        # Análise de sobrevivência e herança (se habilitado)
+        # Obter benefício mensal das projeções (primeiro benefício não-zero na aposentadoria)
+        monthly_data = bd_results["projections"]["monthly_data"]
+        monthly_benefits = monthly_data["benefits"]
+        months_to_retirement = (state.retirement_age - state.age) * 12
+        benefit_amount = next((b for i, b in enumerate(monthly_benefits[months_to_retirement:]) if b > 0), 0)
+
+        # survival_probs está em monthly_data
+        survivor_analysis = self._calculate_survivor_analysis(
+            state=state,
+            context=context,
+            benefit_amount=benefit_amount,
+            participant_survival_probs=np.array(monthly_data["survival_probs"])
+        )
+
         computation_time = (time.time() - start_time) * 1000
 
         # Usar ResultsBuilder para construção padronizada
-        return (self.results_builder
+        builder = (self.results_builder
                 .with_bd_results(bd_results)
                 .with_actuarial_projections(actuarial_projections)
                 .with_decomposition(decomposition)
                 .with_scenarios(scenarios)
-                .with_computation_time(computation_time)
-                .build_bd_results())
+                .with_computation_time(computation_time))
+
+        if survivor_analysis:
+            builder = builder.with_survivor_analysis(survivor_analysis)
+
+        return builder.build_bd_results()
 
     def _calculate_cd_simulation_with_calculator(self, state: SimulatorState, start_time: float) -> SimulatorResults:
         """Calcula simulação para plano CD (Contribuição Definida)"""
@@ -441,17 +462,106 @@ class ActuarialEngine:
         # Cenários diferenciados (atuarial vs desejado)
         cd_scenarios = self.cd_calculator.calculate_scenarios(state, context, projections, monthly_income, mortality_table)
 
-        
+        # Análise de sobrevivência e herança (se habilitado)
+        survivor_analysis = self._calculate_survivor_analysis(
+            state=state,
+            context=context,
+            benefit_amount=monthly_income,
+            participant_survival_probs=np.array(projections.get("survival_probabilities") or projections.get("survival_probs", [])),
+            projected_balances=np.array(projections.get("accumulated_reserves") or projections.get("reserves", []))
+        )
+
         computation_time = (time.time() - start_time) * 1000
-        
+
         # Usar ResultsBuilder para construção padronizada
-        return (self.results_builder
+        builder = (self.results_builder
                 .with_cd_results(cd_results)
                 .with_cd_specific_data(monthly_income, benefit_duration_years, conversion_analysis, cd_metrics)
                 .with_cd_scenarios(cd_scenarios)
-                .with_computation_time(computation_time)
-                .build_cd_results(state))
-    
+                .with_computation_time(computation_time))
+
+        if survivor_analysis:
+            builder = builder.with_survivor_analysis(survivor_analysis)
+
+        return builder.build_cd_results(state)
+
+    def _calculate_survivor_analysis(
+        self,
+        state: SimulatorState,
+        context: ActuarialContext,
+        benefit_amount: float,
+        participant_survival_probs: np.ndarray,
+        projected_balances: Optional[np.ndarray] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Calcula análise completa de sobrevivência e herança
+
+        Args:
+            state: Estado do simulador
+            context: Contexto atuarial
+            benefit_amount: Benefício mensal calculado
+            participant_survival_probs: Probabilidades de sobrevivência do titular
+            projected_balances: Saldos projetados (para CD)
+
+        Returns:
+            Dicionário com análise de sobrevivência ou None se desabilitado
+        """
+        if not state.include_survivor_benefits or not state.has_dependents:
+            return None
+
+        try:
+            # 1. Calcular VPA de pensões para múltiplos dependentes
+            pension_analysis = self.survivor_pension_calculator.calculate_multi_beneficiary_pension(
+                participant_age=state.age,
+                participant_gender=state.gender,
+                participant_mortality_table=state.mortality_table,
+                participant_survival_probs=participant_survival_probs,
+                family=state.family,
+                benefit_amount=benefit_amount,
+                discount_rate=state.discount_rate,
+                projection_years=state.projection_years,
+                timing=state.payment_timing,
+                benefit_months_per_year=state.benefit_months_per_year,
+                mortality_aggravation=state.mortality_aggravation
+            )
+
+            # 2. Para CD: calcular análise de herança com valor por idade
+            inheritance_analysis = None
+            if state.plan_type == PlanType.CD and projected_balances is not None:
+                inheritance_analysis = self.survivor_pension_calculator.calculate_inheritance_analysis(
+                    family=state.family,
+                    initial_balance=state.initial_balance,
+                    projected_balances=projected_balances,
+                    participant_survival_probs=participant_survival_probs,
+                    participant_age=state.age,
+                    projection_years=state.projection_years
+                )
+
+            # 3. Calcular score de proteção familiar
+            from .multi_life_actuarial import calculate_family_protection_score
+
+            protection_score = calculate_family_protection_score(
+                vpa_survivor_benefits=pension_analysis['vpa_survivor_benefits'],
+                target_benefit=benefit_amount,
+                survivor_income_ratio=pension_analysis['total_survivor_income_ratio'],
+                has_dependents=state.has_dependents,
+                include_survivor_benefits=state.include_survivor_benefits
+            )
+
+            # 4. Compilar resultado completo
+            return {
+                'vpa_survivor_benefits': pension_analysis['vpa_survivor_benefits'],
+                'survivor_details': pension_analysis['survivor_details'],
+                'total_survivor_income_ratio': pension_analysis['total_survivor_income_ratio'],
+                'distribution_analysis': pension_analysis['distribution_analysis'],
+                'inheritance_analysis': inheritance_analysis,
+                'family_protection_score': protection_score
+            }
+
+        except Exception as e:
+            self.logger.error(f"Erro ao calcular análise de sobrevivência: {e}")
+            return None
+
     def _validate_state(self, state: SimulatorState) -> None:
         """Valida parâmetros de entrada usando validador centralizado"""
         from .validators import StateValidator, ValidationError

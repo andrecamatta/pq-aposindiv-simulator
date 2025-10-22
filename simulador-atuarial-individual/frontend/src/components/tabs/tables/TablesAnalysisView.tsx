@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { MoreVertical } from 'lucide-react';
 import { Card, CardContent, Input, Badge, Button, useToast } from '../../../design-system/components';
 import { useMortalityTables } from '../../admin/hooks/useMortalityTables';
 import { MortalityMainChart, MortalityComparisonChart } from '../../admin/charts';
@@ -258,10 +259,10 @@ const TablesAnalysisView: React.FC = () => {
                         setShowTableMenu(!showTableMenu);
                       }}
                       disabled={actionLoading}
-                      className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      className="flex items-center justify-center rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                       title="Opções da tábua"
                     >
-                      <span className="material-icons" style={{ fontSize: '16px' }}>more_vert</span>
+                      <MoreVertical className="h-4 w-4" aria-hidden="true" />
                     </button>
 
                     {showTableMenu && (

@@ -22,7 +22,7 @@ const modalVariants = cva(
 );
 
 const modalContentVariants = cva(
-  "relative bg-white rounded-xl shadow-xl transform transition-all duration-300 ease-out max-h-[90vh] overflow-hidden",
+  "relative bg-white rounded-xl shadow-2xl transform transition-all duration-300 ease-out max-h-[90vh] overflow-hidden",
   {
     variants: {
       size: {
@@ -92,8 +92,8 @@ export const Modal: React.FC<ModalProps> = ({
   return (
     <>
       {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ease-out z-40"
+      <div
+        className="fixed inset-0 bg-black/70 transition-opacity duration-300 ease-out z-40"
         onClick={closeOnOverlay ? onClose : undefined}
         aria-hidden="true"
       />

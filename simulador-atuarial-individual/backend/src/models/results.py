@@ -79,6 +79,11 @@ class SimulatorResults(BaseModel):
     # Dados mensais detalhados (para relatórios precisos)
     monthly_data: Optional[Dict[str, List[float]]] = None         # Dados mensais: salaries, benefits, contributions, etc.
 
+    # === ANÁLISE DE SOBREVIVÊNCIA E HERANÇA ===
+    survivor_analysis: Optional[Dict[str, Any]] = None           # Análise completa de pensão/herança
+    survivor_income_ratio: Optional[float] = None                # Renda sobrevivente / Benefício original
+    inheritance_balance: Optional[float] = None                  # Saldo remanescente (CD)
+    family_protection_score: Optional[float] = None              # Score de proteção familiar (0-100)
 
     # Metadados técnicos - todos opcionais
     calculation_timestamp: Optional[datetime] = None

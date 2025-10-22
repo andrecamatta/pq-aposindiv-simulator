@@ -2,6 +2,8 @@ import React from 'react';
 import type { SimulatorResults, SimulatorState } from '../../types';
 import { formatCurrencyBR, formatSimplePercentageBR, formatIndexationBR, formatBenefitModalityBR } from '../../utils/formatBR';
 import { DeterministicChart, ActuarialChart, VPABarChart, SufficiencyBarChart, SufficiencyAnalysisChart, CDLifecycleChart, CDContributionImpactChart, SalaryBenefitEvolutionChart } from '../charts';
+import { InheritanceValueChart } from '../charts/InheritanceValueChart';
+import { SurvivorIncomeChart } from '../charts/SurvivorIncomeChart';
 
 interface ResultsTabProps {
   results: SimulatorResults | null;
@@ -277,6 +279,35 @@ const ResultsTab: React.FC<ResultsTabProps> = ({ results, state, loading }) => {
       <div className="bg-white rounded-xl shadow-sm p-8">
         <SalaryBenefitEvolutionChart results={results} state={state} />
       </div>
+
+      {/* Análise de Sobreviventes e Herança - Só mostra se incluir benefícios de sobreviventes */}
+      {state.include_survivor_benefits && results.survivor_analysis && (
+        <>
+          <div className="bg-white rounded-xl shadow-sm p-8">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Valor da Função de Heritor por Idade
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Valor esperado de herança para cada dependente, de acordo com a idade de falecimento do titular
+              </p>
+            </div>
+            <InheritanceValueChart results={results} state={state} />
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm p-8">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Projeção de Renda dos Sobreviventes
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Estimativa de renda anual para cada dependente ao longo do tempo
+              </p>
+            </div>
+            <SurvivorIncomeChart results={results} state={state} />
+          </div>
+        </>
+      )}
     </div>
   );
 };

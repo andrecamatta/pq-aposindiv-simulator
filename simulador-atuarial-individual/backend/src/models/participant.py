@@ -1,7 +1,8 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, Field
 from typing import Optional, List, Dict
 from datetime import datetime
 from enum import Enum
+import uuid
 from ..utils.pydantic_validators import EnumMixin, create_enum_validator, get_enum_value
 
 
@@ -65,6 +66,107 @@ class DisabilityEntryMode(str, Enum):
     IMMEDIATE = "IMMEDIATE"            # Invalidez imediata
     GRADUAL = "GRADUAL"               # Entrada gradual por idade
     OCCUPATION_BASED = "OCCUPATION_BASED"  # Baseada na ocupação
+
+
+# === ENUMS PARA FAMÍLIA E DEPENDENTES ===
+
+class DependentType(str, Enum):
+    """Tipos de dependentes para cálculos de pensão e herança"""
+    SPOUSE = "SPOUSE"              # Cônjuge
+    CHILD = "CHILD"                # Filho(a)
+    PARENT = "PARENT"              # Pai/Mãe
+    EX_SPOUSE = "EX_SPOUSE"        # Ex-cônjuge (pensão alimentícia)
+    OTHER = "OTHER"                # Outro dependente
+
+
+class BenefitShareType(str, Enum):
+    """Como o benefício/saldo é distribuído entre dependentes"""
+    EQUAL_QUOTA = "EQUAL_QUOTA"              # Cotas iguais entre elegíveis
+    PROPORTIONAL = "PROPORTIONAL"            # Proporcional aos %s definidos
+    PRIORITY_CLASS = "PRIORITY_CLASS"        # Classes de prioridade (Lei 8.213/91)
+    TOTAL_REVERSION = "TOTAL_REVERSION"      # Reversão total ao sobrevivente único
+
+
+class InheritanceRule(str, Enum):
+    """Regras de herança para saldo remanescente (CD)"""
+    LUMP_SUM = "LUMP_SUM"                    # Saque único do saldo
+    CONTINUED_INCOME = "CONTINUED_INCOME"    # Continua renda programada
+    TEMPORARY_ANNUITY = "TEMPORARY_ANNUITY"  # Anuidade temporária (prazo fixo)
+    PROPORTIONAL_SPLIT = "PROPORTIONAL_SPLIT" # Divide saldo por %s
+
+
+# === MODELOS DE FAMÍLIA E DEPENDENTES ===
+
+class FamilyMember(BaseModel):
+    """Membro da família / dependente para cálculos atuariais"""
+    id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = Field(min_length=1, max_length=100)
+    dependent_type: DependentType
+
+    # Dados demográficos
+    birth_date: Optional[datetime] = None     # Data de nascimento (para idade exata)
+    age: Optional[int] = None                 # Idade atual (alternativa se não tiver birth_date)
+    gender: Optional[Gender] = None           # Gênero (opcional, pode inferir da tábua)
+
+    # Configuração atuarial
+    mortality_table: Optional[str] = None     # Tábua específica (None = usa default do tipo)
+    age_differential: Optional[int] = None    # Diferença de idade vs. titular (ex: -3 = 3 anos mais novo)
+
+    # Configuração de benefícios
+    benefit_share_percentage: float = Field(default=50.0, ge=0, le=100)  # % do benefício
+    economic_dependency: bool = True          # Dependência econômica comprovada
+    eligible_until_age: Optional[int] = None  # Idade limite (ex: 21 para filhos, 24 se universitário)
+    is_disabled: bool = False                 # Invalidez (pensão vitalícia)
+
+    # Metadados
+    priority_class: int = Field(default=1, ge=1, le=3)  # Classes de prioridade legal
+    notes: Optional[str] = None
+
+    @field_validator('age', mode='before')
+    def calculate_age_from_birth_date(cls, v, info):
+        """Se birth_date fornecido, calcula idade automaticamente"""
+        if v is None and 'birth_date' in info.data and info.data['birth_date']:
+            birth = info.data['birth_date']
+            today = datetime.now()
+            return today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
+        return v
+
+    @field_validator('dependent_type', mode='before')
+    def validate_dependent_type(cls, v):
+        return create_enum_validator(DependentType)(cls, v)
+
+    @field_validator('gender', mode='before')
+    def validate_gender_optional(cls, v):
+        if v is None:
+            return v
+        return create_enum_validator(Gender)(cls, v)
+
+
+class FamilyComposition(BaseModel):
+    """Agregado que encapsula toda a estrutura familiar"""
+    members: List[FamilyMember] = Field(default_factory=list)
+
+    # Configurações globais de distribuição
+    benefit_share_type: BenefitShareType = BenefitShareType.EQUAL_QUOTA
+    inheritance_rule: InheritanceRule = InheritanceRule.CONTINUED_INCOME  # Para CD
+
+    # Regras de pensão
+    survivor_benefit_percentage: float = Field(default=100.0, ge=0, le=100)  # % do benefício original
+    minimum_survivor_income: Optional[float] = None  # Piso mínimo regulatório
+    enable_quota_reversion: bool = True              # Reversão quando dependente perde elegibilidade
+
+    @field_validator('benefit_share_type', mode='before')
+    def validate_benefit_share_type(cls, v):
+        return create_enum_validator(BenefitShareType)(cls, v)
+
+    @field_validator('inheritance_rule', mode='before')
+    def validate_inheritance_rule(cls, v):
+        return create_enum_validator(InheritanceRule)(cls, v)
+
+    @classmethod
+    def empty(cls) -> "FamilyComposition":
+        """Retorna composição vazia (sem dependentes) - para compatibilidade retroativa"""
+        return cls(members=[], benefit_share_type=BenefitShareType.EQUAL_QUOTA)
 
 
 class SimulatorState(BaseModel, EnumMixin):
@@ -132,10 +234,19 @@ class SimulatorState(BaseModel, EnumMixin):
     # Configurações de cálculo
     projection_years: int      # Horizonte de projeção
     calculation_method: CalculationMethod
-    
+
+    # === FAMÍLIA E DEPENDENTES ===
+    family: Optional[FamilyComposition] = Field(default_factory=FamilyComposition.empty)
+    include_survivor_benefits: bool = False  # Flag para ativar cálculos de pensão/herança
+
     # Metadados
     last_update: Optional[datetime] = None
     calculation_id: Optional[str] = None
+
+    @property
+    def has_dependents(self) -> bool:
+        """Verifica se há dependentes cadastrados"""
+        return self.family is not None and len(self.family.members) > 0
 
     @field_validator('mortality_aggravation')
     def validate_mortality_aggravation(cls, v):

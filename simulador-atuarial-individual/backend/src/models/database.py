@@ -12,9 +12,19 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     email: str = Field(unique=True)
+
+    # Google OAuth fields
+    google_id: Optional[str] = Field(default=None, unique=True, index=True)
+    avatar_url: Optional[str] = None
+
+    # Status
+    is_active: bool = Field(default=True)
+
+    # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = None
-    
+    last_login_at: Optional[datetime] = None
+
     # Relacionamentos
     profiles: List["UserProfile"] = Relationship(back_populates="user")
 

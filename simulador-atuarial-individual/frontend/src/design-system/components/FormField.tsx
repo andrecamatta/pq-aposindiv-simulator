@@ -1,5 +1,4 @@
 import React from 'react';
-import { HelpCircle } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 
 interface FormFieldProps {
@@ -32,22 +31,25 @@ export const FormField: React.FC<FormFieldProps> = ({
     ? "block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1"
     : "text-sm font-medium text-gray-700";
 
+  const LabelContent = (
+    <label
+      htmlFor={htmlFor}
+      className={`${labelClass} ${tooltip ? 'cursor-help' : ''}`}
+    >
+      {label}
+      {required && <span className="text-red-500 ml-1">*</span>}
+    </label>
+  );
+
   return (
     <div className={containerClass}>
-      <div className="flex items-center gap-2">
-        <label
-          htmlFor={htmlFor}
-          className={labelClass}
-        >
-          {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        {tooltip && (
-          <Tooltip content={tooltip}>
-            <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
-          </Tooltip>
-        )}
-      </div>
+      {tooltip ? (
+        <Tooltip content={tooltip}>
+          {LabelContent}
+        </Tooltip>
+      ) : (
+        LabelContent
+      )}
       {children}
       {helper && (
         <p className="text-xs text-slate-500 leading-tight mt-1">

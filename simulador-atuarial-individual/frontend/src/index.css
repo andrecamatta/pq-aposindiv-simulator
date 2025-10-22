@@ -24,6 +24,16 @@ body {
   overflow-x: hidden;
 }
 
+/* Oculta barras de rolagem em containers horizontais decorativos */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Forçar tabelas responsivas */
 table {
   display: block;

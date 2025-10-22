@@ -27,6 +27,7 @@ class ResultsBuilder:
         self._actuarial_scenario: Dict[str, Any] = {}
         self._desired_scenario: Dict[str, Any] = {}
         self._scenario_comparison: Dict[str, Any] = {}
+        self._survivor_analysis: Dict[str, Any] = None
 
     def with_bd_results(self, bd_results: Dict[str, Any]) -> 'ResultsBuilder':
         """Configura resultados BD"""
@@ -79,6 +80,11 @@ class ResultsBuilder:
     def with_computation_time(self, computation_time: float) -> 'ResultsBuilder':
         """Configura tempo de computação"""
         self._computation_time = computation_time
+        return self
+
+    def with_survivor_analysis(self, survivor_analysis: Dict[str, Any]) -> 'ResultsBuilder':
+        """Configura análise de sobrevivência e herança"""
+        self._survivor_analysis = survivor_analysis
         return self
 
     def build_bd_results(self) -> SimulatorResults:
@@ -135,6 +141,11 @@ class ResultsBuilder:
 
             # Tempo de computação
             computation_time_ms=self._computation_time,
+
+            # Análise de sobrevivência e herança
+            survivor_analysis=self._survivor_analysis,
+            survivor_income_ratio=self._survivor_analysis.get("total_survivor_income_ratio") if self._survivor_analysis else None,
+            family_protection_score=self._survivor_analysis.get("family_protection_score") if self._survivor_analysis else None,
 
             # Campos CD zerados
             accumulated_balance=0.0,
@@ -222,6 +233,12 @@ class ResultsBuilder:
             actuarial_scenario=self._actuarial_scenario,
             desired_scenario=self._desired_scenario,
             scenario_comparison=self._scenario_comparison,
+
+            # Análise de sobrevivência e herança
+            survivor_analysis=self._survivor_analysis,
+            survivor_income_ratio=self._survivor_analysis.get("total_survivor_income_ratio") if self._survivor_analysis else None,
+            inheritance_balance=self._survivor_analysis.get("inheritance_analysis", {}).get("expected_inheritance_value") if self._survivor_analysis and self._survivor_analysis.get("inheritance_analysis") else None,
+            family_protection_score=self._survivor_analysis.get("family_protection_score") if self._survivor_analysis else None,
 
             # Tempo de computação
             computation_time_ms=self._computation_time

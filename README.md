@@ -86,28 +86,35 @@ docker-compose up -d --build
 - **Backend API**: http://localhost:8000
 - **Documentação API**: http://localhost:8000/docs
 
-Para mais detalhes sobre deployment, consulte [DEPLOY.md](simulador-atuarial-individual/DEPLOY.md).
+Para mais detalhes sobre deployment, consulte [docs/deployment/DEPLOY.md](docs/deployment/DEPLOY.md).
 
 ## 🔧 Desenvolvimento
 
 ### Estrutura do Projeto
 ```
-simulador-atuarial-individual/
-├── backend/
-│   ├── src/
-│   │   ├── api/           # Endpoints FastAPI
-│   │   ├── core/          # Lógica atuarial
-│   │   ├── models/        # Modelos de dados
-│   │   └── utils/         # Utilitários compartilhados
-│   └── pyproject.toml
-├── frontend/
-│   ├── src/
-│   │   ├── components/    # Componentes React
-│   │   ├── hooks/         # Hooks customizados
-│   │   ├── utils/         # Utilitários compartilhados
-│   │   └── design-system/ # Sistema de design
-│   └── package.json
-└── README.md
+pq_aposindiv/
+├── simulador-atuarial-individual/
+│   ├── backend/
+│   │   ├── src/
+│   │   │   ├── api/           # Endpoints FastAPI
+│   │   │   ├── core/          # Lógica atuarial
+│   │   │   ├── models/        # Modelos de dados
+│   │   │   └── utils/         # Utilitários compartilhados
+│   │   └── tests/             # Testes unitários e de integração
+│   ├── frontend/
+│   │   ├── src/
+│   │   │   ├── components/    # Componentes React
+│   │   │   ├── hooks/         # Hooks customizados
+│   │   │   ├── utils/         # Utilitários compartilhados
+│   │   │   └── design-system/ # Sistema de design
+│   │   └── tests/             # Testes E2E (Playwright)
+│   └── docs/                  # Especificações técnicas
+├── docs/
+│   ├── deployment/            # Guias de deploy
+│   ├── data-sources/          # Arquivos de referência (Excel)
+│   └── README.md              # Índice da documentação
+├── CLAUDE.md                  # Instruções de desenvolvimento
+└── README.md                  # Este arquivo
 ```
 
 ### Princípios de Código
