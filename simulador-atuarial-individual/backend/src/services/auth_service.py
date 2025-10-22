@@ -18,6 +18,7 @@ from ..core.auth_config import (
     GOOGLE_TOKEN_URL,
     GOOGLE_USERINFO_URL,
     GOOGLE_SCOPES,
+    is_email_allowed,
 )
 from ..models.database import User
 
@@ -105,6 +106,14 @@ class AuthService:
         email = google_user_info.get("email")
         name = google_user_info.get("name", email.split("@")[0])
         avatar_url = google_user_info.get("picture")
+
+        # Verificar se email está na whitelist
+        if not is_email_allowed(email):
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=403,
+                detail=f"Email '{email}' não está autorizado a acessar este sistema. Entre em contato com o administrador."
+            )
 
         # Verificar se usuário já existe por google_id
         statement = select(User).where(User.google_id == google_id)

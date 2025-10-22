@@ -19,16 +19,16 @@ export function LoginPage() {
       <div className="max-w-md w-full mx-4">
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           {/* Logo */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <img
               src="/logo.png"
               alt="PrevLab Logo"
-              className="h-20 mx-auto mb-4"
+              className="h-8 mx-auto mb-3"
             />
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">
               PrevLab
             </h1>
-            <p className="text-gray-600">
+            <p className="text-sm text-gray-600">
               Plataforma de Simulação Atuarial
             </p>
           </div>

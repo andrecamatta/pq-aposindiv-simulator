@@ -8,6 +8,8 @@
 
 ENABLE_AUTH=true
 
+ALLOWED_EMAILS=andrecamatta@gmail.com,isabeladpimentel@gmail.com,diogobira@gmail.com
+
 SECRET_KEY=bc7eb8a342ff774c49bb7feb45eaab2c3aaa2be4664a70f548fc2d1065bbcfe2
 
 GOOGLE_CLIENT_ID=<SEU-CLIENT-ID>.apps.googleusercontent.com
@@ -20,13 +22,16 @@ GOOGLE_REDIRECT_URI=https://pq-aposindiv-simulator-production.up.railway.app/aut
 
 ⚠️  IMPORTANTE:
 
-1. Substitua <SEU-CLIENT-ID> e <SEU-CLIENT-SECRET> pelos valores
+1. Substitua os emails em ALLOWED_EMAILS pelos emails que devem ter
+   acesso ao sistema (separados por vírgula, sem espaços)
+
+2. Substitua <SEU-CLIENT-ID> e <SEU-CLIENT-SECRET> pelos valores
    do Google OAuth Console
 
-2. O GOOGLE_REDIRECT_URI deve ser EXATAMENTE igual ao configurado
+3. O GOOGLE_REDIRECT_URI deve ser EXATAMENTE igual ao configurado
    no Google Console (sem trailing slash!)
 
-3. Após salvar, Railway fará redeploy automático
+4. Após salvar, Railway fará redeploy automático
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

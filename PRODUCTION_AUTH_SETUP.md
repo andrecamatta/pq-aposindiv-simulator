@@ -66,6 +66,11 @@
 # ========== AUTENTICAÇÃO (OBRIGATÓRIO) ==========
 ENABLE_AUTH=true
 
+# ========== CONTROLE DE ACESSO (WHITELIST) ==========
+# Lista de emails autorizados separados por vírgula (SEM ESPAÇOS)
+# Use "*" para permitir qualquer email do Google
+ALLOWED_EMAILS=andrecamatta@gmail.com,isabeladpimentel@gmail.com,diogobira@gmail.com
+
 # Google OAuth Credentials (copiar do Google Console)
 GOOGLE_CLIENT_ID=SEU-CLIENT-ID-AQUI.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-SEU-CLIENT-SECRET-AQUI
@@ -176,6 +181,25 @@ curl https://pq-aposindiv-simulator-production.up.railway.app/auth/health
 3. Certifique-se que é o MESMO em todos os deploys
 4. Limpe o localStorage do navegador (F12 → Application → Clear)
 
+### Problema: "Email não está autorizado a acessar este sistema"
+
+**Causa:** Email não está na whitelist configurada em ALLOWED_EMAILS
+
+**Solução:**
+1. Verifique a variável `ALLOWED_EMAILS` no Railway
+2. Adicione o email do usuário à lista (separado por vírgula)
+   ```
+   ALLOWED_EMAILS=andrecamatta@gmail.com,isabeladpimentel@gmail.com,diogobira@gmail.com,novousuario@gmail.com
+   ```
+3. **IMPORTANTE**: Não adicione espaços entre os emails!
+4. Salvar → Aguardar redeploy
+5. Usuário pode tentar login novamente
+
+**Alternativa:** Para permitir qualquer email temporariamente (desenvolvimento):
+```
+ALLOWED_EMAILS=*
+```
+
 ---
 
 ## 🎯 Resumo Rápido
@@ -185,6 +209,7 @@ Para ativar auth em produção:
 1. **Google Console** → Criar OAuth Client → Copiar ID e Secret
 2. **Railway Variables** → Adicionar:
    - `ENABLE_AUTH=true`
+   - `ALLOWED_EMAILS=andrecamatta@gmail.com,isabeladpimentel@gmail.com,diogobira@gmail.com`
    - `GOOGLE_CLIENT_ID=...`
    - `GOOGLE_CLIENT_SECRET=...`
    - `GOOGLE_REDIRECT_URI=https://pq-aposindiv-simulator-production.up.railway.app/auth/success`
