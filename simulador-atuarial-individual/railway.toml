@@ -20,19 +20,12 @@ dockerfilePath = "Dockerfile.railway"
 buildContext = "."
 
 [deploy]
-# Estratégia de deploy: Rolling (zero downtime)
+# Comando de inicialização
 startCommand = "/app/start.sh"
 
 # Health check
 healthcheckPath = "/health"
 healthcheckTimeout = 10
-
-# Restart policy
-restartPolicyType = "on-failure"
-restartPolicyMaxRetries = 3
-
-# Número de réplicas (1 para começar)
-numReplicas = 1
 
 [env]
 # Variáveis de ambiente (podem ser sobrescritas no dashboard)
