@@ -1,8 +1,14 @@
 import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthProvider } from './contexts/AuthContext';
+import { PrivateRoute } from './components/auth/PrivateRoute';
+import { LoginPage } from './pages/LoginPage';
+import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { useSimulator } from './hooks/useSimulator';
 import TabbedDashboard from './components/sections/TabbedDashboard';
 import { ToastProvider } from './design-system/components';
+import { AuthHeader } from './components/auth/AuthHeader';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,6 +77,7 @@ const SimulatorApp: React.FC = () => {
 
   return (
     <div data-testid="simulator-ready">
+      <AuthHeader />
       <TabbedDashboard
         state={state}
         results={results}
@@ -89,9 +96,30 @@ const SimulatorApp: React.FC = () => {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastProvider maxToasts={5}>
-        <SimulatorApp />
-      </ToastProvider>
+      <AuthProvider>
+        <ToastProvider maxToasts={5}>
+          <Routes>
+            {/* Rota pública de login */}
+            <Route path="/login" element={<LoginPage />} />
+
+            {/* Callback do OAuth */}
+            <Route path="/auth/success" element={<AuthCallbackPage />} />
+
+            {/* Rota principal protegida */}
+            <Route
+              path="/"
+              element={
+                <PrivateRoute>
+                  <SimulatorApp />
+                </PrivateRoute>
+              }
+            />
+
+            {/* Redirecionar rotas desconhecidas para home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ToastProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
