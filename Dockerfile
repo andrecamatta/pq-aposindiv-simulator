@@ -102,7 +102,7 @@ RUN rm -f /etc/nginx/sites-enabled/default \
 
 # Variáveis de ambiente padrão
 ENV PYTHONUNBUFFERED=1 \
-    DATABASE_URL=sqlite:///./data/db/prevlab.db \
+    DATABASE_URL=sqlite:///./data/simulador.db \
     LOG_LEVEL=info \
     WORKERS=2 \
     PORT=8080
@@ -111,18 +111,37 @@ ENV PYTHONUNBUFFERED=1 \
 EXPOSE ${PORT}
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+# start-period aumentado para 60s: tempo para supervisor iniciar nginx + uvicorn
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
 # Script de inicialização
 RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
+echo "==> [START] PrevLab iniciando..."\n\
+echo "==> [INFO] PORT=$PORT"\n\
+echo "==> [INFO] WORKERS=$WORKERS"\n\
+echo "==> [INFO] DATABASE_URL=$DATABASE_URL"\n\
+\n\
 # Substituir PORT no nginx.conf (Railway define dinamicamente)\n\
+echo "==> [CONFIG] Configurando nginx na porta $PORT..."\n\
 envsubst '"'"'${PORT}'"'"' < /etc/nginx/sites-available/default > /tmp/nginx.conf\n\
 mv /tmp/nginx.conf /etc/nginx/sites-available/default\n\
 \n\
+# Testar configuração do nginx\n\
+echo "==> [TEST] Testando configuração do nginx..."\n\
+nginx -t || { echo "==> [ERROR] Nginx config inválida!"; exit 1; }\n\
+\n\
+# Verificar se banco de dados existe\n\
+if [ -f "/app/data/simulador.db" ]; then\n\
+    echo "==> [DB] Banco de dados encontrado em /app/data/simulador.db"\n\
+else\n\
+    echo "==> [WARNING] Banco de dados NÃO encontrado!"\n\
+fi\n\
+\n\
 # Iniciar supervisor (gerencia nginx + uvicorn)\n\
+echo "==> [SUPERVISOR] Iniciando supervisor..."\n\
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf' > /app/start.sh \
     && chmod +x /app/start.sh
 
